@@ -73,23 +73,10 @@ class BankAnalyzer:
         logger.info(f"Начинаем анализ: {self.pdf_path}")
         self._emit("init", 5, "Инициализация анализа", "Загрузка файла...")
 
-        # Для XLSX сразу определяем как Binance (единственный поддерживаемый XLSX формат)
-        file_lower = self.pdf_path.lower()
-        if file_lower.endswith('.xlsx') or file_lower.endswith('.xls'):
-            from .detector import BankDetectionResult
-            self.detection_result = BankDetectionResult(
-                bank_type=BankType.BINANCE,
-                confidence=0.95,
-                bank_name="Binance",
-                detected_keywords=["xlsx", "binance"],
-                metadata={"source": "file_extension"}
-            )
-            logger.info("XLSX файл → автоматически определён как Binance")
-        else:
-            # 1. Определяем банк (PDF)
-            self._emit("detecting", 10, "Определение банка", "Сканирование PDF...")
-            detector = BankDetector(self.pdf_path)
-            self.detection_result = detector.detect()
+        # 1. Определяем банк (PDF или XLSX — детектор поддерживает оба формата)
+        self._emit("detecting", 10, "Определение банка", "Сканирование файла...")
+        detector = BankDetector(self.pdf_path)
+        self.detection_result = detector.detect()
 
         logger.info(
             f"Определён банк: {self.detection_result.bank_name} "

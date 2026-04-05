@@ -39,8 +39,18 @@ class KaspiParser(BaseParser):
         self.account.bank_name = "Kaspi Bank"
         self.account.currency = "KZT"
 
+    def _is_excel(self) -> bool:
+        """Проверить, является ли файл Excel"""
+        return self.pdf_path.lower().endswith(('.xlsx', '.xls'))
+
     def parse(self) -> bool:
-        """Основной метод парсинга"""
+        """Основной метод парсинга (PDF или Excel)"""
+        if self._is_excel():
+            return self._parse_excel()
+        return self._parse_pdf()
+
+    def _parse_pdf(self) -> bool:
+        """Парсинг PDF выписки Kaspi"""
         try:
             logger.info(f"Парсинг Kaspi PDF: {self.pdf_path}")
 
@@ -62,6 +72,168 @@ class KaspiParser(BaseParser):
             logger.error(f"Ошибка парсинга Kaspi PDF: {e}", exc_info=True)
             self.errors.append(f"Ошибка парсинга: {str(e)}")
             return False
+
+    def _parse_excel(self) -> bool:
+        """
+        Парсинг Excel выписки в формате Kaspi Gold
+        Формат: единый лист с заголовком аккаунта вверху, затем таблица транзакций
+        Колонки: Дата | Сумма | Операция | Детали
+        """
+        try:
+            import openpyxl
+            logger.info(f"Парсинг Kaspi Excel: {self.pdf_path}")
+
+            wb = openpyxl.load_workbook(self.pdf_path, read_only=True, data_only=True)
+            sheet = wb.worksheets[0]
+
+            rows = list(sheet.iter_rows(values_only=True))
+            if not rows:
+                self.errors.append("Excel файл пустой")
+                return False
+
+            # Фаза 1: Парсинг заголовка (информация о счёте)
+            header_end = self._parse_excel_header(rows)
+
+            # Фаза 2: Найти строку заголовка таблицы транзакций
+            tx_start = None
+            for i in range(header_end, len(rows)):
+                row_text = ' '.join(str(c or '').lower() for c in rows[i])
+                if 'дата' in row_text and ('сумма' in row_text or 'операция' in row_text):
+                    tx_start = i + 1  # Данные начинаются после заголовка
+                    break
+
+            if tx_start is None:
+                # Без заголовка — пробуем первую строку с датой
+                for i in range(header_end, len(rows)):
+                    first_cell = str(rows[i][0] or '').strip()
+                    if re.match(r'\d{2}\.\d{2}\.\d{2}', first_cell):
+                        tx_start = i
+                        break
+
+            if tx_start is None:
+                self.errors.append("Не найдены транзакции в Excel файле")
+                return False
+
+            # Фаза 3: Парсинг транзакций
+            for row_idx, row in enumerate(rows[tx_start:]):
+                if not row or not row[0]:
+                    continue
+                # Конвертируем в список строк (как pdfplumber таблица)
+                row_list = [str(c or '').strip() for c in row[:4]]
+                if len(row_list) < 4:
+                    row_list.extend([''] * (4 - len(row_list)))
+
+                tx = self._parse_transaction_row(row_list, page_num=0, row_idx=row_idx)
+                if tx:
+                    # Если есть колонка баланса (5-я колонка)
+                    if len(row) > 4 and row[4] is not None:
+                        try:
+                            balance_str = str(row[4]).strip()
+                            tx.balance_after = self._parse_numeric(balance_str)
+                        except (ValueError, TypeError):
+                            pass
+                    self.transactions.append(tx)
+
+            wb.close()
+            logger.info(f"Успешно спарсено {len(self.transactions)} транзакций из Excel")
+            return len(self.transactions) > 0
+
+        except Exception as e:
+            logger.error(f"Ошибка парсинга Kaspi Excel: {e}", exc_info=True)
+            self.errors.append(f"Ошибка парсинга Excel: {str(e)}")
+            return False
+
+    def _parse_excel_header(self, rows) -> int:
+        """
+        Парсинг заголовочных строк Excel (информация о счёте, итоги)
+        Возвращает индекс первой строки после заголовка
+        """
+        header_end = 0
+        name_parts = []
+
+        for i, row in enumerate(rows):
+            if not row:
+                continue
+            row_strs = [str(c or '').strip() for c in row]
+            row_text = ' '.join(row_strs).lower()
+
+            # Ищем карту, счёт, владельца (формат Kaspi: имя в col A, карта/счёт в col C-D)
+            for j, cell in enumerate(row_strs):
+                cell_lower = cell.lower()
+
+                if 'владелец' in cell_lower or 'клиент' in cell_lower or 'фио' in cell_lower:
+                    if j + 1 < len(row_strs) and row_strs[j + 1]:
+                        self.account.owner = row_strs[j + 1]
+                    elif ':' in cell:
+                        self.account.owner = cell.split(':', 1)[1].strip()
+
+                if 'номер карты' in cell_lower:
+                    if j + 1 < len(row_strs) and row_strs[j + 1]:
+                        card = row_strs[j + 1]
+                        if card.startswith('*') or card.replace(' ', '').isdigit():
+                            self.account.card_number = card
+                    # В Kaspi формате имя владельца — в col A этой же строки
+                    if row_strs[0] and self._is_name_part(row_strs[0]):
+                        name_parts.append(row_strs[0])
+
+                if 'номер счета' in cell_lower:
+                    if j + 1 < len(row_strs) and row_strs[j + 1]:
+                        acc = row_strs[j + 1]
+                        if acc.startswith('KZ'):
+                            self.account.account_number = acc
+                    # Продолжение имени
+                    if row_strs[0] and self._is_name_part(row_strs[0]):
+                        name_parts.append(row_strs[0])
+
+            # Период
+            period_match = re.search(
+                r'(?:период|за период)[:\s]*с?\s*(\d{2}\.\d{2}\.\d{2,4})\s*[-–по]+\s*(\d{2}\.\d{2}\.\d{2,4})',
+                ' '.join(row_strs), re.IGNORECASE
+            )
+            if period_match:
+                self.account.period_start = self._parse_date(period_match.group(1))
+                self.account.period_end = self._parse_date(period_match.group(2))
+
+            # Итоги — "Доступно на ..." или "Пополнения" и т.д.
+            if len(row_strs) >= 2:
+                label = row_strs[0].lower()
+                value = row_strs[1] if len(row_strs) > 1 else ''
+
+                if 'доступно' in label:
+                    amount = self._parse_signed_amount(value)
+                    if self.account.balance_start == 0:
+                        self.account.balance_start = amount
+                    else:
+                        self.account.balance_end = amount
+                elif 'пополнен' in label:
+                    self.expected_totals.deposits = abs(self._parse_signed_amount(value))
+                elif 'перевод' in label:
+                    self.expected_totals.transfers = abs(self._parse_signed_amount(value))
+                elif 'покупк' in label:
+                    self.expected_totals.purchases = abs(self._parse_signed_amount(value))
+                elif 'снят' in label:
+                    self.expected_totals.withdrawals = abs(self._parse_signed_amount(value))
+                elif 'разно' in label:
+                    self.expected_totals.other = abs(self._parse_signed_amount(value))
+
+            # Определяем конец заголовка — когда встречаем строку с "Дата" (заголовок таблицы)
+            if 'дата' in row_text and ('операция' in row_text or 'сумма' in row_text):
+                header_end = i
+                break
+
+            # Или первая строка с датой в формате DD.MM.YY
+            first_cell = row_strs[0] if row_strs else ''
+            if re.match(r'\d{2}\.\d{2}\.\d{2}', first_cell):
+                header_end = i
+                break
+
+            header_end = i + 1
+
+        # Собираем имя владельца из найденных частей
+        if name_parts and not self.account.owner:
+            self.account.owner = ' '.join(name_parts)
+
+        return header_end
 
     def _parse_account_info(self) -> None:
         """Реализовано в _parse_first_page_tables"""

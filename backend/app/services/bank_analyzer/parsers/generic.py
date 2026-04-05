@@ -60,8 +60,18 @@ class GenericParser(BaseParser):
         self.detected_date_format = None
         self.detected_currency = "KZT"
 
+    def _is_excel(self) -> bool:
+        """Проверить, является ли файл Excel"""
+        return self.pdf_path.lower().endswith(('.xlsx', '.xls'))
+
     def parse(self) -> bool:
-        """Адаптивный парсинг с автоопределением структуры"""
+        """Адаптивный парсинг с автоопределением структуры (PDF или Excel)"""
+        if self._is_excel():
+            return self._parse_excel()
+        return self._parse_pdf()
+
+    def _parse_pdf(self) -> bool:
+        """Адаптивный парсинг PDF"""
         try:
             logger.info(f"Адаптивный парсинг PDF: {self.pdf_path}")
 
@@ -87,6 +97,80 @@ class GenericParser(BaseParser):
             logger.error(f"Ошибка адаптивного парсинга: {e}", exc_info=True)
             self.errors.append(f"Ошибка парсинга: {str(e)}")
             return False
+
+    def _parse_excel(self) -> bool:
+        """Адаптивный парсинг Excel файла"""
+        try:
+            import openpyxl
+            logger.info(f"Адаптивный парсинг Excel: {self.pdf_path}")
+
+            wb = openpyxl.load_workbook(self.pdf_path, read_only=True, data_only=True)
+            sheet = wb.worksheets[0]
+
+            rows = list(sheet.iter_rows(values_only=True))
+            if not rows:
+                return False
+
+            # Ищем строку-заголовок таблицы
+            header_idx = None
+            for i, row in enumerate(rows):
+                row_text = ' '.join(str(c or '').lower() for c in row)
+                if any(w in row_text for w in ['дата', 'date']) and any(w in row_text for w in ['сумма', 'amount', 'операция', 'type']):
+                    header_idx = i
+                    break
+
+            if header_idx is not None:
+                column_mapping = self._detect_columns([str(c or '') for c in rows[header_idx]])
+                data_start = header_idx + 1
+            else:
+                # Определяем по первой строке данных
+                column_mapping = {}
+                data_start = 0
+                for i, row in enumerate(rows):
+                    first_cell = str(row[0] or '').strip() if row and row[0] else ''
+                    for pattern, _ in self.DATE_PATTERNS:
+                        if re.match(pattern, first_cell):
+                            data_start = i
+                            column_mapping = self._detect_columns_by_data([str(c or '') for c in row])
+                            break
+                    if column_mapping:
+                        break
+
+            # Определение структуры из первых строк (для валюты и т.д.)
+            preview_text = '\n'.join(' '.join(str(c or '') for c in row) for row in rows[:10])
+            self._detect_structure_from_text(preview_text)
+
+            # Парсинг строк
+            for row in rows[data_start:]:
+                if not row or not any(row):
+                    continue
+                row_list = [str(c or '').strip() for c in row]
+                tx = self._parse_row_adaptive(row_list, column_mapping)
+                if tx:
+                    self.transactions.append(tx)
+
+            wb.close()
+            self._infer_account_info()
+
+            logger.info(f"Адаптивно спарсено {len(self.transactions)} транзакций из Excel")
+            return len(self.transactions) > 0
+
+        except Exception as e:
+            logger.error(f"Ошибка адаптивного парсинга Excel: {e}", exc_info=True)
+            self.errors.append(f"Ошибка парсинга Excel: {str(e)}")
+            return False
+
+    def _detect_structure_from_text(self, text: str) -> None:
+        """Определение валюты и формата даты из текста"""
+        for symbol, currency in self.CURRENCY_SYMBOLS.items():
+            if symbol in text:
+                self.detected_currency = currency
+                self.account.currency = currency
+                break
+        for pattern, date_format in self.DATE_PATTERNS:
+            if re.search(pattern, text):
+                self.detected_date_format = date_format
+                break
 
     def _parse_account_info(self) -> None:
         """Будет вызвано из _detect_structure"""
