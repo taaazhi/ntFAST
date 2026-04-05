@@ -1,399 +1,344 @@
 # ntFAST
 ### Financial Analysis System for Transactions
 
-**Версия:** 1.0.0
-**Дата обновления:** 22 ноября 2025
-**Последняя актуальная версия с полным функционалом**
+**Версия:** 2.0.0
+**Дата обновления:** 5 апреля 2026
+**Автор:** Нурдаулет
 
 ---
 
-## 📋 СОДЕРЖАНИЕ
+## О проекте
 
-1. [О проекте](#о-проекте)
-2. [Структура проекта](#структура-проекта)
-3. [Требования](#требования)
-4. [Быстрый старт](#быстрый-старт)
-5. [Функциональность](#функциональность)
-6. [Тестирование](#тестирование)
-7. [Устранение проблем](#устранение-проблем)
+**ntFAST** — корпоративная платформа для анализа финансовых транзакций и выявления мошенничества, разработанная для Республики Казахстан.
 
----
+### Ключевые возможности
 
-## 🎯 О ПРОЕКТЕ
-
-Корпоративная система для анализа финансовых транзакций с функциями:
-- Мультиязычность (Русский, Казахский, Английский)
-- WebSocket для обновлений в реальном времени
-- Email верификация пользователей
-- Управление пользователями и правами доступа
-- Мониторинг активности пользователей
-- Тёмная/светлая тема
-- Время отображается в timezone Алматы (Asia/Almaty)
+- **FraudEngine v4** — 15+ модулей детекции мошенничества (графовый анализ, поведенческий анализ, NLP, структурирование, velocity-проверки и др.)
+- **Умный парсинг** — автоматический разбор банковских выписок (PDF, CSV, XLSX, XLS), включая Kaspi Bank
+- **Мультиязычность** — русский, казахский, английский
+- **Real-time мониторинг** — WebSocket обновления прогресса анализа
+- **Email верификация** — подтверждение регистрации по email
+- **Управление пользователями** — роли (admin/user), блокировка, история входов
+- **Мониторинг активности** — автоматический выход при неактивности
+- **PDF-отчёты** — генерация отчётов через ReportLab
+- **Тёмная/светлая тема**
+- **Часовой пояс** — Asia/Almaty
 
 ---
 
-## 📁 СТРУКТУРА ПРОЕКТА
+## Технологический стек
+
+| Компонент | Технология |
+|-----------|-----------|
+| **Backend** | FastAPI + Python 3.11 |
+| **Frontend** | React 18 + TypeScript 5 + Vite 5 |
+| **База данных** | PostgreSQL 16 (основная) / SQLite (fallback) |
+| **Кэш / Очереди** | Redis 7 + Celery |
+| **UI** | Tailwind CSS 3 + Framer Motion + Recharts |
+| **Деплой** | Railway / Docker Compose |
+
+---
+
+## Структура проекта
 
 ```
 FinancialAnalysisSystem/
-├── frontend/              # React + TypeScript + Vite
-│   ├── src/
-│   │   ├── components/    # Компоненты UI
-│   │   ├── pages/         # Страницы приложения
-│   │   ├── context/       # React Context (Auth, Theme, Language)
-│   │   ├── services/      # API клиент
-│   │   ├── hooks/         # Custom hooks (Activity Monitor)
-│   │   └── i18n.ts        # Настройки локализации
-│   ├── package.json
-│   └── vite.config.ts
-│
-├── backend/               # FastAPI + SQLite
+├── backend/                    # FastAPI backend
 │   ├── app/
-│   │   ├── api/           # API роутеры
-│   │   │   ├── auth.py
-│   │   │   ├── email_verification.py
-│   │   │   ├── users.py
-│   │   │   ├── websocket.py
-│   │   │   ├── subjects.py
-│   │   │   ├── analyses.py
-│   │   │   └── transactions.py
-│   │   ├── core/          # Конфигурация, БД, безопасность
-│   │   ├── models/        # SQLAlchemy модели
-│   │   ├── schemas/       # Pydantic схемы
-│   │   ├── services/      # Бизнес-логика
+│   │   ├── api/                # API роутеры
+│   │   │   ├── auth.py         # /api/auth — авторизация, JWT
+│   │   │   ├── email_verification.py  # /api/email-verification
+│   │   │   ├── users.py        # /api/users — управление пользователями
+│   │   │   ├── analyses.py     # /api/analyses — анализы
+│   │   │   ├── transactions.py # /api/transactions
+│   │   │   ├── subjects.py     # /api/subjects — субъекты
+│   │   │   ├── bank_analysis.py    # /api/bank — банковские выписки
+│   │   │   ├── pdf_analysis.py     # /api/pdf-analysis
+│   │   │   ├── kaspi_analysis.py   # Kaspi Bank анализ
+│   │   │   └── websocket.py    # /ws — WebSocket
+│   │   ├── core/               # Конфигурация, БД, безопасность
+│   │   ├── models/             # SQLAlchemy модели
+│   │   ├── schemas/            # Pydantic схемы
+│   │   ├── services/
+│   │   │   ├── fraud/          # FraudEngine v4 (15+ модулей)
+│   │   │   │   ├── engine.py           # Главный движок
+│   │   │   │   ├── graph_analysis.py   # Графовый анализ связей
+│   │   │   │   ├── behavioral.py       # Поведенческий анализ
+│   │   │   │   ├── nlp_analyzer.py     # NLP анализ описаний
+│   │   │   │   ├── velocity.py         # Velocity-проверки
+│   │   │   │   ├── structuring.py      # Детекция структурирования
+│   │   │   │   ├── pattern_detector.py # Паттерны мошенничества
+│   │   │   │   ├── duplicate_detector.py # Дубликаты транзакций
+│   │   │   │   ├── merchant_risk.py    # Риск контрагентов
+│   │   │   │   ├── night_transactions.py # Ночные транзакции
+│   │   │   │   ├── round_amounts.py    # Круглые суммы
+│   │   │   │   ├── cross_reference.py  # Перекрёстные проверки
+│   │   │   │   ├── account_profiler.py # Профилирование счетов
+│   │   │   │   ├── profile_mismatch.py # Несоответствие профилей
+│   │   │   │   └── models.py           # ML модели
+│   │   │   ├── bank_analyzer/  # Анализатор банковских выписок
+│   │   │   ├── kaspi_analyzer/ # Kaspi Bank интеграция
+│   │   │   ├── pdf_analyzer/   # PDF анализ + fraud detector
+│   │   │   ├── parsers.py      # PDF, CSV, XLSX парсеры
+│   │   │   ├── smart_parser.py # Умный парсинг с автоопределением
 │   │   │   ├── auth_service.py
 │   │   │   ├── email_service.py
-│   │   │   └── user_service.py
-│   │   └── main.py        # Точка входа FastAPI
-│   ├── financial_analysis.db  # SQLite база данных (77 KB)
+│   │   │   ├── user_service.py
+│   │   │   ├── file_processing_service.py
+│   │   │   ├── login_history_service.py
+│   │   │   ├── websocket_manager.py
+│   │   │   └── storage.py
+│   │   └── main.py             # Точка входа FastAPI
+│   ├── Dockerfile
 │   ├── requirements.txt
-│   └── .env               # Переменные окружения
+│   └── .env
 │
-├── backups/               # Бэкапы (создаются автоматически)
-├── docs/                  # Документация
-└── README.md              # Этот файл
+├── frontend/                   # React SPA
+│   ├── src/
+│   │   ├── pages/              # Dashboard, Analyses, Settings, Landing
+│   │   ├── components/         # UI компоненты
+│   │   ├── context/            # Auth, Theme, Language контексты
+│   │   ├── services/           # API клиент (axios)
+│   │   ├── hooks/              # useActivityMonitor, useAnalysisProgress
+│   │   ├── locales/            # ru.json, en.json, kk.json
+│   │   └── i18n.ts
+│   ├── Dockerfile
+│   ├── Dockerfile.railway
+│   └── package.json
+│
+├── docker-compose.yml          # PostgreSQL 16 + Redis 7 + Backend + Frontend
+├── scripts/                    # Вспомогательные скрипты (генераторы документов)
+└── README.md
 ```
 
 ---
 
-## 🔧 ТРЕБОВАНИЯ
+## Быстрый старт
 
-### Backend
-- Python 3.8+
-- pip
-
-### Frontend
-- Node.js 16+
-- npm или yarn
-
-### Операционная система
-- Windows 10/11
-- Linux
-- macOS
-
----
-
-## ⚡ БЫСТРЫЙ СТАРТ
-
-### 1. Backend (Терминал 1)
+### Вариант 1: Docker Compose (рекомендуется)
 
 ```bash
-# Перейти в папку backend
-cd C:\Users\nurda\FinancialAnalysisSystem\backend
+git clone https://github.com/your-repo/FinancialAnalysisSystem.git
+cd FinancialAnalysisSystem
 
-# Установить зависимости (если еще не установлены)
+# Запустить все сервисы
+docker-compose up -d
+
+# Backend: http://localhost:8000
+# Frontend: http://localhost:5173
+```
+
+### Вариант 2: Локальный запуск
+
+**Требования:**
+- Python 3.11+
+- Node.js 18+
+- PostgreSQL 16 (или SQLite для разработки)
+- Redis 7 (для Celery задач)
+
+**Backend:**
+```bash
+cd backend
+
+# Виртуальное окружение
+python -m venv venv
+venv\Scripts\activate          # Windows
+source venv/bin/activate       # Linux/macOS
+
+# Зависимости
 pip install -r requirements.txt
 
-# Запустить сервер
+# Настроить .env (см. раздел "Переменные окружения")
+
+# Запустить
 python -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
-**Проверка:** Откройте http://localhost:8000/docs - должна открыться документация API (Swagger)
-
-### 2. Frontend (Терминал 2)
-
+**Frontend:**
 ```bash
-# Перейти в папку frontend
-cd C:\Users\nurda\FinancialAnalysisSystem\frontend
+cd frontend
 
-# Установить зависимости (если еще не установлены)
+# Зависимости
 npm install
 
-# Запустить dev сервер
+# Запустить dev-сервер
 npm run dev
+# Откроется на http://localhost:5173
 ```
 
-**Проверка:** Откройте http://localhost:5173 - должно открыться приложение
+### Вариант 3: Railway (Production)
 
-### 3. Тестовый пользователь
+Проект настроен для деплоя на Railway:
+- **Backend** — Python сервис с Dockerfile
+- **Frontend** — Node.js сервис с Dockerfile.railway
+- **PostgreSQL** — Railway managed PostgreSQL
+- **Redis** — Railway managed Redis
 
-После запуска используйте:
-- **Email:** admin@example.com
-- **Пароль:** admin123
+Необходимые переменные Railway:
+- `DATABASE_URL` — автоматически от Railway PostgreSQL
+- `REDIS_HOST`, `REDIS_PORT` — автоматически от Railway Redis
+- `VITE_API_URL` — URL backend-сервиса (для frontend, задаётся ДО сборки)
+- `SECRET_KEY` — секрет для JWT
+- `BACKEND_CORS_ORIGINS` — URL frontend-сервиса
 
 ---
 
-## 🚀 ФУНКЦИОНАЛЬНОСТЬ
+## Тестовый пользователь
 
-### ✅ Реализованные фичи
-
-#### Frontend
-- **Мультиязычность:**
-  - Русский (по умолчанию)
-  - Казахский
-  - Английский
-  - Переключение через UI
-
-- **Аутентификация:**
-  - Регистрация новых пользователей
-  - Вход/Выход
-  - Токены JWT
-  - Email верификация
-
-- **Управление пользователями:**
-  - Просмотр списка пользователей
-  - Изменение ролей (admin)
-  - Блокировка/разблокировка
-  - Профиль пользователя
-
-- **UI/UX:**
-  - Тёмная/светлая тема
-  - Адаптивный дизайн (Tailwind CSS)
-  - Анимации (Framer Motion)
-  - Иконки (Heroicons, Lucide, React Icons)
-
-- **Мониторинг:**
-  - Отслеживание активности пользователя
-  - Автоматический выход при неактивности
-
-#### Backend
-- **API Эндпоинты:**
-  - `/api/v1/auth/*` - Аутентификация
-  - `/api/v1/email-verification/*` - Email верификация
-  - `/api/v1/users/*` - Управление пользователями
-  - `/api/v1/subjects/*` - Субъекты анализа
-  - `/api/v1/analyses/*` - Анализы
-  - `/api/v1/transactions/*` - Транзакции
-  - `/ws` - WebSocket соединение
-
-- **Безопасность:**
-  - Хеширование паролей (bcrypt)
-  - JWT токены
-  - CORS настроен
-  - Email верификация
-
-- **База данных:**
-  - SQLite (financial_analysis.db)
-  - Размер: 77 KB (актуальная версия)
-  - Миграции через Alembic
-
-- **Email сервис:**
-  - Отправка писем верификации
-  - Настройка через .env файл
+| Поле | Значение |
+|------|----------|
+| Email | admin@example.com |
+| Пароль | admin123 |
+| Роль | admin |
 
 ---
 
-## 🧪 ТЕСТИРОВАНИЕ
+## API
 
-### Проверка Backend
+**Базовый префикс:** `/api`
 
-```bash
-# В папке backend
-cd C:\Users\nurda\FinancialAnalysisSystem\backend
+| Endpoint | Описание |
+|----------|----------|
+| `POST /api/auth/login` | Авторизация, получение JWT токена |
+| `POST /api/auth/register` | Регистрация нового пользователя |
+| `GET /api/auth/me` | Текущий пользователь |
+| `POST /api/email-verification/send-code` | Отправка кода верификации |
+| `POST /api/email-verification/verify-code` | Проверка кода |
+| `GET /api/users/` | Список пользователей (admin) |
+| `GET /api/analyses/` | Список анализов |
+| `GET /api/analyses/stats` | Статистика анализов |
+| `POST /api/analyses/upload` | Загрузка файла для анализа |
+| `GET /api/transactions/` | Список транзакций |
+| `POST /api/bank/upload` | Загрузка банковской выписки |
+| `POST /api/pdf-analysis/upload` | Загрузка PDF для анализа |
+| `GET /health` | Проверка здоровья сервиса |
+| `WS /ws` | WebSocket (прогресс анализа, активность) |
 
-# Проверка API
-curl http://localhost:8000/health
-
-# Должен вернуть: {"status": "healthy"}
-```
-
-### Проверка Frontend
-
-```bash
-# В папке frontend
-cd C:\Users\nurda\FinancialAnalysisSystem\frontend
-
-# Сборка production версии
-npm run build
-
-# Предпросмотр production версии
-npm run preview
-```
-
-### Проверка WebSocket
-
-1. Откройте приложение в браузере
-2. Залогиньтесь
-3. Откройте DevTools → Network → WS
-4. Должно быть активное WebSocket соединение к `ws://localhost:8000/ws`
-
-### Проверка локализации
-
-1. В приложении найдите переключатель языка (обычно в хедере)
-2. Переключите на Казахский (KZ) или Английский (EN)
-3. Весь интерфейс должен перевестись
+Swagger UI: `http://localhost:8000/docs`
 
 ---
 
-## 🐛 УСТРАНЕНИЕ ПРОБЛЕМ
+## Модули FraudEngine
 
-### Backend не запускается
+| Модуль | Описание |
+|--------|----------|
+| `graph_analysis` | Графовый анализ связей между счетами |
+| `behavioral` | Поведенческий анализ паттернов пользователя |
+| `nlp_analyzer` | NLP анализ описаний транзакций |
+| `velocity` | Проверка скорости/частоты транзакций |
+| `structuring` | Детекция структурирования (дробление сумм) |
+| `pattern_detector` | Обнаружение известных схем мошенничества |
+| `duplicate_detector` | Поиск дублирующихся транзакций |
+| `merchant_risk` | Оценка риска контрагентов |
+| `night_transactions` | Анализ ночных транзакций |
+| `round_amounts` | Детекция подозрительных круглых сумм |
+| `cross_reference` | Перекрёстная проверка данных |
+| `account_profiler` | Профилирование поведения счёта |
+| `profile_mismatch` | Несоответствие профилю клиента |
 
-**Проблема:** `ModuleNotFoundError`
-```bash
-# Решение: Установить зависимости
-cd C:\Users\nurda\FinancialAnalysisSystem\backend
-pip install -r requirements.txt
-```
-
-**Проблема:** `Port 8000 already in use`
-```bash
-# Решение: Найти и убить процесс
-netstat -ano | findstr :8000
-taskkill /PID <номер_процесса> /F
-```
-
-**Проблема:** `Database is locked`
-```bash
-# Решение: Закрыть все процессы использующие БД
-# Или удалить файл *.db-journal
-```
-
-### Frontend не запускается
-
-**Проблема:** `npm ERR! code ENOENT`
-```bash
-# Решение: Установить node_modules
-cd C:\Users\nurda\FinancialAnalysisSystem\frontend
-npm install
-```
-
-**Проблема:** `Port 5173 already in use`
-```bash
-# Решение: Изменить порт в vite.config.ts
-# Или убить процесс на порту 5173
-```
-
-### WebSocket не подключается
-
-**Проверьте:**
-1. Backend запущен на порту 8000
-2. В консоли браузера нет ошибок CORS
-3. Frontend использует правильный URL для WebSocket
-
-**Решение:**
-```javascript
-// В файле frontend/src/services/api.ts
-// Проверьте настройку WebSocket URL
-const wsUrl = 'ws://localhost:8000/ws'
-```
-
-### Email не отправляются
-
-**Проверьте файл `.env`:**
-```env
-SMTP_HOST=smtp.gmail.com
-SMTP_PORT=587
-SMTP_USER=your-email@gmail.com
-SMTP_PASSWORD=your-app-password
-EMAIL_FROM=your-email@gmail.com
-```
-
-Для Gmail нужно создать App Password в настройках аккаунта.
+Каждый модуль возвращает оценку риска (0-10), итоговый `risk_score` — взвешенная агрегация всех модулей.
 
 ---
 
-## 📝 ПЕРЕМЕННЫЕ ОКРУЖЕНИЯ
+## Поддерживаемые форматы файлов
+
+| Формат | Описание |
+|--------|----------|
+| PDF | Банковские выписки (парсинг через pdfplumber) |
+| CSV | Табличные данные транзакций |
+| XLSX | Excel файлы |
+| XLS | Старый формат Excel |
+
+Поддержка банков: **Kaspi Bank** (специализированный анализатор), универсальный парсинг для других банков.
+
+---
+
+## Переменные окружения
 
 ### Backend (.env)
 
 ```env
-# База данных
-DATABASE_URL=sqlite:///./financial_analysis.db
+# База данных (PostgreSQL рекомендуется)
+DATABASE_URL=postgresql://postgres:postgres@localhost:5432/financial_analysis
 
-# Секретный ключ для JWT (ИЗМЕНИТЬ В PRODUCTION!)
+# JWT секрет
 SECRET_KEY=your-secret-key-change-in-production
 
 # CORS
-BACKEND_CORS_ORIGINS=["http://localhost:5173","http://localhost:3000"]
+BACKEND_CORS_ORIGINS=["http://localhost:5173"]
 
-# Email (опционально)
-SMTP_HOST=smtp.gmail.com
-SMTP_PORT=587
-SMTP_USER=your-email@gmail.com
+# Email (SMTP)
+SMTP_SERVER=smtp.gmail.com
+SMTP_PORT=465
+SMTP_USERNAME=your-email@gmail.com
 SMTP_PASSWORD=your-app-password
-EMAIL_FROM=your-email@gmail.com
+USE_REAL_EMAIL=true
+REQUIRE_EMAIL_VERIFICATION=false
 
-# Настройки приложения
+# Redis
+REDIS_HOST=localhost
+REDIS_PORT=6379
+
+# Celery
+CELERY_BROKER_URL=redis://localhost:6379/0
+CELERY_RESULT_BACKEND=redis://localhost:6379/0
+
+# Приложение
 PROJECT_NAME=ntFAST
-VERSION=1.0.0
-API_PREFIX=/api/v1
+API_PREFIX=/api
 ```
+
+### Frontend
+
+```env
+VITE_API_URL=http://localhost:8000
+```
+
+> **Важно:** `VITE_API_URL` инлайнится при сборке (Vite). При деплое задавайте ДО `npm run build`.
 
 ---
 
-## 🔄 МИГРАЦИЯ ПОСЛЕ ПЕРЕНОСА
+## Устранение проблем
 
-### После успешного тестирования новой версии:
+### Backend не запускается
 
-1. **Убить старые процессы:**
 ```bash
-# Найти и убить все uvicorn процессы
-taskkill /F /IM python.exe
+# ModuleNotFoundError — установить зависимости
+pip install -r requirements.txt
 
-# Найти и убить npm процессы
-taskkill /F /IM node.exe
+# Port 8000 занят
+netstat -ano | findstr :8000
+taskkill /PID <PID> /F
 ```
 
-2. **Обновить пути в скриптах запуска**
+### Frontend не запускается
 
-3. **Создать бэкап старых папок:**
 ```bash
-# Архивировать старые версии
-xcopy C:\Users\nurda\frontend C:\Users\nurda\backups\old_frontend /E /I
-xcopy C:\Users\nurda\backend C:\Users\nurda\backups\old_backend /E /I
+# Установить зависимости
+npm install
+
+# Очистить кэш
+rm -rf node_modules/.vite
+npm run dev
 ```
 
-4. **Удалить старые папки (ТОЛЬКО ПОСЛЕ ПОДТВЕРЖДЕНИЯ):**
-```bash
-# ВНИМАНИЕ: Выполнять только после успешного теста!
-rmdir /S /Q C:\Users\nurda\frontend
-rmdir /S /Q C:\Users\nurda\backend
-rmdir /S /Q "C:\Users\nurda\Desktop\FinancialAnalysisSystem"
-```
+### CORS ошибки
+
+Убедитесь что `BACKEND_CORS_ORIGINS` в backend .env содержит URL frontend (включая порт).
+
+### WebSocket не подключается
+
+1. Backend запущен
+2. CORS настроен
+3. Проверить DevTools -> Network -> WS
+
+### Email не отправляются
+
+На Railway порты SMTP (465/587) заблокированы. Используйте HTTP API провайдеры (Resend, Mailjet) или временно отключите верификацию: `REQUIRE_EMAIL_VERIFICATION=false`.
 
 ---
 
-## 📊 СРАВНЕНИЕ С DESKTOP ВЕРСИЕЙ
-
-| Функция | Desktop версия (СТАРАЯ) | Эта версия (АКТУАЛЬНАЯ) |
-|---------|------------------------|------------------------|
-| Дата обновления | 12 ноября | 21 ноября |
-| Размер БД | 65 KB | 77 KB |
-| Мультиязычность | ❌ | ✅ |
-| WebSocket | ❌ | ✅ |
-| Email верификация | ❌ | ✅ |
-| Управление пользователями | ❌ | ✅ |
-| Мониторинг активности | ❌ | ✅ |
-| i18n пакеты | ❌ | ✅ |
-
----
-
-## 📞 ПОДДЕРЖКА
-
-Если возникли проблемы:
-1. Проверьте раздел [Устранение проблем](#устранение-проблем)
-2. Посмотрите логи в консоли (backend) и DevTools (frontend)
-3. Убедитесь что все зависимости установлены
-4. Проверьте что порты 8000 и 5173 свободны
-
----
-
-## 📜 ЛИЦЕНЗИЯ
+## Лицензия
 
 ntFAST — Financial Analysis System for Transactions
-
----
-
-**Актуальная версия от 21 ноября 2025**
-**Все функции протестированы и работают**
+Copyright 2025-2026

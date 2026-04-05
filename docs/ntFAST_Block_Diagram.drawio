@@ -1,0 +1,448 @@
+<mxfile host="app.diagrams.net" agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36 Edg/146.0.0.0" version="29.6.4" pages="3">
+  <diagram id="page1" name="1. Жалпы архитектура">
+    <mxGraphModel dx="569" dy="327" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1654" pageHeight="1169" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="title1" parent="1" style="text;html=1;align=center;verticalAlign=middle;resizable=0;points=[];autosize=1;strokeColor=none;fillColor=none;" value="&lt;font style=&quot;font-size:20px;&quot;&gt;&lt;b&gt;ntFAST — Қаржылық транзакцияларды талдау жүйесінің блок-схемасы&lt;/b&gt;&lt;/font&gt;&lt;br&gt;&lt;font style=&quot;font-size:12px;&quot; color=&quot;#666666&quot;&gt;Financial Analysis System for Transactions — Жалпы архитектура&lt;/font&gt;" vertex="1">
+          <mxGeometry height="50" width="1000" x="300" y="110" as="geometry" />
+        </mxCell>
+        <mxCell id="srcGroup" parent="1" style="shape=mxgraph.flowchart.annotation_2;align=center;labelPosition=center;verticalLabelPosition=top;verticalAlign=bottom;fontSize=13;fillColor=#d5e8d4;strokeColor=#82b366;rounded=1;arcSize=10;shadow=1;html=1;" value="&lt;b&gt;СЫРТҚЫ ДЕРЕКТЕР КӨЗДЕРІ&lt;/b&gt;  (Қаржылық ұйымдар)" vertex="1">
+          <mxGeometry height="10" width="1560" x="20" y="175" as="geometry" />
+        </mxCell>
+        <mxCell id="src1" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;shadow=1;fontSize=11;arcSize=20;" value="&lt;b&gt;Екінші деңгейдегі&lt;br&gt;банктер (22)&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px;&quot; color=&quot;#666&quot;&gt;Kaspi, Halyk, Forte&lt;br&gt;Jusan, BCC, Bereke&lt;/font&gt;" vertex="1">
+          <mxGeometry height="80" width="200" x="20" y="195" as="geometry" />
+        </mxCell>
+        <mxCell id="src2" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;shadow=1;fontSize=11;arcSize=20;" value="&lt;b&gt;Төлем жүйелері&lt;br&gt;және процессинг&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px;&quot; color=&quot;#666&quot;&gt;Visa, Mastercard&lt;br&gt;SWIFT, ЕТС НБ РК&lt;/font&gt;" vertex="1">
+          <mxGeometry height="80" width="200" x="240" y="195" as="geometry" />
+        </mxCell>
+        <mxCell id="src3" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;shadow=1;fontSize=11;arcSize=20;" value="&lt;b&gt;Электрондық ақша&lt;br&gt;операторлары&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px;&quot; color=&quot;#666&quot;&gt;Wooppay, QIWI&lt;br&gt;Kaspi Gold&lt;/font&gt;" vertex="1">
+          <mxGeometry height="80" width="200" x="460" y="195" as="geometry" />
+        </mxCell>
+        <mxCell id="src4" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;shadow=1;fontSize=11;arcSize=20;" value="&lt;b&gt;Микроқаржы&lt;br&gt;ұйымдары (189)&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px;&quot; color=&quot;#666&quot;&gt;Несие серіктестіктері&lt;br&gt;Ломбардтар&lt;/font&gt;" vertex="1">
+          <mxGeometry height="80" width="200" x="680" y="195" as="geometry" />
+        </mxCell>
+        <mxCell id="src5" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;shadow=1;fontSize=11;arcSize=20;" value="&lt;b&gt;Валюта айырбастау&lt;br&gt;бюросы (2500+)&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px;&quot; color=&quot;#666&quot;&gt;Ресми обменники&lt;br&gt;Криптобиржалар&lt;/font&gt;" vertex="1">
+          <mxGeometry height="80" width="200" x="900" y="195" as="geometry" />
+        </mxCell>
+        <mxCell id="src6" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;shadow=1;fontSize=11;arcSize=20;" value="&lt;b&gt;Сақтандыру&lt;br&gt;компаниялары (31)&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px;&quot; color=&quot;#666&quot;&gt;Өмірді, мүлікті&lt;br&gt;сақтандыру&lt;/font&gt;" vertex="1">
+          <mxGeometry height="80" width="200" x="1120" y="195" as="geometry" />
+        </mxCell>
+        <mxCell id="src7" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;shadow=1;fontSize=11;arcSize=20;" value="&lt;b&gt;Бағалы қағаздар&lt;br&gt;нарығы (40)&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px;&quot; color=&quot;#666&quot;&gt;Брокерлер, KASE&lt;br&gt;Қор биржасы&lt;/font&gt;" vertex="1">
+          <mxGeometry height="80" width="200" x="1340" y="195" as="geometry" />
+        </mxCell>
+        <mxCell id="arrSrc1" edge="1" parent="1" source="src1" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#82b366;strokeWidth=2;endArrow=block;endFill=1;" target="apiGateway">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="arrSrc2" edge="1" parent="1" source="src3" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#82b366;strokeWidth=2;endArrow=block;endFill=1;" target="apiGateway">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="arrSrc3" edge="1" parent="1" source="src5" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#82b366;strokeWidth=2;endArrow=block;endFill=1;" target="apiGateway">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="arrSrc4" edge="1" parent="1" source="src7" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#82b366;strokeWidth=2;endArrow=block;endFill=1;" target="apiGateway">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="fmtLabel" parent="1" style="text;html=1;align=center;verticalAlign=middle;resizable=0;points=[];autosize=1;strokeColor=none;fillColor=none;" value="&lt;font style=&quot;font-size:10px;&quot; color=&quot;#999&quot;&gt;PDF / XLSX / CSV / JSON / REST API&lt;/font&gt;" vertex="1">
+          <mxGeometry height="30" width="220" x="590" y="285" as="geometry" />
+        </mxCell>
+        <mxCell id="inputGroup" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;strokeWidth=2;shadow=1;arcSize=8;dashed=0;" value="" vertex="1">
+          <mxGeometry height="100" width="1260" x="170" y="315" as="geometry" />
+        </mxCell>
+        <mxCell id="inputLabel" parent="1" style="text;html=1;align=center;verticalAlign=top;resizable=0;points=[];autosize=1;strokeColor=none;fillColor=none;" value="&lt;font style=&quot;font-size:13px;&quot;&gt;&lt;b&gt;ДЕРЕКТЕР КІРУ ҚАБАТЫ&lt;/b&gt;&lt;/font&gt;" vertex="1">
+          <mxGeometry height="25" width="200" x="570" y="317" as="geometry" />
+        </mxCell>
+        <mxCell id="apiGateway" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;shadow=0;fontSize=11;" value="&lt;b&gt;API шлюзі&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px;&quot;&gt;FastAPI REST API&lt;br&gt;WebSocket&lt;/font&gt;" vertex="1">
+          <mxGeometry height="55" width="160" x="190" y="345" as="geometry" />
+        </mxCell>
+        <mxCell id="auth" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;shadow=0;fontSize=11;" value="&lt;b&gt;Аутентификация&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px;&quot;&gt;JWT токендер&lt;br&gt;bcrypt хэштеу&lt;/font&gt;" vertex="1">
+          <mxGeometry height="55" width="160" x="370" y="345" as="geometry" />
+        </mxCell>
+        <mxCell id="valid" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;shadow=0;fontSize=11;" value="&lt;b&gt;Деректер валидация&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px;&quot;&gt;Pydantic схемалар&lt;br&gt;Input тексеру&lt;/font&gt;" vertex="1">
+          <mxGeometry height="55" width="160" x="550" y="345" as="geometry" />
+        </mxCell>
+        <mxCell id="parse" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;shadow=0;fontSize=11;" value="&lt;b&gt;Банк парсері&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px;&quot;&gt;Авто-анықтау: Kaspi&lt;br&gt;Halyk, Forte, Binance&lt;/font&gt;" vertex="1">
+          <mxGeometry height="55" width="160" x="730" y="345" as="geometry" />
+        </mxCell>
+        <mxCell id="rateLimit" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;shadow=0;fontSize=11;" value="&lt;b&gt;Қорғау&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px;&quot;&gt;Rate Limiting&lt;br&gt;CORS, HTTPS&lt;/font&gt;" vertex="1">
+          <mxGeometry height="55" width="160" x="910" y="345" as="geometry" />
+        </mxCell>
+        <mxCell id="connectors" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;shadow=0;fontSize=11;" value="&lt;b&gt;Коннекторлар&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px;&quot;&gt;REST, CSV, JSON&lt;br&gt;PDF OCR&lt;/font&gt;" vertex="1">
+          <mxGeometry height="55" width="160" x="1090" y="345" as="geometry" />
+        </mxCell>
+        <mxCell id="arrInput" edge="1" parent="1" source="inputGroup" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#d6b656;strokeWidth=3;endArrow=block;endFill=1;labelBackgroundColor=none;" target="analysisGroup" value="&lt;font style=&quot;font-size:10px;&quot; color=&quot;#999&quot;&gt;Redis Message Queue&lt;/font&gt;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="analysisGroup" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;strokeWidth=3;shadow=1;arcSize=6;" value="" vertex="1">
+          <mxGeometry height="200" width="1460" x="70" y="445" as="geometry" />
+        </mxCell>
+        <mxCell id="analysisLabel" parent="1" style="text;html=1;align=center;verticalAlign=top;resizable=0;points=[];autosize=1;strokeColor=none;fillColor=none;" value="&lt;font style=&quot;font-size:14px;&quot;&gt;&lt;b&gt;ТАЛДАУ ЯДРОСЫ — FraudEngine v4&lt;/b&gt; (11 мамандандырылған модуль + ML ансамбль)&lt;/font&gt;" vertex="1">
+          <mxGeometry height="25" width="600" x="370" y="450" as="geometry" />
+        </mxCell>
+        <mxCell id="m1" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=10;shadow=0;" value="&lt;b&gt;М1&lt;/b&gt;&lt;br&gt;Жылдамдық&lt;br&gt;&lt;font style=&quot;font-size:9px;&quot; color=&quot;#666&quot;&gt;Velocity&lt;/font&gt;" vertex="1">
+          <mxGeometry height="55" width="120" x="90" y="480" as="geometry" />
+        </mxCell>
+        <mxCell id="m2" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=10;shadow=0;" value="&lt;b&gt;М2&lt;/b&gt;&lt;br&gt;Сома талдау&lt;br&gt;&lt;font style=&quot;font-size:9px;&quot; color=&quot;#666&quot;&gt;Amount&lt;/font&gt;" vertex="1">
+          <mxGeometry height="55" width="120" x="220" y="480" as="geometry" />
+        </mxCell>
+        <mxCell id="m3" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=10;shadow=0;" value="&lt;b&gt;М3&lt;/b&gt;&lt;br&gt;Географиялық&lt;br&gt;&lt;font style=&quot;font-size:9px;&quot; color=&quot;#666&quot;&gt;Geo Analysis&lt;/font&gt;" vertex="1">
+          <mxGeometry height="55" width="120" x="350" y="480" as="geometry" />
+        </mxCell>
+        <mxCell id="m4" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=10;shadow=0;" value="&lt;b&gt;М4&lt;/b&gt;&lt;br&gt;Уақыттық&lt;br&gt;&lt;font style=&quot;font-size:9px;&quot; color=&quot;#666&quot;&gt;Time Pattern&lt;/font&gt;" vertex="1">
+          <mxGeometry height="55" width="120" x="480" y="480" as="geometry" />
+        </mxCell>
+        <mxCell id="m5" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=10;shadow=0;" value="&lt;b&gt;М5&lt;/b&gt;&lt;br&gt;Алушы талдау&lt;br&gt;&lt;font style=&quot;font-size:9px;&quot; color=&quot;#666&quot;&gt;Beneficiary&lt;/font&gt;" vertex="1">
+          <mxGeometry height="55" width="120" x="610" y="480" as="geometry" />
+        </mxCell>
+        <mxCell id="m6" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=10;shadow=0;" value="&lt;b&gt;М6&lt;/b&gt;&lt;br&gt;Құрылымдау&lt;br&gt;&lt;font style=&quot;font-size:9px;&quot; color=&quot;#666&quot;&gt;Structuring&lt;/font&gt;" vertex="1">
+          <mxGeometry height="55" width="120" x="740" y="480" as="geometry" />
+        </mxCell>
+        <mxCell id="m7" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=10;shadow=0;" value="&lt;b&gt;М7&lt;/b&gt;&lt;br&gt;Мінез-құлық&lt;br&gt;&lt;font style=&quot;font-size:9px;&quot; color=&quot;#666&quot;&gt;Behavioral&lt;/font&gt;" vertex="1">
+          <mxGeometry height="55" width="120" x="90" y="575" as="geometry" />
+        </mxCell>
+        <mxCell id="m8" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=10;shadow=0;" value="&lt;b&gt;М8&lt;/b&gt;&lt;br&gt;Түнгі операция&lt;br&gt;&lt;font style=&quot;font-size:9px;&quot; color=&quot;#666&quot;&gt;Night Detection&lt;/font&gt;" vertex="1">
+          <mxGeometry height="55" width="120" x="220" y="575" as="geometry" />
+        </mxCell>
+        <mxCell id="m9" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=10;shadow=0;" value="&lt;b&gt;М9&lt;/b&gt;&lt;br&gt;Қайталанатын&lt;br&gt;&lt;font style=&quot;font-size:9px;&quot; color=&quot;#666&quot;&gt;Duplicate&lt;/font&gt;" vertex="1">
+          <mxGeometry height="55" width="120" x="350" y="575" as="geometry" />
+        </mxCell>
+        <mxCell id="m10" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=10;shadow=0;" value="&lt;b&gt;М10&lt;/b&gt;&lt;br&gt;Дөңгелек сома&lt;br&gt;&lt;font style=&quot;font-size:9px;&quot; color=&quot;#666&quot;&gt;Round Amount&lt;/font&gt;" vertex="1">
+          <mxGeometry height="55" width="120" x="480" y="575" as="geometry" />
+        </mxCell>
+        <mxCell id="m11" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=10;shadow=0;" value="&lt;b&gt;М11&lt;/b&gt;&lt;br&gt;Заңдылық&lt;br&gt;&lt;font style=&quot;font-size:9px;&quot; color=&quot;#666&quot;&gt;Pattern&lt;/font&gt;" vertex="1">
+          <mxGeometry height="55" width="120" x="610" y="575" as="geometry" />
+        </mxCell>
+        <mxCell id="mlBlock" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe0b2;strokeColor=#e65100;strokeWidth=2;shadow=1;fontSize=11;arcSize=15;" value="&lt;font style=&quot;font-size:12px;&quot;&gt;&lt;b&gt;ML АНСАМБЛЬ&lt;/b&gt;&lt;/font&gt;&lt;br&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px;&quot;&gt;XGBoost&lt;br&gt;Random Forest&lt;br&gt;Logistic Regression&lt;br&gt;&lt;br&gt;Салмақталған дауыс беру&lt;br&gt;Контекст мультипликатор&lt;/font&gt;" vertex="1">
+          <mxGeometry height="150" width="220" x="893" y="480" as="geometry" />
+        </mxCell>
+        <mxCell id="aiBlock" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;strokeWidth=2;shadow=1;fontSize=11;arcSize=15;" value="&lt;b&gt;Claude AI&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px;&quot;&gt;Нарративті талдау&lt;br&gt;Тәуекел бағалау&lt;br&gt;Ұсыныстар&lt;/font&gt;" vertex="1">
+          <mxGeometry height="100" width="170" x="1153" y="495" as="geometry" />
+        </mxCell>
+        <mxCell id="arrM1" edge="1" parent="1" source="m1" style="rounded=1;strokeColor=#d6b656;strokeWidth=1;endArrow=block;endFill=1;dashed=1;" target="mlBlock">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="arrM5" edge="1" parent="1" source="m6" style="rounded=1;strokeColor=#d6b656;strokeWidth=1;endArrow=block;endFill=1;dashed=1;" target="mlBlock">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="arrM7" edge="1" parent="1" source="m11" style="rounded=1;strokeColor=#d6b656;strokeWidth=1;endArrow=block;endFill=1;dashed=1;" target="mlBlock">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="arrAnalysis" edge="1" parent="1" source="analysisGroup" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#b85450;strokeWidth=3;endArrow=block;endFill=1;" target="decisionGroup" value="&lt;font style=&quot;font-size:10px;&quot; color=&quot;#999&quot;&gt;Композиттік тәуекел баллы (0–100)&lt;/font&gt;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="decisionGroup" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=none;strokeColor=#b85450;strokeWidth=2;shadow=0;arcSize=8;" value="" vertex="1">
+          <mxGeometry height="80" width="1260" x="170" y="685" as="geometry" />
+        </mxCell>
+        <mxCell id="decLabel" parent="1" style="text;html=1;align=left;verticalAlign=top;resizable=0;points=[];autosize=1;strokeColor=none;fillColor=none;" value="&lt;font style=&quot;font-size:12px;&quot;&gt;&lt;b&gt;ШЕШІМ ҚАБЫЛДАУ ҚАБАТЫ&lt;/b&gt;&lt;/font&gt;" vertex="1">
+          <mxGeometry height="25" width="200" x="180" y="687" as="geometry" />
+        </mxCell>
+        <mxCell id="dec1" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#c8e6c9;strokeColor=#2e7d32;fontSize=11;shadow=1;" value="&lt;b&gt;LOW&lt;/b&gt;&lt;br&gt;0–30&lt;br&gt;&lt;font style=&quot;font-size:9px;&quot;&gt;✓ Автоматты рұқсат&lt;/font&gt;" vertex="1">
+          <mxGeometry height="45" width="195" x="193" y="710" as="geometry" />
+        </mxCell>
+        <mxCell id="dec2" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff9c4;strokeColor=#f9a825;fontSize=11;shadow=1;" value="&lt;b&gt;MEDIUM&lt;/b&gt;&lt;br&gt;31–60&lt;br&gt;&lt;font style=&quot;font-size:9px;&quot;&gt;⚠ Рұқсат + мониторинг&lt;/font&gt;" vertex="1">
+          <mxGeometry height="45" width="195" x="458" y="710" as="geometry" />
+        </mxCell>
+        <mxCell id="dec3" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffcc80;strokeColor=#e65100;fontSize=11;shadow=1;" value="&lt;b&gt;HIGH&lt;/b&gt;&lt;br&gt;61–85&lt;br&gt;&lt;font style=&quot;font-size:9px;&quot;&gt;⏸ Тоқтату + тексеру&lt;/font&gt;" vertex="1">
+          <mxGeometry height="45" width="195" x="723" y="710" as="geometry" />
+        </mxCell>
+        <mxCell id="dec4" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ef9a9a;strokeColor=#c62828;fontSize=11;shadow=1;" value="&lt;b&gt;CRITICAL&lt;/b&gt;&lt;br&gt;86–100&lt;br&gt;&lt;font style=&quot;font-size:9px;&quot;&gt;✕ Бұғаттау + STR жіберу&lt;/font&gt;" vertex="1">
+          <mxGeometry height="45" width="195" x="988" y="710" as="geometry" />
+        </mxCell>
+        <mxCell id="arrDec" edge="1" parent="1" source="decisionGroup" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#9673a6;strokeWidth=3;endArrow=block;endFill=1;" target="outputGroup">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="outputGroup" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1bee7;strokeColor=#9673a6;strokeWidth=2;shadow=1;arcSize=8;" value="" vertex="1">
+          <mxGeometry height="80" width="1260" x="170" y="795" as="geometry" />
+        </mxCell>
+        <mxCell id="outLabel" parent="1" style="text;html=1;align=left;verticalAlign=top;resizable=0;points=[];autosize=1;strokeColor=none;fillColor=none;" value="&lt;font style=&quot;font-size:12px;&quot;&gt;&lt;b&gt;НӘТИЖЕЛЕР ҚАБАТЫ&lt;/b&gt;&lt;/font&gt;" vertex="1">
+          <mxGeometry height="25" width="160" x="180" y="797" as="geometry" />
+        </mxCell>
+        <mxCell id="out1" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1bee7;strokeColor=#9673a6;fontSize=11;shadow=0;" value="&lt;b&gt;Бақылау тақтасы&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px;&quot;&gt;Dashboard, KPI&lt;br&gt;Графиктер, карта&lt;/font&gt;" vertex="1">
+          <mxGeometry height="45" width="190" x="193" y="820" as="geometry" />
+        </mxCell>
+        <mxCell id="out2" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1bee7;strokeColor=#9673a6;fontSize=11;shadow=0;" value="&lt;b&gt;Ескерту жүйесі&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px;&quot;&gt;Email хабарлама&lt;br&gt;Real-time alerts&lt;/font&gt;" vertex="1">
+          <mxGeometry height="45" width="190" x="428" y="820" as="geometry" />
+        </mxCell>
+        <mxCell id="out3" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1bee7;strokeColor=#9673a6;fontSize=11;shadow=0;" value="&lt;b&gt;Есеп жүйесі&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px;&quot;&gt;PDF есептер&lt;br&gt;CSV экспорт&lt;/font&gt;" vertex="1">
+          <mxGeometry height="45" width="190" x="663" y="820" as="geometry" />
+        </mxCell>
+        <mxCell id="out4" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ef9a9a;strokeColor=#c62828;fontSize=11;shadow=1;" value="&lt;b&gt;STR/CTR&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px;&quot;&gt;Күдікті транзакция&lt;br&gt;хабарламасы (ҚМА)&lt;/font&gt;" vertex="1">
+          <mxGeometry height="45" width="190" x="898" y="820" as="geometry" />
+        </mxCell>
+        <mxCell id="out5" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1bee7;strokeColor=#9673a6;fontSize=11;shadow=0;" value="&lt;b&gt;Аудит журналы&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px;&quot;&gt;Барлық әрекеттердің&lt;br&gt;толық тарихы&lt;/font&gt;" vertex="1">
+          <mxGeometry height="45" width="190" x="1133" y="820" as="geometry" />
+        </mxCell>
+        <mxCell id="arrGov1" edge="1" parent="1" source="out4" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#1565c0;strokeWidth=2;endArrow=block;endFill=1;" target="gov1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="arrGov2" edge="1" parent="1" source="out3" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#1565c0;strokeWidth=2;endArrow=block;endFill=1;" target="gov2">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="arrGov3" edge="1" parent="1" source="out1" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#1565c0;strokeWidth=2;endArrow=block;endFill=1;" target="gov3">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="govLabel" parent="1" style="text;html=1;align=center;verticalAlign=middle;resizable=0;points=[];autosize=1;strokeColor=none;fillColor=none;" value="&lt;font style=&quot;font-size:13px;&quot;&gt;&lt;b&gt;МЕМЛЕКЕТТІК ОРГАНДАР МЕН РЕТТЕУШІЛЕР&lt;/b&gt;&lt;/font&gt;" vertex="1">
+          <mxGeometry height="25" width="400" x="450" y="895" as="geometry" />
+        </mxCell>
+        <mxCell id="gov1" parent="1" style="shape=mxgraph.flowchart.document;whiteSpace=wrap;html=1;fillColor=#bbdefb;strokeColor=#1565c0;shadow=1;fontSize=11;arcSize=20;" value="&lt;b&gt;ҚР Қаржылық&lt;br&gt;мониторинг агенттігі&lt;br&gt;(ҚМА / АФМ)&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:9px;&quot; color=&quot;#333&quot;&gt;STR/CTR хабарламалары&lt;br&gt;ПОД/ФТ бақылау&lt;/font&gt;" vertex="1">
+          <mxGeometry height="100" width="200" x="720" y="925" as="geometry" />
+        </mxCell>
+        <mxCell id="gov2" parent="1" style="shape=mxgraph.flowchart.document;whiteSpace=wrap;html=1;fillColor=#bbdefb;strokeColor=#1565c0;shadow=1;fontSize=11;arcSize=20;" value="&lt;b&gt;ҚР Ұлттық Банкі&lt;br&gt;(ҰБ РК / НБ РК)&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:9px;&quot; color=&quot;#333&quot;&gt;Нормативтік есеп&lt;br&gt;Реттеуші орган&lt;/font&gt;" vertex="1">
+          <mxGeometry height="100" width="200" x="470" y="925" as="geometry" />
+        </mxCell>
+        <mxCell id="gov3" parent="1" style="shape=mxgraph.flowchart.document;whiteSpace=wrap;html=1;fillColor=#bbdefb;strokeColor=#1565c0;shadow=1;fontSize=11;arcSize=20;" value="&lt;b&gt;ҚР Ішкі істер&lt;br&gt;министрлігі (ІІМ)&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:9px;&quot; color=&quot;#333&quot;&gt;Алаяқтық тергеу&lt;br&gt;Ақпарат алмасу&lt;/font&gt;" vertex="1">
+          <mxGeometry height="100" width="200" x="220" y="925" as="geometry" />
+        </mxCell>
+        <mxCell id="gov4" parent="1" style="shape=mxgraph.flowchart.document;whiteSpace=wrap;html=1;fillColor=#bbdefb;strokeColor=#1565c0;shadow=1;fontSize=11;arcSize=20;" value="&lt;b&gt;Салық комитеті&lt;br&gt;(МҚМ / КГД)&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:9px;&quot; color=&quot;#333&quot;&gt;Салық жалтару&lt;br&gt;Кіріс-шығыс аудит&lt;/font&gt;" vertex="1">
+          <mxGeometry height="100" width="200" x="970" y="925" as="geometry" />
+        </mxCell>
+        <mxCell id="gov5" parent="1" style="shape=mxgraph.flowchart.document;whiteSpace=wrap;html=1;fillColor=#bbdefb;strokeColor=#1565c0;shadow=1;fontSize=11;arcSize=20;" value="&lt;b&gt;ҚР Бас&lt;br&gt;прокуратурасы&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:9px;&quot; color=&quot;#333&quot;&gt;Ірі алаяқтық&lt;br&gt;Ұйымдасқан қылмыс&lt;/font&gt;" vertex="1">
+          <mxGeometry height="100" width="200" x="1220" y="925" as="geometry" />
+        </mxCell>
+        <mxCell id="dbBlock" parent="1" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=15;fillColor=#f3e5f5;strokeColor=#9673a6;shadow=1;fontSize=11;" value="&lt;b&gt;Деректер қоймасы&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px;&quot;&gt;PostgreSQL 15&lt;br&gt;Redis 7&lt;br&gt;━━━━━━━━━━&lt;br&gt;Транзакциялар&lt;br&gt;Талдаулар&lt;br&gt;Субъектілер&lt;br&gt;Аудит журналы&lt;/font&gt;" vertex="1">
+          <mxGeometry height="160" width="160" x="1450" y="285" as="geometry" />
+        </mxCell>
+        <mxCell id="arrDB1" edge="1" parent="1" source="analysisGroup" style="rounded=1;strokeColor=#9673a6;strokeWidth=2;endArrow=block;endFill=1;startArrow=block;startFill=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;" target="dbBlock">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1570" y="500" />
+            </Array>
+            <mxPoint x="1560" y="540" as="sourcePoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="fatfBlock" parent="1" style="shape=hexagon;perimeter=hexagonPerimeter2;whiteSpace=wrap;html=1;fixedSize=1;size=20;fillColor=#e8eaf6;strokeColor=#3f51b5;shadow=1;fontSize=11;" value="&lt;b&gt;ФАТФ / FATF&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px;&quot;&gt;40 ұсыныс&lt;br&gt;11 тікелей нәтиже&lt;br&gt;Risk-Based Approach&lt;br&gt;━━━━━━━━━━&lt;br&gt;ПОД/ФТ Заңы №191-IV&lt;br&gt;ҰБ Қаулысы №28&lt;br&gt;АЕК шекті мәні&lt;/font&gt;" vertex="1">
+          <mxGeometry height="160" width="180" x="1450" y="660" as="geometry" />
+        </mxCell>
+        <mxCell id="arrFATF" edge="1" parent="1" source="fatfBlock" style="rounded=1;strokeColor=#3f51b5;strokeWidth=1;endArrow=block;endFill=1;dashed=1;dashPattern=8 4;" target="decisionGroup">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="fatfLabel2" parent="1" style="text;html=1;align=center;verticalAlign=middle;resizable=0;points=[];autosize=1;strokeColor=none;fillColor=none;" value="&lt;font style=&quot;font-size:9px;&quot; color=&quot;#666&quot;&gt;Стандарттар&lt;br&gt;мен ережелер&lt;/font&gt;" vertex="1">
+          <mxGeometry height="40" width="80" x="1463" y="745" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+  <diagram id="page2" name="2. Мемлекеттік байланыс">
+    <mxGraphModel dx="2074" dy="1156" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1654" pageHeight="1169" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="t2" value="&lt;font style=&quot;font-size:20px;&quot;&gt;&lt;b&gt;ntFAST — Мемлекеттік құрылымдармен өзара байланыс схемасы&lt;/b&gt;&lt;/font&gt;&lt;br&gt;&lt;font style=&quot;font-size:12px;&quot; color=&quot;#666&quot;&gt;Деректер ағыны, есеп формалары және кері байланыс&lt;/font&gt;" style="text;html=1;align=center;verticalAlign=middle;resizable=0;points=[];autosize=1;strokeColor=none;fillColor=none;" vertex="1" parent="1">
+          <mxGeometry x="327" y="15" width="1000" height="50" as="geometry" />
+        </mxCell>
+        <!-- Central ntFAST -->
+        <mxCell id="center" value="&lt;font style=&quot;font-size:16px;&quot;&gt;&lt;b&gt;ntFAST&lt;/b&gt;&lt;/font&gt;&lt;br&gt;&lt;font style=&quot;font-size:11px;&quot;&gt;Қаржылық транзакцияларды&lt;br&gt;талдау жүйесі&lt;br&gt;━━━━━━━━━━━━━━&lt;br&gt;11 модуль + ML ансамбль&lt;br&gt;FraudEngine v4&lt;br&gt;Тәуекел баллы: 0–100&lt;/font&gt;" style="ellipse;whiteSpace=wrap;html=1;fillColor=#fff8e1;strokeColor=#e65100;strokeWidth=3;shadow=1;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="617" y="380" width="280" height="220" as="geometry" />
+        </mxCell>
+        <!-- ===== TOP: Financial Institutions ===== -->
+        <mxCell id="fi" value="&lt;font style=&quot;font-size:13px;&quot;&gt;&lt;b&gt;ҚАРЖЫЛЫҚ ҰЙЫМДАР&lt;/b&gt;&lt;/font&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px;&quot;&gt;Банктер (22) | Төлем жүйелері | МҚҰ (189)&lt;br&gt;Сақтандыру (31) | Бағалы қағаздар (40) | Валюта бюросы (2500+)&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#c8e6c9;strokeColor=#2e7d32;strokeWidth=2;shadow=1;fontSize=11;arcSize=15;" vertex="1" parent="1">
+          <mxGeometry x="477" y="80" width="560" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="arrFI" value="&lt;font color=&quot;#2e7d32&quot;&gt;&lt;b&gt;Банк көшірмелері&lt;/b&gt;&lt;br&gt;PDF / XLSX / CSV&lt;/font&gt;" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#2e7d32;strokeWidth=3;endArrow=block;endFill=1;" edge="1" parent="1" source="fi" target="center">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <!-- ===== LEFT TOP: ҚМА ===== -->
+        <mxCell id="g_kma" value="&lt;font style=&quot;font-size:13px;&quot;&gt;&lt;b&gt;ҚР ҚАРЖЫЛЫҚ МОНИТОРИНГ&lt;br&gt;АГЕНТТІГІ (ҚМА / АФМ)&lt;/b&gt;&lt;/font&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px;&quot;&gt;━━━━━━━━━━━━━━━━━━&lt;br&gt;&lt;b&gt;Қабылдайды:&lt;/b&gt;&lt;br&gt;• STR — күдікті транзакция хабарламасы&lt;br&gt;• CTR — ақшалай транзакция есебі (1000+ АЕК)&lt;br&gt;• Ай сайынғы жиынтық талдау&lt;br&gt;• Алаяқтық заңдылықтар есебі&lt;br&gt;&lt;br&gt;&lt;b&gt;Жібереді:&lt;/b&gt;&lt;br&gt;• Санкциялар тізімі жаңартулары&lt;br&gt;• Жаңа типология схемалары&lt;br&gt;• Тексеру нұсқаулары&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#bbdefb;strokeColor=#1565c0;strokeWidth=2;shadow=1;fontSize=11;arcSize=10;align=left;spacingLeft=10;" vertex="1" parent="1">
+          <mxGeometry x="40" y="80" width="300" height="260" as="geometry" />
+        </mxCell>
+        <mxCell id="arrKMA1" value="&lt;font color=&quot;#c62828&quot;&gt;&lt;b&gt;STR / CTR&lt;/b&gt;&lt;/font&gt;" style="rounded=1;strokeColor=#c62828;strokeWidth=2;endArrow=block;endFill=1;" edge="1" parent="1" source="center" target="g_kma">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="arrKMA2" value="&lt;font color=&quot;#1565c0&quot;&gt;Санкция тізімі&lt;/font&gt;" style="rounded=1;strokeColor=#1565c0;strokeWidth=1;endArrow=block;endFill=1;dashed=1;dashPattern=8 4;" edge="1" parent="1" source="g_kma" target="center">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <!-- ===== RIGHT TOP: ҰБ РК ===== -->
+        <mxCell id="g_nb" value="&lt;font style=&quot;font-size:13px;&quot;&gt;&lt;b&gt;ҚР ҰЛТТЫҚ БАНКІ&lt;br&gt;(ҰБ РК / НБ РК)&lt;/b&gt;&lt;/font&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px;&quot;&gt;━━━━━━━━━━━━━━━━━━&lt;br&gt;&lt;b&gt;Қабылдайды:&lt;/b&gt;&lt;br&gt;• Нормативтік сәйкестік есебі&lt;br&gt;• ПОД/ФТ статистикасы&lt;br&gt;• Қаржы ұйымдарының тәуекел профилі&lt;br&gt;• Ішкі бақылау нәтижелері&lt;br&gt;&lt;br&gt;&lt;b&gt;Жібереді:&lt;/b&gt;&lt;br&gt;• Нормативтік талаптар өзгерістері&lt;br&gt;• АЕК шекті мәні жаңарту&lt;br&gt;• Лицензия шарттары&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#c8e6c9;strokeColor=#2e7d32;strokeWidth=2;shadow=1;fontSize=11;arcSize=10;align=left;spacingLeft=10;" vertex="1" parent="1">
+          <mxGeometry x="1200" y="80" width="300" height="260" as="geometry" />
+        </mxCell>
+        <mxCell id="arrNB1" value="&lt;font color=&quot;#2e7d32&quot;&gt;&lt;b&gt;Есептер&lt;/b&gt;&lt;/font&gt;" style="rounded=1;strokeColor=#2e7d32;strokeWidth=2;endArrow=block;endFill=1;" edge="1" parent="1" source="center" target="g_nb">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="arrNB2" value="&lt;font color=&quot;#2e7d32&quot;&gt;Нормативтер&lt;/font&gt;" style="rounded=1;strokeColor=#2e7d32;strokeWidth=1;endArrow=block;endFill=1;dashed=1;dashPattern=8 4;" edge="1" parent="1" source="g_nb" target="center">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <!-- ===== LEFT BOTTOM: ІІМ ===== -->
+        <mxCell id="g_iim" value="&lt;font style=&quot;font-size:13px;&quot;&gt;&lt;b&gt;ҚР ІШКІ ІСТЕР&lt;br&gt;МИНИСТРЛІГІ (ІІМ / МВД)&lt;/b&gt;&lt;/font&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px;&quot;&gt;━━━━━━━━━━━━━━━━━━&lt;br&gt;&lt;b&gt;Қабылдайды:&lt;/b&gt;&lt;br&gt;• Алаяқтық фактілері хабарламасы&lt;br&gt;• Граф-талдау нәтижелері&lt;br&gt;• Күдікті субъектілер тізімі&lt;br&gt;• Цифрлық дәлелдемелер&lt;br&gt;&lt;br&gt;&lt;b&gt;Жібереді:&lt;/b&gt;&lt;br&gt;• Расталған алаяқтық оқиғалары&lt;br&gt;• Тергеу нәтижелері (ML үшін)&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fce4ec;strokeColor=#c62828;strokeWidth=2;shadow=1;fontSize=11;arcSize=10;align=left;spacingLeft=10;" vertex="1" parent="1">
+          <mxGeometry x="40" y="630" width="300" height="260" as="geometry" />
+        </mxCell>
+        <mxCell id="arrIIM1" value="&lt;font color=&quot;#c62828&quot;&gt;&lt;b&gt;Алаяқтық&lt;br&gt;деректер&lt;/b&gt;&lt;/font&gt;" style="rounded=1;strokeColor=#c62828;strokeWidth=2;endArrow=block;endFill=1;" edge="1" parent="1" source="center" target="g_iim">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="arrIIM2" value="&lt;font color=&quot;#c62828&quot;&gt;Тергеу деректері&lt;/font&gt;" style="rounded=1;strokeColor=#c62828;strokeWidth=1;endArrow=block;endFill=1;dashed=1;dashPattern=8 4;" edge="1" parent="1" source="g_iim" target="center">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <!-- ===== RIGHT BOTTOM: Салық + Прокуратура ===== -->
+        <mxCell id="g_sal" value="&lt;font style=&quot;font-size:13px;&quot;&gt;&lt;b&gt;САЛЫҚ КОМИТЕТІ&lt;br&gt;(МҚМ / КГД МФ РК)&lt;/b&gt;&lt;/font&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px;&quot;&gt;━━━━━━━━━━━━━━━━━━&lt;br&gt;&lt;b&gt;Қабылдайды:&lt;/b&gt;&lt;br&gt;• Салық жүктемесінен ауытқу&lt;br&gt;• Жасанды шығындар талдауы&lt;br&gt;• Кіріс-шығыс сәйкессіздігі&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f3e5f5;strokeColor=#7b1fa2;strokeWidth=2;shadow=1;fontSize=11;arcSize=10;align=left;spacingLeft=10;" vertex="1" parent="1">
+          <mxGeometry x="1200" y="630" width="300" height="170" as="geometry" />
+        </mxCell>
+        <mxCell id="arrSal" value="&lt;font color=&quot;#7b1fa2&quot;&gt;&lt;b&gt;Салық&lt;br&gt;деректер&lt;/b&gt;&lt;/font&gt;" style="rounded=1;strokeColor=#7b1fa2;strokeWidth=2;endArrow=block;endFill=1;" edge="1" parent="1" source="center" target="g_sal">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="g_prok" value="&lt;font style=&quot;font-size:13px;&quot;&gt;&lt;b&gt;ҚР БАС ПРОКУРАТУРАСЫ&lt;/b&gt;&lt;/font&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px;&quot;&gt;━━━━━━━━━━━━━━━━━━&lt;br&gt;&lt;b&gt;Қабылдайды:&lt;/b&gt;&lt;br&gt;• Ірі алаяқтық схемалар&lt;br&gt;• Ұйымдасқан қылмыс белгілері&lt;br&gt;• Дәлелдемелер пакеті&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f3e5f5;strokeColor=#7b1fa2;strokeWidth=2;shadow=1;fontSize=11;arcSize=10;align=left;spacingLeft=10;" vertex="1" parent="1">
+          <mxGeometry x="1200" y="830" width="300" height="150" as="geometry" />
+        </mxCell>
+        <mxCell id="arrProk" style="rounded=1;strokeColor=#7b1fa2;strokeWidth=2;endArrow=block;endFill=1;" edge="1" parent="1" source="center" target="g_prok">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <!-- ===== BOTTOM CENTER: International ===== -->
+        <mxCell id="g_intl" value="&lt;font style=&quot;font-size:13px;&quot;&gt;&lt;b&gt;ХАЛЫҚАРАЛЫҚ СТАНДАРТТАР&lt;/b&gt;&lt;/font&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px;&quot;&gt;━━━━━━━━━━━━━━━━━━&lt;br&gt;• ФАТФ — 40 ұсыныс, Risk-Based Approach&lt;br&gt;• Egmont Group — қаржылық барлау бірлестігі&lt;br&gt;• ЕО/БҰҰ санкциялар тізімі&lt;br&gt;• Wolfsberg Group принциптері&lt;br&gt;• ISO 20022 хабарлама стандарты&lt;br&gt;• Basel III банк стандарттары&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e8eaf6;strokeColor=#3f51b5;strokeWidth=2;shadow=1;fontSize=11;arcSize=10;align=left;spacingLeft=15;" vertex="1" parent="1">
+          <mxGeometry x="477" y="700" width="560" height="170" as="geometry" />
+        </mxCell>
+        <mxCell id="arrIntl" value="&lt;font color=&quot;#3f51b5&quot;&gt;Стандарттар мен ережелер&lt;/font&gt;" style="rounded=1;strokeColor=#3f51b5;strokeWidth=1;endArrow=block;endFill=1;dashed=1;dashPattern=8 4;" edge="1" parent="1" source="g_intl" target="center">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <!-- ===== Legend ===== -->
+        <mxCell id="legend" value="&lt;font style=&quot;font-size:11px;&quot;&gt;&lt;b&gt;Шартты белгілер:&lt;/b&gt;&lt;br&gt;━━━ Тұрақты деректер ағыны&lt;br&gt;- - - Кері байланыс / Жаңартулар&lt;br&gt;🔴 Күдікті транзакция хабарламасы&lt;br&gt;🟢 Нормативтік есеп&lt;br&gt;🟣 Тергеу деректері&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fafafa;strokeColor=#999;shadow=0;fontSize=10;align=left;spacingLeft=10;arcSize=10;" vertex="1" parent="1">
+          <mxGeometry x="40" y="920" width="250" height="120" as="geometry" />
+        </mxCell>
+        <!-- ===== ҚР Заңнамасы block ===== -->
+        <mxCell id="g_law" value="&lt;font style=&quot;font-size:12px;&quot;&gt;&lt;b&gt;ҚР ЗАҢНАМАСЫ&lt;/b&gt;&lt;/font&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px;&quot;&gt;• ПОД/ФТ Заңы №191-IV (28.08.2009)&lt;br&gt;• ҰБ Қаулысы №28 (24.02.2012)&lt;br&gt;• АЕК = 1000 АЕК ≈ 3.69 млн ₸&lt;br&gt;• «Цифрлы Қазақстан» бағдарламасы&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e8eaf6;strokeColor=#3f51b5;strokeWidth=1;shadow=0;fontSize=11;arcSize=10;align=left;spacingLeft=10;" vertex="1" parent="1">
+          <mxGeometry x="477" y="900" width="560" height="90" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+  <diagram id="page3" name="3. Деректер ағыны + Технология + Пайда">
+    <mxGraphModel dx="2074" dy="1156" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1654" pageHeight="1169" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="t3" value="&lt;font style=&quot;font-size:20px;&quot;&gt;&lt;b&gt;ntFAST — Деректер ағыны, технологиялық стек және мемлекетке пайда&lt;/b&gt;&lt;/font&gt;" style="text;html=1;align=center;verticalAlign=middle;resizable=0;points=[];autosize=1;strokeColor=none;fillColor=none;" vertex="1" parent="1">
+          <mxGeometry x="297" y="15" width="1060" height="35" as="geometry" />
+        </mxCell>
+        <!-- ===== DATA PIPELINE ===== -->
+        <mxCell id="pipLabel" value="&lt;font style=&quot;font-size:13px;&quot;&gt;&lt;b&gt;ДЕРЕКТЕР АҒЫНЫ (END-TO-END PIPELINE)&lt;/b&gt;&lt;/font&gt;" style="text;html=1;align=left;verticalAlign=middle;resizable=0;points=[];autosize=1;strokeColor=none;fillColor=none;" vertex="1" parent="1">
+          <mxGeometry x="40" y="55" width="320" height="25" as="geometry" />
+        </mxCell>
+        <mxCell id="p1" value="&lt;b&gt;1. ЖҮКТЕУ&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:9px;&quot;&gt;Пайдаланушы банк&lt;br&gt;көшірмесін жүктейді&lt;br&gt;(PDF / XLSX / CSV)&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#c8e6c9;strokeColor=#2e7d32;strokeWidth=2;shadow=1;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="40" y="85" width="140" height="75" as="geometry" />
+        </mxCell>
+        <mxCell id="p2" value="&lt;b&gt;2. ПАРСИНГ&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:9px;&quot;&gt;Банк түрін авто-&lt;br&gt;анықтау: Kaspi,&lt;br&gt;Halyk, Forte, Binance&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#b2dfdb;strokeColor=#00695c;strokeWidth=2;shadow=1;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="230" y="85" width="140" height="75" as="geometry" />
+        </mxCell>
+        <mxCell id="p3" value="&lt;b&gt;3. ВАЛИДАЦИЯ&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:9px;&quot;&gt;Pydantic схемалар&lt;br&gt;Деректер сапасын&lt;br&gt;тексеру&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#bbdefb;strokeColor=#1565c0;strokeWidth=2;shadow=1;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="420" y="85" width="140" height="75" as="geometry" />
+        </mxCell>
+        <mxCell id="p4" value="&lt;b&gt;4. ТАЛДАУ&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:9px;&quot;&gt;11 модуль параллель&lt;br&gt;өңдеу + ML ансамбль&lt;br&gt;скоринг (0–100)&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;strokeWidth=2;shadow=1;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="610" y="85" width="140" height="75" as="geometry" />
+        </mxCell>
+        <mxCell id="p5" value="&lt;b&gt;5. ШЕШІМ&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:9px;&quot;&gt;Тәуекел деңгейін&lt;br&gt;анықтау: LOW →&lt;br&gt;MEDIUM → HIGH → CRIT&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffccbc;strokeColor=#e65100;strokeWidth=2;shadow=1;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="800" y="85" width="140" height="75" as="geometry" />
+        </mxCell>
+        <mxCell id="p6" value="&lt;b&gt;6. ЕСЕП&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:9px;&quot;&gt;Dashboard, PDF,&lt;br&gt;CSV экспорт,&lt;br&gt;Email хабарлама&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1bee7;strokeColor=#9673a6;strokeWidth=2;shadow=1;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="990" y="85" width="140" height="75" as="geometry" />
+        </mxCell>
+        <mxCell id="p7" value="&lt;b&gt;7. ХАБАРЛАМА&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:9px;&quot;&gt;STR/CTR ҚМА-ға&lt;br&gt;Есеп ҰБ РК-ға&lt;br&gt;Дәлелдеме ІІМ-ге&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ef9a9a;strokeColor=#c62828;strokeWidth=2;shadow=1;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="1180" y="85" width="140" height="75" as="geometry" />
+        </mxCell>
+        <!-- Pipeline arrows -->
+        <mxCell id="pa1" style="strokeColor=#666;strokeWidth=2;endArrow=block;endFill=1;" edge="1" parent="1" source="p1" target="p2">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="pa2" style="strokeColor=#666;strokeWidth=2;endArrow=block;endFill=1;" edge="1" parent="1" source="p2" target="p3">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="pa3" style="strokeColor=#666;strokeWidth=2;endArrow=block;endFill=1;" edge="1" parent="1" source="p3" target="p4">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="pa4" style="strokeColor=#666;strokeWidth=2;endArrow=block;endFill=1;" edge="1" parent="1" source="p4" target="p5">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="pa5" style="strokeColor=#666;strokeWidth=2;endArrow=block;endFill=1;" edge="1" parent="1" source="p5" target="p6">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="pa6" style="strokeColor=#666;strokeWidth=2;endArrow=block;endFill=1;" edge="1" parent="1" source="p6" target="p7">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <!-- WebSocket real-time -->
+        <mxCell id="wsLabel" value="&lt;font style=&quot;font-size:9px;&quot; color=&quot;#1565c0&quot;&gt;⚡ WebSocket — real-time прогресс бақылау&lt;/font&gt;" style="text;html=1;align=center;verticalAlign=middle;resizable=0;points=[];autosize=1;strokeColor=none;fillColor=none;" vertex="1" parent="1">
+          <mxGeometry x="1340" y="105" width="260" height="25" as="geometry" />
+        </mxCell>
+        <!-- ===== TECHNOLOGY STACK ===== -->
+        <mxCell id="techLabel" value="&lt;font style=&quot;font-size:13px;&quot;&gt;&lt;b&gt;ТЕХНОЛОГИЯЛЫҚ СТЕК&lt;/b&gt;&lt;/font&gt;" style="text;html=1;align=left;verticalAlign=middle;resizable=0;points=[];autosize=1;strokeColor=none;fillColor=none;" vertex="1" parent="1">
+          <mxGeometry x="40" y="190" width="200" height="25" as="geometry" />
+        </mxCell>
+        <mxCell id="tech1" value="&lt;font style=&quot;font-size:12px;&quot;&gt;&lt;b&gt;BACKEND&lt;/b&gt;&lt;/font&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px;&quot;&gt;Python 3.11&lt;br&gt;FastAPI&lt;br&gt;SQLAlchemy ORM&lt;br&gt;Pydantic v2&lt;br&gt;Uvicorn ASGI&lt;br&gt;Alembic migrations&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e3f2fd;strokeColor=#1565c0;strokeWidth=2;shadow=1;fontSize=10;arcSize=10;" vertex="1" parent="1">
+          <mxGeometry x="40" y="220" width="175" height="140" as="geometry" />
+        </mxCell>
+        <mxCell id="tech2" value="&lt;font style=&quot;font-size:12px;&quot;&gt;&lt;b&gt;FRONTEND&lt;/b&gt;&lt;/font&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px;&quot;&gt;React 19&lt;br&gt;TypeScript 5&lt;br&gt;Vite 6&lt;br&gt;Tailwind CSS 3&lt;br&gt;Chart.js&lt;br&gt;React Router 6&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e8f5e9;strokeColor=#2e7d32;strokeWidth=2;shadow=1;fontSize=10;arcSize=10;" vertex="1" parent="1">
+          <mxGeometry x="235" y="220" width="175" height="140" as="geometry" />
+        </mxCell>
+        <mxCell id="tech3" value="&lt;font style=&quot;font-size:12px;&quot;&gt;&lt;b&gt;DATABASE&lt;/b&gt;&lt;/font&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px;&quot;&gt;PostgreSQL 15&lt;br&gt;Redis 7&lt;br&gt;SQLite (dev)&lt;br&gt;━━━━━━━━&lt;br&gt;5 негізгі кесте&lt;br&gt;Аудит журналы&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f3e5f5;strokeColor=#7b1fa2;strokeWidth=2;shadow=1;fontSize=10;arcSize=10;" vertex="1" parent="1">
+          <mxGeometry x="430" y="220" width="175" height="140" as="geometry" />
+        </mxCell>
+        <mxCell id="tech4" value="&lt;font style=&quot;font-size:12px;&quot;&gt;&lt;b&gt;ML / AI&lt;/b&gt;&lt;/font&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px;&quot;&gt;XGBoost&lt;br&gt;Scikit-learn&lt;br&gt;Random Forest&lt;br&gt;Logistic Regression&lt;br&gt;Claude AI API&lt;br&gt;NumPy, Pandas&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff3e0;strokeColor=#e65100;strokeWidth=2;shadow=1;fontSize=10;arcSize=10;" vertex="1" parent="1">
+          <mxGeometry x="625" y="220" width="175" height="140" as="geometry" />
+        </mxCell>
+        <mxCell id="tech5" value="&lt;font style=&quot;font-size:12px;&quot;&gt;&lt;b&gt;DEPLOY&lt;/b&gt;&lt;/font&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px;&quot;&gt;Docker&lt;br&gt;Docker Compose&lt;br&gt;Railway Cloud&lt;br&gt;Kubernetes&lt;br&gt;CI/CD Pipeline&lt;br&gt;GitHub Actions&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e0e0e0;strokeColor=#616161;strokeWidth=2;shadow=1;fontSize=10;arcSize=10;" vertex="1" parent="1">
+          <mxGeometry x="820" y="220" width="175" height="140" as="geometry" />
+        </mxCell>
+        <mxCell id="tech6" value="&lt;font style=&quot;font-size:12px;&quot;&gt;&lt;b&gt;ҚАУІПСІЗДІК&lt;/b&gt;&lt;/font&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px;&quot;&gt;JWT + bcrypt&lt;br&gt;RBAC (Admin/Analyst)&lt;br&gt;CORS + HTTPS&lt;br&gt;Rate Limiting&lt;br&gt;Email Verification&lt;br&gt;Activity Tracking&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffcdd2;strokeColor=#c62828;strokeWidth=2;shadow=1;fontSize=10;arcSize=10;" vertex="1" parent="1">
+          <mxGeometry x="1015" y="220" width="175" height="140" as="geometry" />
+        </mxCell>
+        <mxCell id="tech7" value="&lt;font style=&quot;font-size:12px;&quot;&gt;&lt;b&gt;ҚОСЫМША&lt;/b&gt;&lt;/font&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px;&quot;&gt;i18n (QZ/RU/EN)&lt;br&gt;Dark/Light тема&lt;br&gt;WebSocket&lt;br&gt;PDF Export&lt;br&gt;CSV Export&lt;br&gt;Email (6 провайдер)&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff9c4;strokeColor=#f9a825;strokeWidth=2;shadow=1;fontSize=10;arcSize=10;" vertex="1" parent="1">
+          <mxGeometry x="1210" y="220" width="175" height="140" as="geometry" />
+        </mxCell>
+        <!-- ===== BENEFITS TO STATE ===== -->
+        <mxCell id="benLabel" value="&lt;font style=&quot;font-size:13px;&quot;&gt;&lt;b&gt;МЕМЛЕКЕТКЕ ТИГІЗЕТІН ПАЙДА&lt;/b&gt;&lt;/font&gt;" style="text;html=1;align=left;verticalAlign=middle;resizable=0;points=[];autosize=1;strokeColor=none;fillColor=none;" vertex="1" parent="1">
+          <mxGeometry x="40" y="390" width="240" height="25" as="geometry" />
+        </mxCell>
+        <mxCell id="ben1" value="&lt;font style=&quot;font-size:13px;&quot;&gt;&lt;b&gt;💰 ЭКОНОМИКАЛЫҚ ПАЙДА&lt;/b&gt;&lt;/font&gt;&lt;br&gt;&lt;br&gt;&lt;font style=&quot;font-size:11px;&quot;&gt;• &lt;b&gt;Импорт алмастыру&lt;/b&gt; — шетелдік бағдарламалық&lt;br&gt;  қамтамасыз ету орнына отандық шешім&lt;br&gt;  (жылына $200K – $1M үнемдеу)&lt;br&gt;&lt;br&gt;• &lt;b&gt;Алаяқтықтан қорғау&lt;/b&gt; — жылына&lt;br&gt;  15–40 млрд ₸ шығынның алдын алу&lt;br&gt;&lt;br&gt;• &lt;b&gt;Жұмыс орындары&lt;/b&gt; — IT саласында&lt;br&gt;  20–30 жаңа жұмыс орны&lt;br&gt;&lt;br&gt;• &lt;b&gt;Экспорт потенциалы&lt;/b&gt; — ТМД, ЕАЭО&lt;br&gt;  елдеріне (Қырғызстан, Өзбекстан, Алиевкстан)&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e3f2fd;strokeColor=#1565c0;strokeWidth=2;shadow=1;fontSize=11;arcSize=10;align=left;spacingLeft=15;spacingTop=5;" vertex="1" parent="1">
+          <mxGeometry x="40" y="420" width="380" height="280" as="geometry" />
+        </mxCell>
+        <mxCell id="ben2" value="&lt;font style=&quot;font-size:13px;&quot;&gt;&lt;b&gt;🏛️ СТРАТЕГИЯЛЫҚ ПАЙДА&lt;/b&gt;&lt;/font&gt;&lt;br&gt;&lt;br&gt;&lt;font style=&quot;font-size:11px;&quot;&gt;• &lt;b&gt;ФАТФ бағалауын жақсарту&lt;/b&gt; — Қазақстанды&lt;br&gt;  «сұр тізімнен» алып шығу&lt;br&gt;&lt;br&gt;• &lt;b&gt;ПОД/ФТ жүйесін нығайту&lt;/b&gt; — ақша жылыстатуға&lt;br&gt;  және терроризмді қаржыландыруға қарсы&lt;br&gt;&lt;br&gt;• &lt;b&gt;Мемлекеттік тілді қолдау&lt;/b&gt; — қазақ тілінде&lt;br&gt;  толық жұмыс істейтін жүйе&lt;br&gt;&lt;br&gt;• &lt;b&gt;«Цифрлы Қазақстан»&lt;/b&gt; — бағдарламаға&lt;br&gt;  толық сәйкестік&lt;br&gt;&lt;br&gt;• &lt;b&gt;Деректер егемендігі&lt;/b&gt; — деректер ел ішінде&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e8f5e9;strokeColor=#2e7d32;strokeWidth=2;shadow=1;fontSize=11;arcSize=10;align=left;spacingLeft=15;spacingTop=5;" vertex="1" parent="1">
+          <mxGeometry x="460" y="420" width="380" height="280" as="geometry" />
+        </mxCell>
+        <mxCell id="ben3" value="&lt;font style=&quot;font-size:13px;&quot;&gt;&lt;b&gt;🛡️ ҚАУІПСІЗДІК ПАЙДАСЫ&lt;/b&gt;&lt;/font&gt;&lt;br&gt;&lt;br&gt;&lt;font style=&quot;font-size:11px;&quot;&gt;• &lt;b&gt;Терроризмді қаржыландыруға&lt;/b&gt; қарсы&lt;br&gt;  күресті нығайту&lt;br&gt;&lt;br&gt;• &lt;b&gt;Ұйымдасқан қылмыстың&lt;/b&gt; қаржы&lt;br&gt;  ағындарын анықтау&lt;br&gt;&lt;br&gt;• &lt;b&gt;Салық жалтару&lt;/b&gt; схемаларын ашу&lt;br&gt;&lt;br&gt;• &lt;b&gt;Коррупциялық ақша&lt;/b&gt; ағындарын бақылау&lt;br&gt;&lt;br&gt;• &lt;b&gt;Трансшекаралық&lt;/b&gt; қаржы&lt;br&gt;  ағындарын мониторинг&lt;br&gt;&lt;br&gt;• &lt;b&gt;Кибер-алаяқтыққа&lt;/b&gt; қарсы қорғаныс&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fce4ec;strokeColor=#c62828;strokeWidth=2;shadow=1;fontSize=11;arcSize=10;align=left;spacingLeft=15;spacingTop=5;" vertex="1" parent="1">
+          <mxGeometry x="880" y="420" width="380" height="280" as="geometry" />
+        </mxCell>
+        <!-- ===== COMPLIANCE STANDARDS ===== -->
+        <mxCell id="compLabel" value="&lt;font style=&quot;font-size:13px;&quot;&gt;&lt;b&gt;СӘЙКЕСТІК СТАНДАРТТАРЫ&lt;/b&gt;&lt;/font&gt;" style="text;html=1;align=left;verticalAlign=middle;resizable=0;points=[];autosize=1;strokeColor=none;fillColor=none;" vertex="1" parent="1">
+          <mxGeometry x="40" y="720" width="210" height="25" as="geometry" />
+        </mxCell>
+        <mxCell id="comp1" value="&lt;b&gt;ФАТФ (FATF)&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px;&quot;&gt;40 ұсыныс | 11 тікелей нәтиже&lt;br&gt;Risk-Based Approach&lt;br&gt;Customer Due Diligence (CDD)&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e8eaf6;strokeColor=#3f51b5;strokeWidth=2;shadow=1;fontSize=11;arcSize=10;" vertex="1" parent="1">
+          <mxGeometry x="40" y="750" width="280" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="comp2" value="&lt;b&gt;ҚР ЗАҢНАМАСЫ&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px;&quot;&gt;ПОД/ФТ Заңы №191-IV&lt;br&gt;ҰБ Қаулысы №28&lt;br&gt;АЕК шекті мәні = 1000 АЕК&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e8eaf6;strokeColor=#3f51b5;strokeWidth=2;shadow=1;fontSize=11;arcSize=10;" vertex="1" parent="1">
+          <mxGeometry x="350" y="750" width="280" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="comp3" value="&lt;b&gt;ХАЛЫҚАРАЛЫҚ&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px;&quot;&gt;ЕО/БҰҰ санкциялар тізімі&lt;br&gt;Egmont Group | ISO 20022&lt;br&gt;Basel III | Wolfsberg Group&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e8eaf6;strokeColor=#3f51b5;strokeWidth=2;shadow=1;fontSize=11;arcSize=10;" vertex="1" parent="1">
+          <mxGeometry x="660" y="750" width="280" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="comp4" value="&lt;b&gt;«ЦИФРЛЫ ҚАЗАҚСТАН»&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px;&quot;&gt;Деректер егемендігі&lt;br&gt;IT импорт алмастыру&lt;br&gt;e-Government интеграция&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e8eaf6;strokeColor=#3f51b5;strokeWidth=2;shadow=1;fontSize=11;arcSize=10;" vertex="1" parent="1">
+          <mxGeometry x="970" y="750" width="280" height="80" as="geometry" />
+        </mxCell>
+        <!-- ===== SUPPORTED BANKS ===== -->
+        <mxCell id="bankLabel" value="&lt;font style=&quot;font-size:13px;&quot;&gt;&lt;b&gt;ҚОЛДАУ КӨРСЕТІЛЕТІН БАНКТЕР&lt;/b&gt;&lt;/font&gt;" style="text;html=1;align=left;verticalAlign=middle;resizable=0;points=[];autosize=1;strokeColor=none;fillColor=none;" vertex="1" parent="1">
+          <mxGeometry x="40" y="855" width="260" height="25" as="geometry" />
+        </mxCell>
+        <mxCell id="bk1" value="&lt;b&gt;Kaspi Bank&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:9px;&quot;&gt;PDF, XLSX&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#c8e6c9;strokeColor=#2e7d32;shadow=1;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="40" y="885" width="130" height="45" as="geometry" />
+        </mxCell>
+        <mxCell id="bk2" value="&lt;b&gt;Halyk Bank&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:9px;&quot;&gt;PDF, XLSX&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#c8e6c9;strokeColor=#2e7d32;shadow=1;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="190" y="885" width="130" height="45" as="geometry" />
+        </mxCell>
+        <mxCell id="bk3" value="&lt;b&gt;Forte Bank&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:9px;&quot;&gt;XLSX&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#c8e6c9;strokeColor=#2e7d32;shadow=1;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="340" y="885" width="130" height="45" as="geometry" />
+        </mxCell>
+        <mxCell id="bk4" value="&lt;b&gt;Jusan Bank&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:9px;&quot;&gt;XLSX&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#c8e6c9;strokeColor=#2e7d32;shadow=1;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="490" y="885" width="130" height="45" as="geometry" />
+        </mxCell>
+        <mxCell id="bk5" value="&lt;b&gt;Сбербанк ҚР&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:9px;&quot;&gt;PDF&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#c8e6c9;strokeColor=#2e7d32;shadow=1;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="640" y="885" width="130" height="45" as="geometry" />
+        </mxCell>
+        <mxCell id="bk6" value="&lt;b&gt;Binance&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:9px;&quot;&gt;CSV&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff3e0;strokeColor=#e65100;shadow=1;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="790" y="885" width="130" height="45" as="geometry" />
+        </mxCell>
+        <!-- Footer -->
+        <mxCell id="footer3" value="&lt;font style=&quot;font-size:10px;&quot; color=&quot;#999&quot;&gt;ntFAST v1.0.0 | Әзірлеуші: ntFAST Development Team | Мақсатты нарық: Қазақстан Республикасы | Патент: Пайдалы модель (НИИС РК)&lt;/font&gt;" style="text;html=1;align=center;verticalAlign=middle;resizable=0;points=[];autosize=1;strokeColor=none;fillColor=none;" vertex="1" parent="1">
+          <mxGeometry x="297" y="960" width="800" height="25" as="geometry" />
+        </mxCell>
+        <!-- Decorative: ntFAST logo area -->
+        <mxCell id="logoArea" value="&lt;font style=&quot;font-size:10px;&quot; color=&quot;#666&quot;&gt;ntFAST — Financial Analysis System for Transactions © 2025-2026&lt;/font&gt;" style="text;html=1;align=right;verticalAlign=middle;resizable=0;points=[];autosize=1;strokeColor=none;fillColor=none;" vertex="1" parent="1">
+          <mxGeometry x="1100" y="960" width="420" height="25" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
