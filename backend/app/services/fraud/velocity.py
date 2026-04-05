@@ -62,34 +62,39 @@ class VelocityAnalyzer:
         result.counterparty_churn = self._detect_counterparty_churn(sorted_txs)
 
         # ── Вычислить risk_score — сбалансированная оценка ──
+        # v4.2: Повышены пороги — обычный пользователь Kaspi Gold может делать
+        # 20-40 покупок в день (шоппинг, кофе, такси) без подозрения
         score = 0
 
         # Burst alerts: серьёзно только при множественных
-        if len(result.burst_alerts) >= 3:
+        if len(result.burst_alerts) >= 5:
             score += 30
+        elif len(result.burst_alerts) >= 3:
+            score += 15
         elif len(result.burst_alerts) >= 1:
-            score += 12
+            score += 5
 
-        # Daily spikes: только реально аномальные (Z > 3.0)
-        high_z_spikes = [s for s in result.daily_spikes if s.get("z_score", 0) > 3.0]
-        moderate_spikes = [s for s in result.daily_spikes if 2.5 < s.get("z_score", 0) <= 3.0]
+        # Daily spikes: только экстремальные (Z > 4.0) или повторяющиеся (Z > 3.0)
+        extreme_spikes = [s for s in result.daily_spikes if s.get("z_score", 0) > 4.0]
+        high_z_spikes = [s for s in result.daily_spikes if 3.0 < s.get("z_score", 0) <= 4.0]
+
+        if len(extreme_spikes) >= 3:
+            score += 25
+        elif len(extreme_spikes) >= 1:
+            score += 10
 
         if len(high_z_spikes) >= 5:
-            score += 25
-        elif len(high_z_spikes) >= 2:
-            score += 12
-        elif len(high_z_spikes) >= 1:
-            score += 5
-
-        # Moderate Z-score spikes — минимальный сигнал
-        if len(moderate_spikes) >= 5:
-            score += 5
-
-        # Amount acceleration
-        if len(result.amount_acceleration) >= 3:
-            score += 20
-        elif len(result.amount_acceleration) >= 1:
+            score += 15
+        elif len(high_z_spikes) >= 3:
             score += 8
+
+        # Amount acceleration — только при частых
+        if len(result.amount_acceleration) >= 5:
+            score += 20
+        elif len(result.amount_acceleration) >= 3:
+            score += 10
+        elif len(result.amount_acceleration) >= 1:
+            score += 3
 
         # Counterparty churn — только при серьёзном
         if result.counterparty_churn.get("high_churn_days", 0) >= 5:
@@ -135,7 +140,7 @@ class VelocityAnalyzer:
         return alerts[:10]
 
     def _detect_daily_spikes(self, txs: List[Transaction]) -> List[Dict]:
-        """Обнаружение дней с аномальным количеством транзакций (Z-score > 2.5)"""
+        """Обнаружение дней с аномальным количеством транзакций (Z-score > 3.0)"""
         daily_counts = defaultdict(int)
         daily_amounts = defaultdict(float)
 
@@ -159,12 +164,13 @@ class VelocityAnalyzer:
 
         spikes = []
         if std_count > 0:
-            # Минимальный абсолютный порог: день должен иметь >= 2x среднего И >= 5 операций
-            min_count_threshold = max(mean_count * 2, 5)
+            # Минимальный абсолютный порог: день должен иметь >= 3x среднего И >= 8 операций
+            # v4.2: повышен — Kaspi Gold пользователи часто делают 10-15 покупок/день
+            min_count_threshold = max(mean_count * 3, 8)
 
             for day, count in daily_counts.items():
                 z = (count - mean_count) / std_count
-                if z > 2.5 and count >= min_count_threshold:
+                if z > 3.0 and count >= min_count_threshold:
                     spikes.append({
                         "date": day.isoformat(),
                         "transaction_count": count,

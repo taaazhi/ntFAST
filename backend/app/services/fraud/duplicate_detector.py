@@ -184,7 +184,9 @@ class DuplicatePaymentDetector:
                     if tx_list[j].date - tx_list[i].date <= window:
                         cluster.append(tx_list[j])
 
-                if len(cluster) >= 2:
+                # v4.2: требуем 3+ дубликатов — 2 одинаковых перевода это нормально
+                # (часто люди переводят 2 раза по 500k вместо 1 раз по 1M)
+                if len(cluster) >= 3:
                     groups.append({
                         "counterparty": counterparty,
                         "amount": amount,

@@ -167,7 +167,8 @@ class StructuringDetector:
 
         split_alerts = []
         for (cp, day), group_txs in groups.items():
-            if len(group_txs) < 2:
+            # v4.2: требуем 3+ транзакций — 2 перевода одному человеку это нормально
+            if len(group_txs) < 3:
                 continue
 
             total = sum(abs(t.amount) for t in group_txs)

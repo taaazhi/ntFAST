@@ -390,18 +390,37 @@ class FraudEngine:
             score += bonus
             logger.debug(f"Corroboration bonus: +{bonus} ({high_signal_count} high-signal modules)")
 
-        # Pattern override: если найдены высококонфиденциальные мошеннические схемы,
+        # Pattern override: если найдены мошеннические схемы,
         # поднимаем минимальный score чтобы отразить серьёзность
         if report.flagged_patterns:
             max_confidence = max(p.confidence for p in report.flagged_patterns)
-            if max_confidence >= 0.7:
-                # Минимальный score = confidence * 70 (уверенность 0.78 → минимум 54.6)
-                min_score_from_pattern = max_confidence * 70
+
+            # Volume boost: много однотипных паттернов повышают уверенность
+            # 10+ паттернов → +0.15, 50+ → +0.25, 100+ → +0.35
+            pattern_count = len(report.flagged_patterns)
+            if pattern_count >= 100:
+                volume_boost = 0.35
+            elif pattern_count >= 50:
+                volume_boost = 0.25
+            elif pattern_count >= 10:
+                volume_boost = 0.15
+            elif pattern_count >= 5:
+                volume_boost = 0.1
+            else:
+                volume_boost = 0.0
+
+            effective_confidence = min(1.0, max_confidence + volume_boost)
+
+            if effective_confidence >= 0.7:
+                # Минимальный score = confidence * 70 (уверенность 0.95 → минимум 66.5)
+                min_score_from_pattern = effective_confidence * 70
                 if score < min_score_from_pattern:
                     score = min_score_from_pattern
                     logger.debug(
                         f"Pattern override: score raised to {score:.1f} "
-                        f"(max_confidence={max_confidence:.2f})"
+                        f"(max_confidence={max_confidence:.2f}, "
+                        f"volume_boost=+{volume_boost:.2f}, "
+                        f"pattern_count={pattern_count})"
                     )
 
         return float(round(min(100.0, float(score)), 1))
