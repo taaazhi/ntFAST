@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Query, UploadFile, File
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, defer
 from typing import List, Optional
 import os
 import shutil
@@ -9,7 +9,7 @@ from app.core.database import get_db
 from app.core.config import settings
 from app.models.analysis import Analysis
 from app.models.user import User
-from app.schemas.analysis import AnalysisCreate, AnalysisUpdate, AnalysisResponse, AnalysisFileUploadResponse
+from app.schemas.analysis import AnalysisCreate, AnalysisUpdate, AnalysisResponse, AnalysisListItem, AnalysisFileUploadResponse
 from app.services.auth_service import get_current_user
 
 router = APIRouter()
@@ -106,7 +106,7 @@ async def upload_file_for_analysis(
         )
 
 
-@router.get("/", response_model=List[AnalysisResponse])
+@router.get("/")
 async def get_analyses(
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=1000),
@@ -121,8 +121,19 @@ async def get_analyses(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """Get list of analyses with filters, sorting and search"""
-    query = db.query(Analysis)
+    """Get list of analyses with filters, sorting and search.
+    Heavy JSON columns (fraud_report, analytics_result, fraud_red_flags, fraud_recommendations)
+    are deferred to avoid transferring ~500KB per record."""
+    query = db.query(Analysis).options(
+        defer(Analysis.fraud_report),
+        defer(Analysis.analytics_result),
+        defer(Analysis.fraud_red_flags),
+        defer(Analysis.fraud_recommendations),
+        defer(Analysis.parsed_account_info),
+        defer(Analysis.ai_narrative),
+        defer(Analysis.ai_risk_assessment),
+        defer(Analysis.ml_results),
+    )
 
     if status_filter:
         query = query.filter(Analysis.status == status_filter)
@@ -172,7 +183,27 @@ async def get_analyses(
         query = query.order_by(sort_column.desc())
 
     analyses = query.offset(skip).limit(limit).all()
-    return analyses
+    # Return lightweight dicts — exclude heavy JSON fields (fraud_report ~400KB, analytics_result ~100KB)
+    return [
+        {
+            "id": a.id, "subject_id": a.subject_id, "analyst_id": a.analyst_id,
+            "status": a.status, "risk_score": a.risk_score,
+            "analyst_notes": a.analyst_notes, "conclusion": a.conclusion,
+            "file_name": a.file_name, "file_type": a.file_type, "file_size": a.file_size,
+            "bank_type": a.bank_type, "bank_name": a.bank_name, "bank_confidence": a.bank_confidence,
+            "account_owner": a.account_owner, "account_number": a.account_number,
+            "account_currency": a.account_currency or "KZT",
+            "total_transactions": a.total_transactions or 0,
+            "total_income": a.total_income, "total_expense": a.total_expense,
+            "suspicious_count": a.suspicious_count or 0,
+            "fraud_composite_score": a.fraud_composite_score,
+            "fraud_risk_level": a.fraud_risk_level,
+            "created_at": a.created_at.isoformat() if a.created_at else None,
+            "updated_at": a.updated_at.isoformat() if a.updated_at else None,
+            "completed_at": a.completed_at.isoformat() if a.completed_at else None,
+        }
+        for a in analyses
+    ]
 
 
 @router.post("/", response_model=AnalysisResponse, status_code=status.HTTP_201_CREATED)

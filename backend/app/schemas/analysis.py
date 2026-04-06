@@ -40,8 +40,49 @@ class AnalysisFileUploadResponse(BaseModel):
         from_attributes = True
 
 
+class AnalysisListItem(AnalysisBase):
+    """Lightweight schema for analysis list — NO heavy JSON fields (fraud_report, analytics_result).
+    This reduces /analyses/ response from ~800KB to ~5KB for typical datasets."""
+    id: int
+    subject_id: Optional[int] = None
+    analyst_id: int
+    status: str
+    risk_score: int
+
+    # File information
+    file_name: Optional[str] = None
+    file_type: Optional[str] = None
+    file_size: Optional[int] = None
+
+    # Bank info
+    bank_type: Optional[str] = None
+    bank_name: Optional[str] = None
+    bank_confidence: Optional[float] = None
+    account_owner: Optional[str] = None
+    account_number: Optional[str] = None
+    account_currency: Optional[str] = "KZT"
+
+    # Statistics
+    total_transactions: int = 0
+    total_income: Optional[float] = None
+    total_expense: Optional[float] = None
+    suspicious_count: int = 0
+
+    # Fraud summary (lightweight — score + level only, no full report)
+    fraud_composite_score: Optional[float] = None
+    fraud_risk_level: Optional[str] = None
+
+    # Timestamps
+    created_at: datetime
+    updated_at: datetime
+    completed_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+
+
 class AnalysisResponse(AnalysisBase):
-    """Schema for analysis response"""
+    """Full schema for single analysis detail view — includes all heavy JSON fields."""
     id: int
     subject_id: Optional[int] = None
     analyst_id: int
@@ -71,7 +112,7 @@ class AnalysisResponse(AnalysisBase):
     anomaly_count: int = 0
     high_risk_count: int = 0
 
-    # Fraud results
+    # Fraud results (FULL)
     fraud_composite_score: Optional[float] = None
     fraud_risk_level: Optional[str] = None
     fraud_report: Optional[Dict[str, Any]] = None
