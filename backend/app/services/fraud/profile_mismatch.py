@@ -179,9 +179,11 @@ class ProfileMismatchDetector:
                     if abs(tx.amount) >= 500_000:
                         reason = "Крупная крипто-операция от зарплатника"
 
-            # Любой тип: множественные ATM-снятия за день
-            if tx.is_atm and abs(tx.amount) >= 200_000:
-                if atype not in (AccountType.BUSINESS_OWNER,):
+            # Любой тип: крупные ATM-снятия
+            # v4.3: порог зависит от дохода — для фрилансера 300K снятие = норма
+            atm_threshold = max(500_000, profile.avg_monthly_income * 0.7) if profile.avg_monthly_income > 0 else 500_000
+            if tx.is_atm and abs(tx.amount) >= atm_threshold:
+                if atype not in (AccountType.BUSINESS_OWNER, AccountType.FREELANCER):
                     if not reason:
                         reason = "Крупное снятие наличных через банкомат"
 

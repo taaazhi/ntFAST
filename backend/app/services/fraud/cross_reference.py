@@ -42,15 +42,31 @@ class CrossReferenceAnalyzer:
 
         # Risk score
         score = 0
+
         # Расходы СИЛЬНО превышают доход (>67% больше)
         if result.income_expense_ratio < 0.6 and total_expense > 1_000_000:
             score += 20
+
+        # v4.2: Аномально высокий P2P оборот для обычного человека
+        # Если зарплатник/пенсионер/студент имеет огромный оборот от физлиц — подозрительно
+        if profile.account_type in (AccountType.SALARY_EMPLOYEE, AccountType.PENSIONER,
+                                     AccountType.STUDENT, AccountType.UNKNOWN):
+            p2p_income = sum(t.amount for t in income_txs
+                           if not any(kw in (t.description or '').upper()
+                                     for kw in ('ЗАРПЛАТА', 'SALARY', 'КЭШБЭК', 'CASHBACK',
+                                               'ПЕНСИЯ', 'ПОСОБИЕ', 'ДЕПОЗИТ')))
+            monthly_salary = profile.avg_monthly_income or 1
+            # P2P доход > 3x зарплаты = подозрительно
+            if p2p_income > monthly_salary * 3 * 12:
+                score += 25
+            elif p2p_income > monthly_salary * 2 * 12:
+                score += 15
+
         # Транзитные операции (штрафуем только если > 8 случаев)
         pass_through_count = len(result.rapid_pass_through)
         if pass_through_count > 8:
             score += min(30, (pass_through_count - 8) * 8)
         elif pass_through_count > 3:
-            # 4-8 случаев — небольшой штраф
             score += min(15, (pass_through_count - 3) * 3)
 
         result.risk_score = min(100, score)

@@ -210,10 +210,9 @@ class TransactionGraphAnalyzer:
             score += min(40, len(result.cycles) * 10)
 
         # Двунаправленные хабы — контекстный порог
-        bidir_threshold = BIDIR_HUB_THRESHOLD.get(profile.account_type, 3)
+        bidir_threshold = BIDIR_HUB_THRESHOLD.get(profile.account_type, 8)
         bidirectional_hubs = [h for h in result.hub_nodes if h.get("is_bidirectional")]
 
-        # BUSINESS_OWNER: штрафуем только при > 50 уникальных контрагентов
         significant_bidir = [
             h for h in bidirectional_hubs
             if h.get("connections", 0) > bidir_threshold
@@ -227,5 +226,25 @@ class TransactionGraphAnalyzer:
             connection_threshold = bidir_threshold * 3
             if max_connections > connection_threshold:
                 score += 15
+
+        # v4.2: Fan-out detection — деньги от нескольких людей уходят нескольким
+        # Подозрительно: много двунаправленных P2P контактов (деньги и туда и обратно)
+        # Но для Kaspi Gold 5-10 bidir контактов нормально (друзья, семья)
+        if bidirectional_hubs:
+            bidir_count = len(bidirectional_hubs)
+            if bidir_count >= 15:
+                score += 30  # 15+ контрагентов = явная сеть
+            elif bidir_count >= 10:
+                score += 15
+            elif bidir_count >= 8:
+                score += 8
+
+        # v4.2: Высокая плотность графа — много уникальных контрагентов для зарплатника
+        if profile.account_type in (AccountType.SALARY_EMPLOYEE, AccountType.PENSIONER,
+                                     AccountType.STUDENT):
+            if result.node_count > 30:
+                score += 15  # Обычный человек не общается с 30+ контрагентами
+            elif result.node_count > 20:
+                score += 8
 
         return min(100, score)

@@ -23,14 +23,15 @@ VELOCITY_THRESHOLDS = {
 }
 
 # Пороги burst (количество транзакций за 2ч)
+# v4.2: повышены пороги — Kaspi Gold пользователи делают 10+ покупок за шоппинг
 BURST_THRESHOLDS = {
-    AccountType.BUSINESS_OWNER:  20,
-    AccountType.TRADER:          15,
-    AccountType.FREELANCER:      8,
-    AccountType.SALARY_EMPLOYEE: 7,
-    AccountType.PENSIONER:       5,
-    AccountType.STUDENT:         6,
-    AccountType.UNKNOWN:         7,
+    AccountType.BUSINESS_OWNER:  25,
+    AccountType.TRADER:          20,
+    AccountType.FREELANCER:      17,
+    AccountType.SALARY_EMPLOYEE: 15,
+    AccountType.PENSIONER:       10,
+    AccountType.STUDENT:         12,
+    AccountType.UNKNOWN:         15,
 }
 
 # Абсолютный минимальный порог (чтобы не флагировать мелкие суммы)
@@ -67,11 +68,12 @@ class VelocityAnalyzer:
         score = 0
 
         # Burst alerts: серьёзно только при множественных
-        if len(result.burst_alerts) >= 5:
+        # v4.3: повышены — Kaspi Gold пользователи часто делают 15+ покупок за шоппинг
+        if len(result.burst_alerts) >= 8:
             score += 30
-        elif len(result.burst_alerts) >= 3:
+        elif len(result.burst_alerts) >= 5:
             score += 15
-        elif len(result.burst_alerts) >= 1:
+        elif len(result.burst_alerts) >= 2:
             score += 5
 
         # Daily spikes: только экстремальные (Z > 4.0) или повторяющиеся (Z > 3.0)
@@ -164,9 +166,9 @@ class VelocityAnalyzer:
 
         spikes = []
         if std_count > 0:
-            # Минимальный абсолютный порог: день должен иметь >= 3x среднего И >= 8 операций
-            # v4.2: повышен — Kaspi Gold пользователи часто делают 10-15 покупок/день
-            min_count_threshold = max(mean_count * 3, 8)
+            # Минимальный абсолютный порог: день должен иметь >= 4x среднего И >= 15 операций
+            # v4.3: повышен — Kaspi Gold пользователи часто делают 15-25 покупок в день шоппинга
+            min_count_threshold = max(mean_count * 4, 15)
 
             for day, count in daily_counts.items():
                 z = (count - mean_count) / std_count

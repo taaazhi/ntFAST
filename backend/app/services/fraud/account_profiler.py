@@ -194,16 +194,19 @@ class AccountProfiler:
         if p.has_crypto_activity and p.pass_through_ratio > 0.6:
             return AccountType.TRADER
 
-        # Зарплатный сотрудник: регулярный доход от 1-3 источников
+        # Зарплатный сотрудник: регулярный доход, стабильная зарплата
+        # v4.2: расширен до 8 источников — кэшбэк, переводы друзей это нормально
         if (p.has_salary_flag and
-                p.income_source_count <= 3 and
-                p.income_regularity_score >= 0.6 and
-                p.monthly_income_cv <= 0.30):
+                p.income_source_count <= 8 and
+                p.income_regularity_score >= 0.5 and
+                p.monthly_income_cv <= 0.35):
             return AccountType.SALARY_EMPLOYEE
 
-        # Владелец бизнеса: много источников дохода И много получателей
-        if (p.unique_income_sources > 5 and
-                p.unique_expense_destinations > 15):
+        # Владелец бизнеса: много источников дохода И много получателей И высокий оборот
+        # v4.2: ужесточены пороги — требуем 10+ источников + 30+ получателей + доход > 2M
+        if (p.unique_income_sources > 10 and
+                p.unique_expense_destinations > 30 and
+                p.avg_monthly_income > 2_000_000):
             return AccountType.BUSINESS_OWNER
 
         # Фрилансер: несколько источников, нерегулярный доход

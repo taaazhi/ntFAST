@@ -90,11 +90,18 @@ class PatternDetector:
             if coverage < 0.70:
                 continue
 
-            # Снижаем уверенность для владельцев бизнеса (легитимная выплата зарплат)
+            # Снижаем уверенность для владельцев бизнеса и фрилансеров
+            # v4.3: повышен порог получение→траты — обычный человек тоже тратит после зарплаты
             base_confidence = min(0.90, 0.50 + coverage * 0.40)
             if profile.account_type == AccountType.BUSINESS_OWNER:
+                base_confidence -= 0.35
+            elif profile.account_type == AccountType.FREELANCER:
                 base_confidence -= 0.30
-            if profile.account_type == AccountType.FREELANCER:
+            elif profile.account_type == AccountType.SALARY_EMPLOYEE:
+                base_confidence -= 0.20
+
+            # Требуем минимум 5 уникальных получателей (3 — нормально: аренда, ЖКХ, перевод)
+            if len(unique_dests) < 5:
                 base_confidence -= 0.15
 
             if base_confidence < 0.15:

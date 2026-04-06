@@ -77,7 +77,7 @@ class RoundAmountDetector:
             profile = AccountProfile()
 
         # Фильтруем: только ИСХОДЯЩИЕ переводы выше порога
-        # Зарплата, пенсия, депозитные пополнения, входящие — естественно круглые
+        # Зарплата, пенсия, депозиты, ATM, входящие — естественно круглые
         relevant_txs = [
             tx for tx in transactions
             if abs(tx.amount) >= MIN_AMOUNT_KZT
@@ -85,7 +85,10 @@ class RoundAmountDetector:
             and not tx.is_salary                       # Не зарплата
             and not tx.is_pension_benefit               # Не пенсия/пособие
             and not tx.is_deposit_operation             # Не депозитные операции
+            and not tx.is_atm                          # Не ATM (снятие всегда круглое)
+            and not tx.is_cash_operation               # Не наличные
             and tx.type not in NORMALLY_NON_ROUND_TYPES  # Не комиссии
+            and not self._is_regular_payment(tx)        # Не регулярные платежи
         ]
 
         if not relevant_txs or len(relevant_txs) < 3:
@@ -175,6 +178,17 @@ class RoundAmountDetector:
         )
 
         return result
+
+    @staticmethod
+    def _is_regular_payment(tx: Transaction) -> bool:
+        """Проверить, является ли транзакция регулярным платежом (депозит, подписка, аренда)"""
+        desc = ((tx.description or "") + " " + (tx.counterparty or "")).upper()
+        regular_keywords = [
+            "ДЕПОЗИТ", "DEPOSIT", "АРЕНДА", "RENT", "ИПОТЕКА", "MORTGAGE",
+            "КРЕДИТ", "CREDIT", "СТРАХОВ", "INSURANCE", "ЖКХ", "КОММУНАЛ",
+            "БАНКОМАТ", "ATM", "KASPI ДЕПОЗИТ"
+        ]
+        return any(kw in desc for kw in regular_keywords)
 
     def _get_roundness_level(self, amount: float) -> int:
         """

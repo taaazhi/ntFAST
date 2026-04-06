@@ -38,6 +38,18 @@ LOW_RISK_KEYWORDS = {
     "telecom": ["ALTEL", "BEELINE", "KCELL", "TELE2"],
 }
 
+# Shell company indicators — generic business names used for money laundering
+SHELL_COMPANY_KEYWORDS = [
+    "КОНСАЛТ", "CONSULT", "CONSULTING", "GROUP", "ГРУП",
+    "INVEST", "ИНВЕСТ", "TRADE", "ТРЕЙД", "TRADING",
+    "ЛОГИСТИК", "LOGISTIC", "SOLUTIONS", "PREMIUM",
+    "STANDARD", "IMPERIAL", "GLOBAL", "PRIME",
+    "SILK ROAD", "GOLDEN", "CENTRAL ASIA", "EURASIA",
+    "BUSINESS GROUP", "CAPITAL", "HOLDING", "ENTERPRISE",
+]
+# Legal entity prefixes
+LEGAL_ENTITY_PREFIXES = ["ТОО", "ИП ", "АО ", "ООО", "ЗАО"]
+
 
 class MerchantRiskScorer:
     """Оценка рисков мерчантов с учётом типа аккаунта"""
@@ -94,7 +106,29 @@ class MerchantRiskScorer:
             for name, d in sorted(medium_risk.items(), key=lambda x: x[1]["amount"], reverse=True)
         ]
 
-        result.total_high_risk_amount = sum(d["amount"] for d in high_risk.values())
+        # ── Shell company detection ──────────────────────────────
+        shell_companies = defaultdict(lambda: {"amount": 0, "count": 0})
+        for tx in expenses:
+            desc = (tx.description or "").upper()
+            # Check if it's a legal entity
+            is_legal_entity = any(desc.startswith(prefix.upper()) or
+                                 f'"{prefix.upper()}' in desc or
+                                 f'«{prefix.upper()}' in desc
+                                 for prefix in LEGAL_ENTITY_PREFIXES)
+            if is_legal_entity:
+                # Check for shell company indicators
+                if any(kw in desc for kw in SHELL_COMPANY_KEYWORDS):
+                    shell_companies[desc]["amount"] += abs(tx.amount)
+                    shell_companies[desc]["count"] += 1
+
+        result.shell_companies = [
+            {"name": name, "amount": d["amount"], "count": d["count"],
+             "category": "shell_company"}
+            for name, d in sorted(shell_companies.items(), key=lambda x: x[1]["amount"], reverse=True)
+        ]
+        total_shell_amount = sum(d["amount"] for d in shell_companies.values())
+
+        result.total_high_risk_amount = sum(d["amount"] for d in high_risk.values()) + total_shell_amount
         result.total_high_risk_pct = round(
             result.total_high_risk_amount / total_expense * 100, 2
         ) if total_expense > 0 else 0
@@ -151,7 +185,7 @@ class MerchantRiskScorer:
                     score += 15
 
         # ── Прочие high-risk (ломбарды, переводы) ─────────────
-        other_high_risk = result.total_high_risk_amount - crypto_amount - gambling_amount
+        other_high_risk = result.total_high_risk_amount - crypto_amount - gambling_amount - total_shell_amount
         if total_expense > 0 and other_high_risk > 0:
             other_pct = other_high_risk / total_expense * 100
             if other_pct > 20:
@@ -160,6 +194,26 @@ class MerchantRiskScorer:
                 score += 15
             elif other_pct > 5:
                 score += 8
+
+        # ── Shell companies — подставные компании ─────────────
+        if shell_companies:
+            num_shell = len(shell_companies)
+            if num_shell >= 5:
+                score += 40  # 5+ разных shell-компаний = очень подозрительно
+            elif num_shell >= 3:
+                score += 25
+            elif num_shell >= 1:
+                score += 10
+
+            # Объём через shell-компании
+            if total_expense > 0:
+                shell_pct = total_shell_amount / total_expense * 100
+                if shell_pct > 30:
+                    score += 25
+                elif shell_pct > 15:
+                    score += 15
+                elif shell_pct > 5:
+                    score += 8
 
         result.risk_score = min(100, score)
         return result
