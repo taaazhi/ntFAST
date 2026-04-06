@@ -32,3 +32,12 @@ reportlab>=4.0
 
 # PostgreSQL adapter
 psycopg2-binary>=2.9.9
+
+# Database migrations
+alembic>=1.13.0
+
+# Graph analysis
+networkx>=3.0
+
+# Testing
+pytest>=8.0.0
