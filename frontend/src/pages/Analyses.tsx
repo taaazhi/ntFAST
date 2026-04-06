@@ -7,7 +7,6 @@ import {
   UploadCloud, File, X, FileType2, Sheet, Trash2, Inbox,
   CalendarDays, ChevronUp, ChevronDown, ChevronsLeft, ChevronsRight, ChevronLeft,
   ChevronRight, TrendingUp, ListFilter, ShieldCheck, RotateCcw,
-  BarChart3, Activity, CheckCircle2, AlertTriangle, FileCheck,
 } from 'lucide-react';
 import { analysesAPI, KaspiAnalysisResult } from '../services/api';
 import { BankAnalysisReport } from '../components/analysis/BankAnalysisReport';
@@ -93,7 +92,6 @@ export function Analyses() {
   /* ── data state ── */
   const [analyses, setAnalyses] = useState<Analysis[]>(cachedAnalyses);
   const [loading, setLoading] = useState(cachedAnalyses.length === 0);
-  const [stats, setStats] = useState<any>(null);
 
   /* ── filters state ── */
   const [searchQuery, setSearchQuery] = useState('');
@@ -153,12 +151,9 @@ export function Analyses() {
   const loadData = async () => {
     try {
       if (cachedAnalyses.length === 0) setLoading(true);
-      const [data, statsData] = await Promise.allSettled([
-        analysesAPI.getAll(),
-        analysesAPI.getStats(),
-      ]);
-      if (data.status === 'fulfilled') { cachedAnalyses = data.value; setAnalyses(data.value); }
-      if (statsData.status === 'fulfilled') setStats(statsData.value);
+      const data = await analysesAPI.getAll();
+      cachedAnalyses = data;
+      setAnalyses(data);
     } catch (error) {
       console.error('Failed to load data:', error);
     } finally {
@@ -548,115 +543,6 @@ export function Analyses() {
           {t('analyses.subtitle')}
         </p>
       </div>
-
-      {/* ═══ Stat Cards ═══ */}
-      {stats && (
-        <div className="grid gap-4 mb-8" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))' }}>
-          {/* Total analyses */}
-          <div className="glass-card" style={{ padding: '20px 20px' }}>
-            <div className="flex items-center gap-3 mb-2">
-              <div style={{ width: 36, height: 36, borderRadius: 10, background: 'rgba(99,102,241,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <BarChart3 style={{ width: 18, height: 18, color: 'var(--accent)' }} />
-              </div>
-              <div>
-                <div style={{ fontSize: 22, fontWeight: 700, color: 'var(--text)', lineHeight: 1 }}>{stats.total_analyses || 0}</div>
-                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>{t('analyses.totalAnalyses')}</div>
-              </div>
-            </div>
-            {stats.success_rate != null && (
-              <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-                <span style={{ color: '#34a853', fontWeight: 600 }}>{Math.round(stats.success_rate)}%</span> {t('analyses.successRate')}
-              </div>
-            )}
-          </div>
-
-          {/* Financial volume */}
-          <div className="glass-card" style={{ padding: '20px 20px' }}>
-            <div className="flex items-center gap-3 mb-2">
-              <div style={{ width: 36, height: 36, borderRadius: 10, background: 'rgba(52,168,83,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <TrendingUp style={{ width: 18, height: 18, color: '#34a853' }} />
-              </div>
-              <div>
-                <div style={{ fontSize: 22, fontWeight: 700, color: 'var(--text)', lineHeight: 1 }}>
-                  {((stats.total_income_sum || 0) + (stats.total_expense_sum || 0)) >= 1_000_000
-                    ? `${(((stats.total_income_sum || 0) + (stats.total_expense_sum || 0)) / 1_000_000).toFixed(1)}M`
-                    : `${Math.round(((stats.total_income_sum || 0) + (stats.total_expense_sum || 0)) / 1000)}K`}
-                </div>
-                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>{t('analyses.totalVolume')}</div>
-              </div>
-            </div>
-            <div style={{ fontSize: 11 }}>
-              <span style={{ color: '#34a853' }}>+{((stats.total_income_sum || 0) / 1_000_000).toFixed(1)}M</span>
-              <span style={{ color: 'var(--text-muted)', margin: '0 4px' }}>/</span>
-              <span style={{ color: '#ea4335' }}>-{((stats.total_expense_sum || 0) / 1_000_000).toFixed(1)}M</span>
-            </div>
-          </div>
-
-          {/* Average risk */}
-          <div className="glass-card" style={{ padding: '20px 20px' }}>
-            <div className="flex items-center gap-3 mb-2">
-              <div style={{ width: 36, height: 36, borderRadius: 10, background: `${getRiskBg(stats.avg_risk_score || 0)}15`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <Activity style={{ width: 18, height: 18, color: getRiskColor(stats.avg_risk_score || 0) }} />
-              </div>
-              <div>
-                <div style={{ fontSize: 22, fontWeight: 700, color: getRiskColor(stats.avg_risk_score || 0), lineHeight: 1 }}>
-                  {(stats.avg_risk_score || 0).toFixed(1)}
-                </div>
-                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>{t('analyses.avgRisk')}</div>
-              </div>
-            </div>
-          </div>
-
-          {/* Status breakdown */}
-          <div className="glass-card" style={{ padding: '20px 20px' }}>
-            <div className="flex items-center gap-3 mb-2">
-              <div style={{ width: 36, height: 36, borderRadius: 10, background: 'rgba(52,168,83,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <CheckCircle2 style={{ width: 18, height: 18, color: '#34a853' }} />
-              </div>
-              <div>
-                <div style={{ fontSize: 22, fontWeight: 700, color: 'var(--text)', lineHeight: 1 }}>{stats.completed_analyses || 0}</div>
-                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>{t('analyses.completed')}</div>
-              </div>
-            </div>
-            <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-              {stats.pending_count || 0} {t('analyses.pending').toLowerCase()} / {stats.in_progress_count || 0} {t('analyses.inProgress').toLowerCase()}
-            </div>
-          </div>
-
-          {/* Suspicious */}
-          <div className="glass-card" style={{ padding: '20px 20px' }}>
-            <div className="flex items-center gap-3 mb-2">
-              <div style={{ width: 36, height: 36, borderRadius: 10, background: 'rgba(234,67,53,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <AlertTriangle style={{ width: 18, height: 18, color: '#ea4335' }} />
-              </div>
-              <div>
-                <div style={{ fontSize: 22, fontWeight: 700, color: (stats.high_risk_count || 0) > 0 ? '#ea4335' : 'var(--text)', lineHeight: 1 }}>
-                  {(stats.high_risk_count || 0) + (stats.medium_risk_count || 0)}
-                </div>
-                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>{t('analyses.suspiciousFindings')}</div>
-              </div>
-            </div>
-            <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-              {stats.high_risk_count || 0} {t('dashboard.highRiskLevel').toLowerCase()} / {stats.medium_risk_count || 0} {t('dashboard.mediumRisk').toLowerCase()}
-            </div>
-          </div>
-
-          {/* Transactions processed */}
-          <div className="glass-card" style={{ padding: '20px 20px' }}>
-            <div className="flex items-center gap-3 mb-2">
-              <div style={{ width: 36, height: 36, borderRadius: 10, background: 'rgba(99,102,241,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <FileCheck style={{ width: 18, height: 18, color: 'var(--accent)' }} />
-              </div>
-              <div>
-                <div style={{ fontSize: 22, fontWeight: 700, color: 'var(--text)', lineHeight: 1 }}>
-                  {(stats.total_transactions_sum || 0).toLocaleString()}
-                </div>
-                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>{t('analyses.transactionsProcessed')}</div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* ═══ Upload Card ═══ */}
       <div className="glass-card mb-8" style={{ padding: 0, overflow: 'hidden' }}>
