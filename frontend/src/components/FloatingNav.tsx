@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Home, LayoutDashboard, ScanSearch, SlidersHorizontal, LogOut, Moon, Sun, Languages, Users } from 'lucide-react';
+import { Home, LayoutDashboard, ScanSearch, SlidersHorizontal, LogOut, Moon, Sun, Languages } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../context/AuthContext';
@@ -28,7 +28,6 @@ export const FloatingNav = () => {
     { icon: Home, label: t('sidebar.home'), path: '/' },
     { icon: LayoutDashboard, label: t('sidebar.dashboard'), path: '/dashboard' },
     { icon: ScanSearch, label: t('sidebar.analyses'), path: '/analyses' },
-    { icon: Users, label: t('sidebar.subjects'), path: '/subjects' },
   ];
 
   const currentLangIndex = languages.findIndex(l => l.code === language);
