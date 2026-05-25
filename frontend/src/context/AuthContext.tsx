@@ -24,6 +24,10 @@ interface AuthProviderProps {
   children: ReactNode;
 }
 
+// Multi-tab auth channel — broadcasts login/logout events so other tabs sync.
+// Lives outside the component so we don't recreate it on each render.
+const AUTH_CHANNEL = typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel('ntfast-auth') : null;
+
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
@@ -47,9 +51,30 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     };
 
     initAuth();
-    // Heartbeat is handled by WebSocket in useActivityMonitor (single mechanism)
+
+    // SECURITY/UX: listen for logout broadcasts from other tabs.
+    // If user signs out in one tab, all tabs follow within the same browser session.
+    const onAuthMessage = (e: MessageEvent) => {
+      if (!isMountedRef.current) return;
+      if (e?.data?.type === 'logout') {
+        localStorage.removeItem('access_token');
+        localStorage.removeItem('session_start');
+        localStorage.removeItem('previous_login');
+        setUser(null);
+        // Avoid loop: another tab triggered this; just redirect without re-broadcasting.
+        if (window.location.pathname !== '/login') {
+          window.location.href = '/login';
+        }
+      } else if (e?.data?.type === 'login') {
+        // Re-fetch user info if a different tab logged in
+        void initAuth();
+      }
+    };
+    AUTH_CHANNEL?.addEventListener('message', onAuthMessage);
+
     return () => {
       isMountedRef.current = false;
+      AUTH_CHANNEL?.removeEventListener('message', onAuthMessage);
     };
   }, []);
 
@@ -76,6 +101,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
 
     if (isMountedRef.current) setUser(currentUser);
+    // Notify other tabs they should refresh user state
+    AUTH_CHANNEL?.postMessage({ type: 'login' });
   };
 
   const logout = async () => {
@@ -91,6 +118,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       localStorage.removeItem('session_start');
       localStorage.removeItem('previous_login');
       setUser(null);
+      // Multi-tab sync: notify other tabs to also log out
+      AUTH_CHANNEL?.postMessage({ type: 'logout' });
       window.location.href = '/login';
     }
   };

@@ -87,6 +87,55 @@ export function BankAnalysisReport({ result, onClose }: BankAnalysisReportProps)
     }
   };
 
+  // CSV export \u2014 pure client-side, builds spreadsheet from result.transactions.
+  // Uses UTF-8 BOM so Excel correctly displays Cyrillic. Escapes embedded
+  // commas/quotes/newlines per RFC 4180.
+  const handleExportCSV = () => {
+    try {
+      const txs = (result.transactions || []) as any[];
+      if (txs.length === 0) {
+        toast.error(t('analyses.report.transactions.noTransactions') || 'No transactions to export');
+        return;
+      }
+      const escape = (v: any): string => {
+        if (v === null || v === undefined) return '';
+        const s = String(v);
+        // If value contains comma, quote, or newline \u2192 wrap in quotes and double-up inner quotes
+        if (/[",\n\r]/.test(s)) {
+          return `"${s.replace(/"/g, '""')}"`;
+        }
+        return s;
+      };
+      const header = ['Date', 'Type', 'Description', 'Category', 'Subcategory', 'Amount', 'Currency'].join(',');
+      const rows = txs.map(tx => [
+        tx.date || '',
+        tx.type || '',
+        tx.details || '',
+        tx.category || '',
+        tx.subcategory || '',
+        tx.amount ?? '',
+        tx.currency || 'KZT',
+      ].map(escape).join(','));
+      // BOM ensures Excel detects UTF-8
+      const csv = '\uFEFF' + [header, ...rows].join('\r\n');
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      const owner = result.account?.owner || 'report';
+      const safeName = owner.replace(/[^a-zA-Z0-9\u0400-\u04FF _-]/g, '').trim().slice(0, 30) || 'report';
+      link.download = `ntFAST_${safeName}_${new Date().toISOString().slice(0, 10)}.csv`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+      toast.success(t('analyses.exportCsvSuccess') || 'CSV downloaded');
+    } catch (err) {
+      console.error('CSV export failed:', err);
+      toast.error(t('analyses.exportError') || 'Export failed');
+    }
+  };
+
   // Helper: safely get count from a field that might be array or number
   const safeLen = (val: any): number => {
     if (Array.isArray(val)) return val.length;
@@ -148,6 +197,15 @@ export function BankAnalysisReport({ result, onClose }: BankAnalysisReportProps)
                 </div>
               </div>
               <div className="flex items-center gap-2">
+                <button
+                  onClick={handleExportCSV}
+                  className="flex items-center gap-2 px-4 py-2 bg-white/10 hover:bg-white/20 rounded-xl transition-all text-sm font-medium text-white border border-white/10 hover:border-white/20"
+                  title={t('analyses.exportCsv') || 'Export CSV'}
+                  aria-label={t('analyses.exportCsv') || 'Export CSV'}
+                >
+                  <FileText className="w-4 h-4" />
+                  <span className="hidden sm:inline">CSV</span>
+                </button>
                 <button
                   onClick={handleExportPDF}
                   disabled={pdfLoading}
