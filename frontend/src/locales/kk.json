@@ -605,7 +605,11 @@
     "reset": "Тазалау",
     "unknown": "Белгісіз",
     "generating": "Жасалуда...",
-    "switchLanguage": "Тілді ауыстыру: {{next}}"
+    "switchLanguage": "Тілді ауыстыру: {{next}}",
+    "confirm": "Растау",
+    "confirmDelete": "Жою",
+    "yes": "Иә",
+    "no": "Жоқ"
   },
   "security": {
     "activeSessions": "Белсенді сеанстар",

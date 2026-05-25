@@ -605,7 +605,11 @@
     "reset": "Reset",
     "unknown": "Unknown",
     "generating": "Generating...",
-    "switchLanguage": "Switch language: {{next}}"
+    "switchLanguage": "Switch language: {{next}}",
+    "confirm": "Confirm",
+    "confirmDelete": "Delete",
+    "yes": "Yes",
+    "no": "No"
   },
   "security": {
     "activeSessions": "Active Sessions",

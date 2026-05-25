@@ -111,8 +111,8 @@ export function BankAnalysisReport({ result, onClose }: BankAnalysisReportProps)
 
         {/* ===== HEADER WITH ntFAST BRANDING ===== */}
         <div className="relative overflow-hidden">
-          {/* Gradient Background */}
-          <div className="absolute inset-0 bg-gradient-to-br from-zinc-900 via-zinc-900 to-black" />
+          {/* Gradient Background — theme-aware: deep navy in light mode, near-black in dark mode */}
+          <div className="absolute inset-0 bg-gradient-to-br from-slate-800 via-slate-900 to-black dark:from-zinc-900 dark:via-zinc-900 dark:to-black" />
           {/* Animated pattern */}
           <div className="absolute inset-0 opacity-[0.07]">
             <div className="absolute inset-0" style={{ backgroundImage: 'radial-gradient(circle at 1px 1px, white 1px, transparent 0)', backgroundSize: '20px 20px' }} />

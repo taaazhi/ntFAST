@@ -11,6 +11,7 @@ import {
 import { analysesAPI, KaspiAnalysisResult } from '../services/api';
 import { BankAnalysisReport } from '../components/analysis/BankAnalysisReport';
 import { EmptyState } from '../components/ui/EmptyState';
+import ConfirmModal from '../components/ui/ConfirmModal';
 import { useTranslation } from 'react-i18next';
 import { useBackgroundAnalysis } from '../context/BackgroundAnalysisContext';
 
@@ -111,6 +112,14 @@ export function Analyses() {
   /* ── batch select state ── */
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [batchDeleting, setBatchDeleting] = useState(false);
+
+  /* ── confirm-dialog state ── */
+  // Either null (closed), { kind: 'single', id } (single delete), or { kind: 'batch' } (batch delete)
+  const [confirmAction, setConfirmAction] = useState<
+    | { kind: 'single'; id: number }
+    | { kind: 'batch' }
+    | null
+  >(null);
 
 
   /* ── upload state ── */
@@ -244,9 +253,13 @@ export function Analyses() {
     setSelectedIds(prev => { const n = new Set(prev); if (n.has(id)) n.delete(id); else n.add(id); return n; });
   };
 
-  const handleBatchDelete = async () => {
+  // Open confirm dialog — actual delete runs from doBatchDelete after user confirms
+  const handleBatchDelete = () => {
     if (selectedIds.size === 0) return;
-    if (!confirm(t('analyses.confirmBatchDelete') || `Delete ${selectedIds.size} selected analyses?`)) return;
+    setConfirmAction({ kind: 'batch' });
+  };
+
+  const doBatchDelete = async () => {
     setBatchDeleting(true);
     try {
       const result = await analysesAPI.batchDelete(Array.from(selectedIds));
@@ -259,6 +272,7 @@ export function Analyses() {
       toast.error(t('common.error') || 'Error');
     } finally {
       setBatchDeleting(false);
+      setConfirmAction(null);
     }
   };
 
@@ -427,8 +441,12 @@ export function Analyses() {
     }
   };
 
-  const handleDeleteAnalysis = async (id: number) => {
-    if (!confirm(t('analyses.confirmDelete') || 'Delete this analysis record?')) return;
+  // Opens confirm modal — real delete runs from doDeleteAnalysis
+  const handleDeleteAnalysis = (id: number) => {
+    setConfirmAction({ kind: 'single', id });
+  };
+
+  const doDeleteAnalysis = async (id: number) => {
     try {
       await analysesAPI.delete(id);
       setAnalyses(prev => prev.filter(a => a.id !== id));
@@ -437,6 +455,8 @@ export function Analyses() {
     } catch (error) {
       console.error('Failed to delete analysis:', error);
       toast.error(t('common.error') || 'Error deleting analysis');
+    } finally {
+      setConfirmAction(null);
     }
   };
 
@@ -794,11 +814,23 @@ export function Analyses() {
                     {/* Actions */}
                     <td>
                       <div className="flex items-center gap-2">
-                        <button onClick={() => handleViewAnalysis(analysis)} disabled={viewingLoading === analysis.id} className="glass-action-btn" style={{ padding: '6px 12px' }}>
+                        <button
+                          onClick={() => handleViewAnalysis(analysis)}
+                          disabled={viewingLoading === analysis.id}
+                          className="glass-action-btn"
+                          style={{ padding: '6px 12px' }}
+                          aria-label={t('analyses.view') || 'View'}
+                        >
                           {viewingLoading === analysis.id ? <Loader2 style={{ width: 14, height: 14, animation: 'spin 1s linear infinite' }} /> : <Eye style={{ width: 14, height: 14 }} />}
                           {t('analyses.view')}
                         </button>
-                        <button onClick={() => handleDeleteAnalysis(analysis.id)} className="glass-action-btn danger" style={{ padding: '6px 12px' }}>
+                        <button
+                          onClick={() => handleDeleteAnalysis(analysis.id)}
+                          className="glass-action-btn danger"
+                          style={{ padding: '6px 12px' }}
+                          aria-label={t('analyses.delete') || 'Delete'}
+                          title={t('analyses.delete') || 'Delete'}
+                        >
                           <Trash2 style={{ width: 14, height: 14 }} />
                         </button>
                       </div>
@@ -855,6 +887,27 @@ export function Analyses() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Confirm dialog — replaces native confirm() for both batch and single delete */}
+      <ConfirmModal
+        isOpen={confirmAction !== null}
+        loading={batchDeleting}
+        title={
+          confirmAction?.kind === 'batch'
+            ? t('analyses.confirmBatchDelete') || `Delete ${selectedIds.size} selected analyses?`
+            : t('analyses.confirmDelete') || 'Delete this analysis record?'
+        }
+        confirmLabel={t('common.confirmDelete') || 'Delete'}
+        cancelLabel={t('common.cancel')}
+        onCancel={() => !batchDeleting && setConfirmAction(null)}
+        onConfirm={() => {
+          if (confirmAction?.kind === 'batch') {
+            void doBatchDelete();
+          } else if (confirmAction?.kind === 'single') {
+            void doDeleteAnalysis(confirmAction.id);
+          }
+        }}
+      />
     </div>
   );
 }

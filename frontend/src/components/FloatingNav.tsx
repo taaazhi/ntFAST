@@ -85,6 +85,7 @@ export const FloatingNav = () => {
         onClick={toggleTheme}
         className="nav-item"
         title={t('settings.darkMode')}
+        aria-label={t('settings.darkMode') || 'Toggle theme'}
       >
         {theme === 'dark' ? <Sun style={{ width: 15, height: 15 }} /> : <Moon style={{ width: 15, height: 15 }} />}
       </button>
@@ -95,6 +96,7 @@ export const FloatingNav = () => {
         className="nav-item"
         style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}
         title={t('common.switchLanguage', { next: languages[(currentLangIndex + 1) % languages.length].name })}
+        aria-label={t('common.switchLanguage', { next: languages[(currentLangIndex + 1) % languages.length].name }) || 'Switch language'}
       >
         <Languages style={{ width: 14, height: 14 }} />
         <AnimatePresence mode="wait" initial={false}>

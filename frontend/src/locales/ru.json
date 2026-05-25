@@ -606,7 +606,11 @@
     "minutes": "минут",
     "reset": "Сброс",
     "generating": "Генерация...",
-    "switchLanguage": "Сменить язык: {{next}}"
+    "switchLanguage": "Сменить язык: {{next}}",
+    "confirm": "Подтвердить",
+    "confirmDelete": "Удалить",
+    "yes": "Да",
+    "no": "Нет"
   },
   "security": {
     "activeSessions": "Активные сессии",
