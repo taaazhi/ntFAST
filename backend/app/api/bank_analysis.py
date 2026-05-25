@@ -46,6 +46,18 @@ def _sanitize_filename(name: str) -> str:
     return safe[:200] or "unnamed"
 
 
+def _norm_bank_type(meta: dict) -> Optional[str]:
+    """Extract bank_type from meta and normalize to lowercase.
+
+    Returns None if the detected type is empty, so queries on bank_type=None
+    behave consistently across all analyses.
+    """
+    raw = (meta.get("detected_bank") or {}).get("type") or meta.get("bank_type")
+    if not raw:
+        return None
+    return str(raw).lower().strip() or None
+
+
 def _get_file_extension(filename: str) -> str:
     """Получить расширение файла в нижнем регистре"""
     return os.path.splitext(filename or "")[1].lower()
@@ -99,7 +111,8 @@ def _save_analysis_to_db(
             status="completed",
 
             # Банк (meta contains nested "detected_bank" dict from BankAnalyzer)
-            bank_type=(meta.get("detected_bank") or {}).get("type") or meta.get("bank_type"),
+            # bank_type normalized to lowercase to make filter/group queries case-insensitive
+            bank_type=_norm_bank_type(meta),
             bank_name=(meta.get("detected_bank") or {}).get("name") or meta.get("bank_name"),
             bank_confidence=(meta.get("detected_bank") or {}).get("confidence") or meta.get("confidence"),
 

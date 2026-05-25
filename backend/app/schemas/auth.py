@@ -1,6 +1,37 @@
 from pydantic import BaseModel, EmailStr, Field, field_serializer, model_serializer
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional, Any
+
+
+def _to_utc_z_iso(value: Any) -> Optional[str]:
+    """Convert a datetime or ISO-string into RFC3339-style ISO with trailing 'Z' (UTC).
+
+    Robust replacement for the previous split-by-dash approach which broke
+    on legitimately-formatted timezone offsets (e.g. -05:00) and could
+    mangle the date portion.
+    """
+    if value is None:
+        return None
+    if isinstance(value, datetime):
+        # Treat naive datetimes as UTC (the DB stores UTC via datetime.utcnow)
+        if value.tzinfo is None:
+            value = value.replace(tzinfo=timezone.utc)
+        else:
+            value = value.astimezone(timezone.utc)
+        return value.strftime("%Y-%m-%dT%H:%M:%S.%f") + "Z"
+    if isinstance(value, str):
+        # Parse → re-normalize. Accept both with and without timezone.
+        try:
+            # fromisoformat tolerates "2025-11-23T17:26:41.080090+00:00" in py3.11+
+            dt = datetime.fromisoformat(value.replace("Z", "+00:00"))
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=timezone.utc)
+            else:
+                dt = dt.astimezone(timezone.utc)
+            return dt.strftime("%Y-%m-%dT%H:%M:%S.%f") + "Z"
+        except (ValueError, TypeError):
+            return None
+    return None
 
 
 class UserBase(BaseModel):
@@ -42,45 +73,15 @@ class UserResponse(UserBase):
     session_start: Optional[datetime] = None  # Current session start time
     total_online_time: Optional[int] = 0  # Total time online in seconds
 
-    # Pydantic v2: model serializer to ensure datetime with 'Z' suffix
+    # Pydantic v2: serializer to ensure all datetime fields render as UTC 'Z'.
+    # Uses _to_utc_z_iso which correctly handles both naive and tz-aware datetimes,
+    # without the fragile split-by-dash logic that broke on real timezone offsets.
     @model_serializer(mode='wrap', when_used='json')
     def serialize_model(self, serializer: Any, info: Any) -> Any:
         data = serializer(self)
-        # Add 'Z' suffix to all datetime fields
-        datetime_fields = ['created_at', 'last_login', 'previous_login', 'session_start']
-        for field in datetime_fields:
+        for field in ('created_at', 'last_login', 'previous_login', 'session_start'):
             if field in data and data[field] is not None:
-                # Remove existing timezone info and add 'Z'
-                if isinstance(data[field], str):
-                    # Already serialized by default serializer
-                    if not data[field].endswith('Z'):
-                        # VALIDATION: Check if timestamp is valid ISO format
-                        # Valid format must contain 'T': "2025-11-23T17:26:41.080090"
-                        # Invalid formats like "2025Z" should be set to None
-                        if 'T' not in data[field]:
-                            pass  # Invalid timestamp format, set to None below
-                            data[field] = None
-                            continue
-
-                        # FIXED: Remove timezone by splitting on '+' only (not '-')
-                        # ISO format: "2025-11-23T17:26:41.080090" or "2025-11-23T17:26:41.080090+00:00"
-                        # We want to preserve the date part before 'T'
-                        timestamp = data[field].split('+')[0]  # Remove +XX:XX timezone if present
-
-                        # Handle UTC offset with minus: "2025-11-23T17:26:41-05:00"
-                        # Split by T, then check if time part has timezone
-                        date_part, time_part = timestamp.split('T', 1)
-                        # Remove any timezone offset after the time (e.g., "-05:00")
-                        # Look for timezone pattern like "-05:00" or "-0500" at the end
-                        if time_part.count('-') > 0:
-                            # Check if the last dash is part of a timezone (has digits after it)
-                            parts = time_part.rsplit('-', 1)
-                            if len(parts) == 2 and parts[1].replace(':', '').isdigit():
-                                # This is a timezone offset, remove it
-                                time_part = parts[0]
-
-                        timestamp = f"{date_part}T{time_part}"
-                        data[field] = timestamp + 'Z'
+                data[field] = _to_utc_z_iso(data[field])
         return data
 
     class Config:

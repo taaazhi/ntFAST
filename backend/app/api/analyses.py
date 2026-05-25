@@ -106,6 +106,8 @@ async def upload_file_for_analysis(
 
     # Queue file processing task asynchronously
     from app.tasks.file_processing_tasks import process_file_task
+    import logging as _logging
+    _logger = _logging.getLogger(__name__)
 
     try:
         # Submit task to Celery queue
@@ -120,12 +122,18 @@ async def upload_file_for_analysis(
             message=f"File uploaded successfully. Processing started. Task ID: {task.id}"
         )
     except Exception as e:
-        # If task submission fails, update status and return error
-        db_analysis.status = "failed"
-        db.commit()
+        # If Celery is down or task submission fails, mark analysis as failed
+        # so it doesn't sit in 'pending' forever. Return 503 to signal the user
+        # that the background queue is unavailable — not a generic 500.
+        _logger.error(f"Celery task submission failed for analysis {db_analysis.id}: {e}", exc_info=True)
+        try:
+            db_analysis.status = "failed"
+            db.commit()
+        except Exception:
+            db.rollback()
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"File uploaded but task submission failed: {str(e)}"
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Analysis queue is unavailable. Please try again in a few minutes.",
         )
 
 
@@ -163,13 +171,29 @@ async def get_analyses(
     if subject_id:
         query = query.filter(Analysis.subject_id == subject_id)
 
-    # Risk level filter
+    # Risk level filter — align with /stats and BankAnalysisReport (uses fraud_composite_score 0-100)
+    # low: 0-30, medium: 30-60, high: 60+
+    # Falls back to legacy risk_score (0-10) when fraud_composite_score is NULL,
+    # using equivalent thresholds (3 ≈ 30%, 6 ≈ 60%).
     if risk_level == "low":
-        query = query.filter(Analysis.risk_score <= 3)
+        query = query.filter(
+            (Analysis.fraud_composite_score <= 30)
+            | ((Analysis.fraud_composite_score.is_(None)) & (Analysis.risk_score <= 3))
+        )
     elif risk_level == "medium":
-        query = query.filter(Analysis.risk_score > 3, Analysis.risk_score <= 6)
+        query = query.filter(
+            ((Analysis.fraud_composite_score > 30) & (Analysis.fraud_composite_score <= 60))
+            | (
+                (Analysis.fraud_composite_score.is_(None))
+                & (Analysis.risk_score > 3)
+                & (Analysis.risk_score <= 6)
+            )
+        )
     elif risk_level == "high":
-        query = query.filter(Analysis.risk_score > 6)
+        query = query.filter(
+            (Analysis.fraud_composite_score > 60)
+            | ((Analysis.fraud_composite_score.is_(None)) & (Analysis.risk_score > 6))
+        )
 
     # Date range filter
     if date_from:
@@ -217,9 +241,12 @@ async def get_analyses(
             "account_owner": a.account_owner, "account_number": a.account_number,
             "account_currency": a.account_currency or "KZT",
             "total_transactions": a.total_transactions or 0,
-            "total_income": a.total_income, "total_expense": a.total_expense,
+            # SQLAlchemy Numeric is a Decimal — explicitly cast to float so JSON
+            # consumers (frontend math) get numbers, not strings.
+            "total_income": float(a.total_income) if a.total_income is not None else 0.0,
+            "total_expense": float(a.total_expense) if a.total_expense is not None else 0.0,
             "suspicious_count": a.suspicious_count or 0,
-            "fraud_composite_score": a.fraud_composite_score,
+            "fraud_composite_score": float(a.fraud_composite_score) if a.fraud_composite_score is not None else None,
             "fraud_risk_level": a.fraud_risk_level,
             "created_at": a.created_at.isoformat() if a.created_at else None,
             "updated_at": a.updated_at.isoformat() if a.updated_at else None,

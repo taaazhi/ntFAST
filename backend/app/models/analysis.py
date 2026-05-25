@@ -1,7 +1,11 @@
-from sqlalchemy import Column, Integer, String, Text, DateTime, ForeignKey, Boolean, JSON, Float, Numeric
+from sqlalchemy import Column, Integer, String, Text, DateTime, ForeignKey, Boolean, JSON, Float, Numeric, CheckConstraint
 from sqlalchemy.orm import relationship
 from datetime import datetime
 from app.core.database import Base
+
+
+# Allowed status values for Analysis.status — kept in sync with frontend types and Celery state transitions.
+ANALYSIS_STATUS_VALUES = ("pending", "parsing", "analyzing", "completed", "failed", "cancelled")
 
 
 class Analysis(Base):
@@ -11,6 +15,15 @@ class Analysis(Base):
     """
 
     __tablename__ = "analyses"
+    __table_args__ = (
+        # SECURITY/CORRECTNESS: enforce status values at the DB layer so a bug
+        # in services can't write garbage like "processing" or "in_progress"
+        # that the frontend doesn't know how to render.
+        CheckConstraint(
+            "status IN ('pending','parsing','analyzing','completed','failed','cancelled')",
+            name="ck_analyses_status_valid",
+        ),
+    )
 
     # Основные поля
     id = Column(Integer, primary_key=True, index=True)
@@ -21,7 +34,7 @@ class Analysis(Base):
     transactions = relationship("Transaction", backref="analysis", cascade="all, delete-orphan")
 
     # Статус и результаты
-    status = Column(String(20), default="pending", index=True)  # pending, parsing, analyzing, completed, failed
+    status = Column(String(20), default="pending", index=True)  # pending, parsing, analyzing, completed, failed, cancelled
     risk_score = Column(Integer, default=0)  # 0-100
     analyst_notes = Column(Text, nullable=True)
     conclusion = Column(Text, nullable=True)
