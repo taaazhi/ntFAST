@@ -99,8 +99,18 @@ def _cors_headers(request: Request) -> dict:
 
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
-    logger.error(f"Unhandled exception on {request.method} {request.url.path}: {exc}")
-    logger.debug(traceback.format_exc())
+    # In DEBUG mode log the full traceback (helps local debugging).
+    # In production log only the exception type + message to avoid leaking
+    # sensitive paths/queries/credentials into log aggregators.
+    if settings.DEBUG:
+        logger.error(
+            f"Unhandled exception on {request.method} {request.url.path}: {exc}",
+            exc_info=True,
+        )
+    else:
+        logger.error(
+            f"Unhandled {type(exc).__name__} on {request.method} {request.url.path}"
+        )
     return JSONResponse(
         status_code=500,
         content={"detail": "Internal server error"},

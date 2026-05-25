@@ -281,20 +281,33 @@ class EmailService:
                 message.attach(MIMEText(text_body, 'plain', 'utf-8'))
             message.attach(MIMEText(html_body, 'html', 'utf-8'))
 
+            # SECURITY/RELIABILITY: 10-second timeout prevents the request handler
+            # from blocking indefinitely if the SMTP server stops responding mid-handshake.
+            smtp_timeout = 10
             if EmailService.SMTP_PORT == 465:
-                with smtplib.SMTP_SSL(EmailService.SMTP_SERVER, EmailService.SMTP_PORT) as server:
+                with smtplib.SMTP_SSL(
+                    EmailService.SMTP_SERVER, EmailService.SMTP_PORT, timeout=smtp_timeout
+                ) as server:
                     server.login(EmailService.SMTP_USERNAME, EmailService.SMTP_PASSWORD)
                     server.send_message(message)
             else:
-                with smtplib.SMTP(EmailService.SMTP_SERVER, EmailService.SMTP_PORT) as server:
+                with smtplib.SMTP(
+                    EmailService.SMTP_SERVER, EmailService.SMTP_PORT, timeout=smtp_timeout
+                ) as server:
                     server.starttls()
                     server.login(EmailService.SMTP_USERNAME, EmailService.SMTP_PASSWORD)
                     server.send_message(message)
 
             logger.info(f"[SMTP] Email sent to {to_email}")
             return True
-        except Exception as e:
+        except smtplib.SMTPAuthenticationError as e:
+            logger.error(f"[SMTP] Authentication failed for {to_email}: {e}")
+            return False
+        except (smtplib.SMTPException, OSError, TimeoutError) as e:
             logger.error(f"[SMTP] Failed to send to {to_email}: {e}")
+            return False
+        except Exception as e:
+            logger.error(f"[SMTP] Unexpected failure for {to_email}: {e}", exc_info=True)
             return False
 
     @staticmethod

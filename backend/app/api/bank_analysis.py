@@ -425,14 +425,25 @@ async def analyze_bank_statement(
 
         return JSONResponse(content=result)
 
+    except HTTPException:
+        # Don't wrap user-facing HTTPException — re-raise as-is
+        if session_id:
+            try:
+                await analysis_progress.send_error(session_id, "analysis_failed")
+            except Exception:
+                pass
+        raise
     except Exception as e:
         logger.error(f"Ошибка анализа: {e}", exc_info=True)
-        # Уведомляем WebSocket об ошибке
+        # SECURITY: send generic error to client; full details only to logs
         if session_id:
-            await analysis_progress.send_error(session_id, str(e))
+            try:
+                await analysis_progress.send_error(session_id, "analysis_failed")
+            except Exception:
+                pass
         raise HTTPException(
             status_code=500,
-            detail=f"Ошибка анализа: {str(e)}"
+            detail="Ошибка анализа банковской выписки",
         )
 
     finally:

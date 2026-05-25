@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Query
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from typing import List, Optional
 from app.core.database import get_db
 from app.models.transaction import Transaction
@@ -12,10 +12,17 @@ router = APIRouter()
 
 
 def _check_transaction_ownership(db: Session, transaction: Transaction, current_user: User) -> None:
-    """Verify the transaction's analysis belongs to the current user (or user is admin)."""
+    """Verify the transaction's analysis belongs to the current user (or user is admin).
+
+    Uses the eager-loaded `transaction.analysis` if present (loaded via joinedload),
+    falling back to an explicit lookup only when needed.
+    """
     if current_user.role == "admin":
         return
-    analysis = db.query(Analysis).filter(Analysis.id == transaction.analysis_id).first()
+    # Prefer eager-loaded relationship to avoid extra round-trip
+    analysis = getattr(transaction, "analysis", None)
+    if analysis is None:
+        analysis = db.query(Analysis).filter(Analysis.id == transaction.analysis_id).first()
     if not analysis or analysis.analyst_id != current_user.id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -89,7 +96,12 @@ async def get_transaction(
     current_user: User = Depends(get_current_user)
 ):
     """Get transaction by ID"""
-    transaction = db.query(Transaction).filter(Transaction.id == transaction_id).first()
+    transaction = (
+        db.query(Transaction)
+        .options(joinedload(Transaction.analysis))
+        .filter(Transaction.id == transaction_id)
+        .first()
+    )
     if not transaction:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -107,7 +119,12 @@ async def update_transaction(
     current_user: User = Depends(get_current_user)
 ):
     """Update transaction"""
-    db_transaction = db.query(Transaction).filter(Transaction.id == transaction_id).first()
+    db_transaction = (
+        db.query(Transaction)
+        .options(joinedload(Transaction.analysis))
+        .filter(Transaction.id == transaction_id)
+        .first()
+    )
     if not db_transaction:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -119,7 +136,11 @@ async def update_transaction(
     for field, value in update_data.items():
         setattr(db_transaction, field, value)
 
-    db.commit()
+    try:
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
     db.refresh(db_transaction)
     return db_transaction
 
@@ -131,7 +152,12 @@ async def delete_transaction(
     current_user: User = Depends(get_current_user)
 ):
     """Delete transaction (admin or owner)"""
-    db_transaction = db.query(Transaction).filter(Transaction.id == transaction_id).first()
+    db_transaction = (
+        db.query(Transaction)
+        .options(joinedload(Transaction.analysis))
+        .filter(Transaction.id == transaction_id)
+        .first()
+    )
     if not db_transaction:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -139,6 +165,10 @@ async def delete_transaction(
         )
     _check_transaction_ownership(db, db_transaction, current_user)
 
-    db.delete(db_transaction)
-    db.commit()
+    try:
+        db.delete(db_transaction)
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
     return None

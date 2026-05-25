@@ -1,3 +1,4 @@
+import asyncio
 import logging
 
 from fastapi import APIRouter, Depends, HTTPException, status, Request
@@ -13,6 +14,27 @@ from user_agents import parse as parse_user_agent
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+
+
+def _safe_create_task(coro, *, name: str = "background_task"):
+    """Schedule an async background task that logs failures instead of swallowing them.
+
+    Fire-and-forget tasks created via asyncio.create_task() have their exceptions
+    silently dropped unless explicitly retrieved. This wrapper attaches a done-callback
+    that logs any unhandled exception so SMTP/WS failures stay visible in logs.
+    """
+    task = asyncio.create_task(coro, name=name)
+
+    def _log_exception(t: "asyncio.Task") -> None:
+        try:
+            exc = t.exception()
+        except (asyncio.CancelledError, asyncio.InvalidStateError):
+            return
+        if exc is not None:
+            logger.error(f"Background task '{t.get_name()}' failed: {exc}", exc_info=exc)
+
+    task.add_done_callback(_log_exception)
+    return task
 
 
 def get_device_info(user_agent_string: str) -> str:
@@ -143,26 +165,25 @@ async def login(
 
     # Broadcast login status to all WebSocket clients
     from app.api.websocket import manager
-    import asyncio
     # Use the returned UTC timestamp (guaranteed to be accurate)
     # Add 'Z' suffix to indicate UTC timezone for JavaScript (ISO 8601 format)
     timestamp_to_broadcast = updated_timestamp.isoformat() + 'Z'
-    asyncio.create_task(manager.broadcast({
+    _safe_create_task(manager.broadcast({
         "type": "status_update",
         "user_id": user.id,
         "is_online": True,
         "last_login": timestamp_to_broadcast,
         "last_activity": timestamp_to_broadcast
-    }))
+    }), name="ws_status_update")
 
     # SECURITY: Broadcast new login notification
     # This allows users to see if someone logged into their account
-    asyncio.create_task(manager.broadcast({
+    _safe_create_task(manager.broadcast({
         "type": "new_login",
         "user_id": user.id,
         "login_time": timestamp_to_broadcast,
         "login_record_id": login_record.id
-    }))
+    }), name="ws_new_login")
     logger.debug(f"Broadcasting status update for user {user.id}")
 
     # SECURITY: Detect parallel sessions (multiple devices logged in simultaneously)
@@ -171,12 +192,12 @@ async def login(
     if len(active_sessions) > 1:  # More than 1 means user is logged in from multiple devices
         logger.warning(f"Parallel session detected for user {user.id}: {len(active_sessions)} active sessions")
         # Broadcast warning about parallel session
-        asyncio.create_task(manager.broadcast({
+        _safe_create_task(manager.broadcast({
             "type": "parallel_session_detected",
             "user_id": user.id,
             "session_count": len(active_sessions),
             "latest_session_id": login_record.id
-        }))
+        }), name="ws_parallel_session")
 
     access_token = create_access_token(data={"sub": str(user.id)})
 
@@ -222,12 +243,11 @@ async def logout(
 
     # Broadcast logout status to all WebSocket clients
     from app.api.websocket import manager
-    import asyncio
-    asyncio.create_task(manager.broadcast({
+    _safe_create_task(manager.broadcast({
         "type": "user_offline",
         "user_id": current_user.id,
         "timestamp": datetime.now(timezone.utc).isoformat() + "Z"
-    }))
+    }), name="ws_user_offline")
     logger.debug(f"Broadcasting offline status for user {current_user.id}")
 
     return {"message": "Successfully logged out"}
@@ -285,17 +305,25 @@ async def forgot_password(
     db: Session = Depends(get_db)
 ):
     """
-    Request password reset - sends verification code to email
+    Request password reset - sends verification code to email.
+
+    SECURITY: Returns the same response and approximate timing whether or not
+    the email exists, to prevent enumeration attacks that probe for valid users.
     """
+    import asyncio
     from app.services.email_service import EmailService
     from app.utils.security_info import SecurityInfoCollector
+
+    GENERIC_RESPONSE = {"message": "If the email exists, a reset code has been sent"}
 
     # Check if user exists
     user = get_user_by_email(db, request_data.email)
     if not user:
-        # Don't reveal if email exists for security
-        # But still return success to prevent email enumeration
-        return {"message": "If the email exists, a reset code has been sent"}
+        # SECURITY: equalize timing with the path that hashes/sends — bcrypt + SMTP take ~100ms.
+        # This prevents timing-based enumeration of registered emails.
+        await asyncio.sleep(0.1)
+        logger.info(f"Password reset requested for non-existent email (suppressed)")
+        return GENERIC_RESPONSE
 
     # Create verification code
     code = EmailService.create_verification_code(db, request_data.email)
@@ -327,7 +355,7 @@ async def forgot_password(
 
     logger.info(f"Password reset code sent to {request_data.email} from IP {loc['ip']}")
 
-    return {"message": "If the email exists, a reset code has been sent"}
+    return GENERIC_RESPONSE
 
 
 @router.post("/reset-password")
@@ -358,7 +386,15 @@ async def reset_password(
 
     # Update password
     user.password_hash = get_password_hash(request.new_password)
-    db.commit()
+    try:
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Password reset commit failed for {request.email}: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to reset password",
+        )
 
     logger.info(f"Password successfully reset for {request.email}")
 
@@ -451,13 +487,12 @@ async def close_all_sessions_endpoint(
 
     # Broadcast offline status
     from app.api.websocket import manager
-    import asyncio
     from datetime import datetime, timezone
-    asyncio.create_task(manager.broadcast({
+    _safe_create_task(manager.broadcast({
         "type": "user_offline",
         "user_id": current_user.id,
         "timestamp": datetime.now(timezone.utc).isoformat() + "Z"
-    }))
+    }), name="ws_close_all_sessions")
 
     return {
         "message": f"Closed {count} active session(s)",

@@ -32,9 +32,25 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -
 
 
 def decode_access_token(token: str) -> Optional[dict]:
-    """Decode JWT access token"""
+    """Decode JWT access token.
+
+    SECURITY:
+    - Pins algorithm to HS256 (never accept "none" or RS-as-HS confusion attacks).
+    - Requires `exp` claim — tokens without expiry are rejected.
+    - python-jose verifies `exp` automatically when present, but we re-check
+      explicitly in case verify_exp was disabled upstream.
+    """
     try:
-        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+        payload = jwt.decode(
+            token,
+            settings.SECRET_KEY,
+            algorithms=[settings.ALGORITHM],
+            options={"require_exp": True, "verify_exp": True},
+        )
+        # Defence in depth: ensure exp claim is actually in payload
+        if "exp" not in payload:
+            logger.debug("JWT rejected: missing exp claim")
+            return None
         return payload
     except JWTError as e:
         logger.debug(f"JWT decode error: {e}")
