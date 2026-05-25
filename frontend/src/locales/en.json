@@ -88,7 +88,7 @@
     "actions": "Actions",
     "individual": "Individual",
     "legalEntity": "Legal Entity",
-    "active": "Active",
+    "activeStatus": "Active",
     "suspicious": "Suspicious",
     "suspended": "Suspended",
     "blocked": "Blocked",
@@ -218,7 +218,210 @@
     "overview": "Overview",
     "categories": "Categories",
     "contacts": "Contacts",
-    "transactionsList": "Transactions"
+    "transactionsList": "Transactions",
+    "exportError": "PDF export failed. Please try again.",
+    "report": {
+      "subtitle": "Financial Analysis System for Transactions",
+      "downloadPdf": "Download PDF Report",
+      "verified": "Verified",
+      "hasDiscrepancies": "Has Discrepancies",
+      "transactionsSuffix": "transactions",
+      "nav": {
+        "overview": "Overview",
+        "overviewDesc": "Account general information",
+        "financial": "Financial",
+        "financialDesc": "Financial profile",
+        "antifraud": "ntFAST Antifraud",
+        "antifraudDesc": "Deep AI analysis",
+        "details": "Details",
+        "detailsDesc": "Transactions and data",
+        "conclusions": "Conclusions",
+        "conclusionsDesc": "AI recommendations"
+      },
+      "kpi": {
+        "totalIncome": "Total Income",
+        "totalExpense": "Total Expense",
+        "netFlow": "Net Flow",
+        "avgDailyExpense": "Average Daily Expense",
+        "avgDailyExpenseShort": "Avg. expense/day"
+      },
+      "account": {
+        "title": "Account Information",
+        "owner": "Owner",
+        "card": "Card",
+        "accountNumber": "Account Number",
+        "balanceStart": "Opening Balance",
+        "balanceEnd": "Closing Balance",
+        "currency": "Currency"
+      },
+      "risk": {
+        "title": "ntFAST Risk Score",
+        "description": "ntFAST analyzed <strong>{{count}}</strong> transactions across <strong>11 antifraud modules</strong>.",
+        "redFlagsDetected": "{{count}} red flags detected",
+        "viewDetails": "Detailed analysis"
+      },
+      "health": {
+        "title": "Financial Health",
+        "savingsRate": "Savings Rate",
+        "balanceTrend": "Balance Trend",
+        "growing": "Growing",
+        "declining": "Declining",
+        "stable": "Stable",
+        "financialBuffer": "Financial Buffer",
+        "essentialRatio": "Essential Share",
+        "days": "days"
+      },
+      "charts": {
+        "monthlyDynamics": "Monthly Income & Expense Dynamics",
+        "expenseCategories": "Expense Categories",
+        "incomeCategories": "Income Sources",
+        "topMerchants": "Top Merchants",
+        "weekdayActivity": "Activity by Weekday",
+        "income": "Income",
+        "expense": "Expense",
+        "turnover": "Turnover",
+        "operationsCount": "{{count}} operations",
+        "noAnalyticsData": "Detailed category and merchant analytics will be available when the statement includes extended data."
+      },
+      "antifraud": {
+        "pipelineBadge": "ntFAST AI Anti-Fraud Pipeline",
+        "pipelineDesc": "Each transaction passes through 11 rule-based antifraud modules. Results are combined with weighted scoring into the final Risk Score.",
+        "resultTitle": "Analysis Result",
+        "resultDesc": "The composite Risk Score is calculated from weighted scores across all modules. The higher the value, the more suspicious patterns were found.",
+        "modulesTitle": "Analysis Modules",
+        "clickForDetails": "Click for details",
+        "noData": "ntFAST Antifraud Analysis",
+        "noDataDesc": "Antifraud data is not available for this file. Please re-upload."
+      },
+      "modules": {
+        "velocity": {
+          "short": "Velocity",
+          "name": "Velocity Analysis",
+          "desc": "Detect anomalous transaction bursts, daily peaks and turnover acceleration.",
+          "burstAlerts": "Rapid transaction bursts ({{count}})",
+          "dailySpikes": "Days with anomalous activity ({{count}})",
+          "noAnomalies": "No anomalous bursts detected",
+          "burstStats": "{{count}} transactions in {{hours}}h"
+        },
+        "graph": {
+          "short": "Graph",
+          "name": "Network Analysis",
+          "desc": "Build a counterparty graph. Detect circular transfers and central hubs.",
+          "nodes": "Nodes",
+          "edges": "Edges",
+          "cycles": "Cycles",
+          "circular": "Circular Transfers",
+          "hubs": "Key Counterparties",
+          "connections": "{{count}} connections"
+        },
+        "structuring": {
+          "short": "Struct.",
+          "name": "Structuring",
+          "desc": "Search for splitting patterns of large amounts: near-threshold sums, transaction splitting, smurfing.",
+          "underThreshold": "Sums near threshold ({{count}})",
+          "splitting": "Splitting ({{count}})",
+          "smurfing": "Smurfing ({{count}})",
+          "noPatterns": "No structuring signs detected",
+          "ofThreshold": "{{pct}}% of threshold",
+          "recipients": "{{count}} recipients"
+        },
+        "crossReference": {
+          "short": "Transits",
+          "name": "Transit Transfers",
+          "desc": "Match incoming and outgoing flows. Detect pass-through operations and unexplained income.",
+          "ratio": "Income/Expense ratio",
+          "rapidPassThrough": "Transit operations ({{count}})",
+          "noTransits": "No transit operations detected"
+        },
+        "merchantRisk": {
+          "short": "Merchants",
+          "name": "Risky Merchants",
+          "desc": "Merchants from elevated-risk categories: gambling, crypto exchanges, anonymous payment systems.",
+          "highRiskShare": "High-risk merchants: {{pct}}% of expenses ({{amount}})",
+          "highRisk": "High Risk",
+          "mediumRisk": "Medium Risk",
+          "noRisky": "No risky merchants detected"
+        },
+        "nightTransactions": {
+          "short": "Night",
+          "name": "Night Transactions",
+          "desc": "Operations during 23:00-06:00. Large night transfers and night transaction series may indicate suspicious activity.",
+          "nightCount": "Night operations",
+          "nightRatio": "Night ratio",
+          "nightAmount": "Night amount",
+          "largeNight": "Large night",
+          "clustersWarn": "Detected {{count}} night transaction series (2-hour-window clusters)",
+          "noNight": "No night transactions detected"
+        },
+        "duplicatePayments": {
+          "short": "Dupes",
+          "name": "Duplicate Payments",
+          "desc": "Repeated payments of identical amounts to the same recipient, or fanning identical amounts to different recipients.",
+          "totalDuplicates": "Duplicates",
+          "groups": "Groups",
+          "fanOut": "Fan-outs",
+          "totalAmount": "Total amount of duplicate payments",
+          "noDuplicates": "No duplicate payments detected"
+        },
+        "roundAmounts": {
+          "short": "Round",
+          "name": "Round Amounts",
+          "desc": "A high share of round amounts can indicate fictitious operations or cash-out activity.",
+          "roundCount": "Round",
+          "roundRatio": "Round share",
+          "roundAmount": "Round amount",
+          "consecutive": "Consecutive",
+          "noRound": "No round-amount anomalies detected"
+        },
+        "profileMismatch": {
+          "short": "Profile",
+          "name": "Client Profile",
+          "desc": "Operations atypical for this client type: limit exceedances, unusual categories, income anomalies.",
+          "mismatches": "Mismatches",
+          "oversized": "Oversized",
+          "unexpected": "Unexpected",
+          "incomeAnomalies": "Income anomalies",
+          "noMismatches": "Client profile matches operations"
+        }
+      },
+      "transactions": {
+        "all": "All transactions ({{count}})",
+        "showFirst50": "Show first 50",
+        "showAll": "Show all",
+        "dateCol": "Date",
+        "descriptionCol": "Description",
+        "categoryCol": "Category",
+        "amountCol": "Amount",
+        "noTransactions": "Transaction data is not available for the table.",
+        "infoInAntifraud": "Transaction info is available in the antifraud analysis.",
+        "anomalies": "Anomalies ({{count}})"
+      },
+      "accountProfile": {
+        "title": "Account Profile (AI-detected)",
+        "type": "Type",
+        "avgIncome": "Avg. income/mo",
+        "avgExpense": "Avg. expense/mo",
+        "regularity": "Regularity",
+        "unknown": "unknown"
+      },
+      "conclusions": {
+        "title": "ntFAST AI Verdict",
+        "summary": "Based on analysis of {{count}} transactions over the period{{period}}, ntFAST rated overall risk level as",
+        "periodFrom": " from {{from}}",
+        "periodTo": " to {{to}}",
+        "stages": "ntFAST Analysis Stages",
+        "redFlags": "Red Flags ({{count}})",
+        "recommendations": "ntFAST AI Recommendations ({{count}})",
+        "reportGenerated": "Report generated by",
+        "noConclusions": "Conclusions will be available after antifraud analysis",
+        "riskLevels": {
+          "critical": "CRITICAL",
+          "high": "HIGH",
+          "medium": "MEDIUM",
+          "low": "LOW"
+        }
+      }
+    }
   },
   "settings": {
     "title": "Settings",
@@ -400,7 +603,9 @@
     "loggingIn": "Signing in...",
     "loginError": "Invalid email or password",
     "reset": "Reset",
-    "unknown": "Unknown"
+    "unknown": "Unknown",
+    "generating": "Generating...",
+    "switchLanguage": "Switch language: {{next}}"
   },
   "security": {
     "activeSessions": "Active Sessions",

@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
+import { useTranslation } from 'react-i18next';
 import {
   Shield, User, Calendar, CreditCard, CheckCircle, AlertTriangle, X,
   TrendingUp, ArrowUpRight, ArrowDownRight, Activity,
@@ -25,27 +26,40 @@ interface BankAnalysisReportProps {
 
 type SectionId = 'overview' | 'financial' | 'antifraud' | 'details' | 'conclusions';
 
-const SECTION_NAV: { id: SectionId; label: string; icon: any; description: string }[] = [
-  { id: 'overview', label: 'Обзор', icon: Eye, description: 'Общая информация о счёте' },
-  { id: 'financial', label: 'Финансы', icon: TrendingUp, description: 'Финансовый профиль' },
-  { id: 'antifraud', label: 'ntFAST Антифрод', icon: Shield, description: 'Глубокий AI-анализ' },
-  { id: 'details', label: 'Детали', icon: FileText, description: 'Транзакции и данные' },
-  { id: 'conclusions', label: 'Выводы', icon: Target, description: 'Рекомендации AI' },
-];
-
-const formatCurrency = (value: number): string => {
-  return new Intl.NumberFormat('ru-RU').format(Math.round(value)) + ' \u20B8';
-};
+// Map i18n language code \u2192 BCP47 locale used by Intl APIs.
+function intlLocale(lang: string): string {
+  if (lang === 'kk') return 'kk-KZ';
+  if (lang === 'en') return 'en-US';
+  return 'ru-RU';
+}
 
 const CHART_COLORS = ['#1a73e8', '#4285f4', '#f9ab00', '#ea4335', '#0891b2', '#5f6368', '#8ab4f8', '#1557b0'];
 
 export function BankAnalysisReport({ result, onClose }: BankAnalysisReportProps) {
+  const { t, i18n } = useTranslation();
   const [activeSection, setActiveSection] = useState<SectionId>('overview');
   const [expandedModule, setExpandedModule] = useState<string | null>(null);
   const [showAllTransactions, setShowAllTransactions] = useState(false);
   const [pdfLoading, setPdfLoading] = useState(false);
 
   const fraud = result.fraud_report;
+  const locale = intlLocale(i18n.language);
+
+  // Locale-aware currency formatter — switches grouping/separators with the language.
+  const formatCurrency = useMemo(() => {
+    return (value: number): string => {
+      const safe = Number.isFinite(value) ? value : 0;
+      return new Intl.NumberFormat(locale).format(Math.round(safe)) + ' ₸';
+    };
+  }, [locale]);
+
+  const SECTION_NAV: { id: SectionId; label: string; icon: any; description: string }[] = [
+    { id: 'overview', label: t('analyses.report.nav.overview'), icon: Eye, description: t('analyses.report.nav.overviewDesc') },
+    { id: 'financial', label: t('analyses.report.nav.financial'), icon: TrendingUp, description: t('analyses.report.nav.financialDesc') },
+    { id: 'antifraud', label: t('analyses.report.nav.antifraud'), icon: Shield, description: t('analyses.report.nav.antifraudDesc') },
+    { id: 'details', label: t('analyses.report.nav.details'), icon: FileText, description: t('analyses.report.nav.detailsDesc') },
+    { id: 'conclusions', label: t('analyses.report.nav.conclusions'), icon: Target, description: t('analyses.report.nav.conclusionsDesc') },
+  ];
 
   const handleExportPDF = async () => {
     try {
@@ -63,7 +77,7 @@ export function BankAnalysisReport({ result, onClose }: BankAnalysisReportProps)
       window.URL.revokeObjectURL(url);
     } catch (err) {
       console.error('PDF export failed:', err);
-      toast.error('Ошибка экспорта PDF. Попробуйте ещё раз.');
+      toast.error(t('analyses.exportError'));
     } finally {
       setPdfLoading(false);
     }
@@ -126,7 +140,7 @@ export function BankAnalysisReport({ result, onClose }: BankAnalysisReportProps)
                       AI v2.0
                     </span>
                   </div>
-                  <p className="text-sm text-gray-400 mt-0.5">Financial Analysis System for Transactions</p>
+                  <p className="text-sm text-gray-400 mt-0.5">{t('analyses.report.subtitle')}</p>
                 </div>
               </div>
               <div className="flex items-center gap-2">
@@ -134,14 +148,14 @@ export function BankAnalysisReport({ result, onClose }: BankAnalysisReportProps)
                   onClick={handleExportPDF}
                   disabled={pdfLoading}
                   className="flex items-center gap-2 px-4 py-2 bg-white/10 hover:bg-white/20 disabled:opacity-50 rounded-xl transition-all text-sm font-medium text-white border border-white/10 hover:border-white/20"
-                  title="Download PDF Report"
+                  title={t('analyses.report.downloadPdf')}
                 >
                   {pdfLoading ? (
                     <Loader2 className="w-4 h-4 animate-spin" />
                   ) : (
                     <Download className="w-4 h-4" />
                   )}
-                  <span className="hidden sm:inline">{pdfLoading ? 'Generating...' : 'PDF'}</span>
+                  <span className="hidden sm:inline">{pdfLoading ? t('common.generating') : 'PDF'}</span>
                 </button>
                 <button
                   onClick={onClose}
@@ -168,17 +182,17 @@ export function BankAnalysisReport({ result, onClose }: BankAnalysisReportProps)
               </div>
               <div className="flex items-center gap-2">
                 <FileText className="w-4 h-4 text-blue-400" />
-                <span>{result.summary.total_transactions} транзакций</span>
+                <span>{result.summary.total_transactions} {t('analyses.report.transactionsSuffix')}</span>
               </div>
               {result.validation.is_valid ? (
                 <span className="flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium" style={{ background: 'rgba(52,168,83,0.2)', color: '#34a853', borderWidth: 1, borderStyle: 'solid', borderColor: 'rgba(52,168,83,0.3)' }}>
                   <CheckCircle className="w-3.5 h-3.5" />
-                  Верифицировано
+                  {t('analyses.report.verified')}
                 </span>
               ) : (
                 <span className="flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium" style={{ background: 'rgba(217,119,6,0.2)', color: '#f59e0b', borderWidth: 1, borderStyle: 'solid', borderColor: 'rgba(217,119,6,0.3)' }}>
                   <AlertTriangle className="w-3.5 h-3.5" />
-                  Есть расхождения
+                  {t('analyses.report.hasDiscrepancies')}
                 </span>
               )}
             </div>
@@ -226,10 +240,10 @@ export function BankAnalysisReport({ result, onClose }: BankAnalysisReportProps)
                 {/* KPI Cards */}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
                   {[
-                    { label: 'Общий доход', value: result.summary.total_income, icon: ArrowUpRight, color: 'green', prefix: '+' },
-                    { label: 'Общий расход', value: result.summary.total_expense, icon: ArrowDownRight, color: 'red', prefix: '-' },
-                    { label: 'Чистый поток', value: result.summary.net_flow, icon: TrendingUp, color: result.summary.net_flow >= 0 ? 'blue' : 'red', prefix: result.summary.net_flow >= 0 ? '+' : '' },
-                    { label: 'Средний расход/день', value: result.summary.avg_daily_expense, icon: Activity, color: 'slate', prefix: '' },
+                    { label: t('analyses.report.kpi.totalIncome'), value: result.summary.total_income, icon: ArrowUpRight, color: 'green', prefix: '+' },
+                    { label: t('analyses.report.kpi.totalExpense'), value: result.summary.total_expense, icon: ArrowDownRight, color: 'red', prefix: '-' },
+                    { label: t('analyses.report.kpi.netFlow'), value: result.summary.net_flow, icon: TrendingUp, color: result.summary.net_flow >= 0 ? 'blue' : 'red', prefix: result.summary.net_flow >= 0 ? '+' : '' },
+                    { label: t('analyses.report.kpi.avgDailyExpense'), value: result.summary.avg_daily_expense, icon: Activity, color: 'slate', prefix: '' },
                   ].map((kpi) => {
                     const Icon = kpi.icon;
                     const colorMap: Record<string, { bg: string; iconBg: string; text: string; border: string }> = {
@@ -266,16 +280,16 @@ export function BankAnalysisReport({ result, onClose }: BankAnalysisReportProps)
                   >
                     <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
                       <CreditCard className="w-5 h-5 text-blue-500" />
-                      Информация о счёте
+                      {t('analyses.report.account.title')}
                     </h3>
                     <div className="space-y-3">
                       {[
-                        { label: 'Владелец', value: result.account.owner },
-                        { label: 'Карта', value: result.account.card },
-                        { label: 'Номер счёта', value: result.account.account_number || '---' },
-                        { label: 'Баланс на начало', value: formatCurrency(result.account.balance_start || 0) },
-                        { label: 'Баланс на конец', value: formatCurrency(result.account.balance_end || 0) },
-                        { label: 'Валюта', value: result.account.currency || 'KZT' },
+                        { label: t('analyses.report.account.owner'), value: result.account.owner },
+                        { label: t('analyses.report.account.card'), value: result.account.card },
+                        { label: t('analyses.report.account.accountNumber'), value: result.account.account_number || '---' },
+                        { label: t('analyses.report.account.balanceStart'), value: formatCurrency(result.account.balance_start || 0) },
+                        { label: t('analyses.report.account.balanceEnd'), value: formatCurrency(result.account.balance_end || 0) },
+                        { label: t('analyses.report.account.currency'), value: result.account.currency || 'KZT' },
                       ].map((row) => (
                         <div key={row.label} className="flex justify-between items-center py-1.5 border-b border-gray-200/50 dark:border-gray-700/30 last:border-0">
                           <span className="text-sm text-gray-500 dark:text-gray-400">{row.label}</span>
@@ -292,19 +306,20 @@ export function BankAnalysisReport({ result, onClose }: BankAnalysisReportProps)
                     >
                       <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
                         <Shield className="w-5 h-5 text-blue-500" />
-                        ntFAST Risk Score
+                        {t('analyses.report.risk.title')}
                       </h3>
                       <div className="flex items-center gap-6">
                         <RiskScoreGauge score={fraud.composite_score} riskLevel={fraud.risk_level} size={160} />
                         <div className="flex-1 space-y-2">
-                          <p className="text-sm text-gray-600 dark:text-gray-300">
-                            Система ntFAST проанализировала <span className="font-semibold text-blue-600 dark:text-blue-400">{result.summary.total_transactions}</span> транзакций по <span className="font-semibold text-blue-600 dark:text-blue-400">11 модулям</span> антифрод-анализа.
-                          </p>
+                          <p
+                            className="text-sm text-gray-600 dark:text-gray-300"
+                            dangerouslySetInnerHTML={{ __html: t('analyses.report.risk.description', { count: result.summary.total_transactions }) }}
+                          />
                           {fraud.red_flags && fraud.red_flags.length > 0 && (
                             <div className="flex items-center gap-2 mt-3">
                               <AlertTriangle className="w-4 h-4 text-red-500 flex-shrink-0" />
                               <span className="text-sm text-red-600 dark:text-red-400 font-medium">
-                                Обнаружено {fraud.red_flags.length} {fraud.red_flags.length === 1 ? 'красный флаг' : fraud.red_flags.length < 5 ? 'красных флага' : 'красных флагов'}
+                                {t('analyses.report.risk.redFlagsDetected', { count: fraud.red_flags.length })}
                               </span>
                             </div>
                           )}
@@ -312,7 +327,7 @@ export function BankAnalysisReport({ result, onClose }: BankAnalysisReportProps)
                             onClick={() => setActiveSection('antifraud')}
                             className="mt-3 text-sm font-medium text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 flex items-center gap-1 transition-colors"
                           >
-                            Подробный анализ <ChevronRight className="w-4 h-4" />
+                            {t('analyses.report.risk.viewDetails')} <ChevronRight className="w-4 h-4" />
                           </button>
                         </div>
                       </div>
@@ -327,14 +342,14 @@ export function BankAnalysisReport({ result, onClose }: BankAnalysisReportProps)
                   >
                     <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
                       <Activity className="w-5 h-5 text-emerald-500" />
-                      Финансовое здоровье
+                      {t('analyses.report.health.title')}
                     </h3>
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                       {[
-                        { label: 'Норма сбережений', value: `${(result.analytics.financial_health.savings_rate * 100).toFixed(1)}%`, color: result.analytics.financial_health.savings_rate > 0.1 ? 'text-green-600' : 'text-red-600' },
-                        { label: 'Тренд баланса', value: result.analytics.financial_health.balance_trend === 'growing' ? 'Растущий' : result.analytics.financial_health.balance_trend === 'declining' ? 'Падающий' : 'Стабильный', color: result.analytics.financial_health.balance_trend === 'growing' ? 'text-green-600' : result.analytics.financial_health.balance_trend === 'declining' ? 'text-red-600' : 'text-blue-600' },
-                        { label: 'Финансовый буфер', value: `${result.analytics.financial_health.financial_buffer_days} дней`, color: result.analytics.financial_health.financial_buffer_days > 30 ? 'text-green-600' : 'text-yellow-600' },
-                        { label: 'Доля необходимых', value: `${(result.analytics.financial_health.essential_ratio * 100).toFixed(0)}%`, color: 'text-gray-700 dark:text-gray-300' },
+                        { label: t('analyses.report.health.savingsRate'), value: `${(result.analytics.financial_health.savings_rate * 100).toFixed(1)}%`, color: result.analytics.financial_health.savings_rate > 0.1 ? 'text-green-600' : 'text-red-600' },
+                        { label: t('analyses.report.health.balanceTrend'), value: result.analytics.financial_health.balance_trend === 'growing' ? t('analyses.report.health.growing') : result.analytics.financial_health.balance_trend === 'declining' ? t('analyses.report.health.declining') : t('analyses.report.health.stable'), color: result.analytics.financial_health.balance_trend === 'growing' ? 'text-green-600' : result.analytics.financial_health.balance_trend === 'declining' ? 'text-red-600' : 'text-blue-600' },
+                        { label: t('analyses.report.health.financialBuffer'), value: `${result.analytics.financial_health.financial_buffer_days} ${t('analyses.report.health.days')}`, color: result.analytics.financial_health.financial_buffer_days > 30 ? 'text-green-600' : 'text-yellow-600' },
+                        { label: t('analyses.report.health.essentialRatio'), value: `${(result.analytics.financial_health.essential_ratio * 100).toFixed(0)}%`, color: 'text-gray-700 dark:text-gray-300' },
                       ].map((item) => (
                         <div key={item.label} className="text-center p-3 bg-gray-50 dark:bg-gray-700/30 rounded-xl">
                           <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">{item.label}</p>
@@ -357,10 +372,10 @@ export function BankAnalysisReport({ result, onClose }: BankAnalysisReportProps)
                 {/* Financial summary KPIs (always shown) */}
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                   {[
-                    { label: 'Общий доход', value: result.summary?.total_income || 0, color: 'green' },
-                    { label: 'Общий расход', value: result.summary?.total_expense || 0, color: 'red' },
-                    { label: 'Чистый поток', value: result.summary?.net_flow || 0, color: (result.summary?.net_flow || 0) >= 0 ? 'blue' : 'red' },
-                    { label: 'Сред. расход/день', value: result.summary?.avg_daily_expense || 0, color: 'slate' },
+                    { label: t('analyses.report.kpi.totalIncome'), value: result.summary?.total_income || 0, color: 'green' },
+                    { label: t('analyses.report.kpi.totalExpense'), value: result.summary?.total_expense || 0, color: 'red' },
+                    { label: t('analyses.report.kpi.netFlow'), value: result.summary?.net_flow || 0, color: (result.summary?.net_flow || 0) >= 0 ? 'blue' : 'red' },
+                    { label: t('analyses.report.kpi.avgDailyExpenseShort'), value: result.summary?.avg_daily_expense || 0, color: 'slate' },
                   ].map((kpi) => {
                     const colors: Record<string, string> = {
                       green: 'bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300 border-green-200/50 dark:border-green-800/40',
@@ -382,7 +397,7 @@ export function BankAnalysisReport({ result, onClose }: BankAnalysisReportProps)
                   <div className="p-6 bg-white dark:bg-gray-800/50 rounded-2xl border border-gray-200/50 dark:border-gray-700/40">
                     <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
                       <TrendingUp className="w-5 h-5 text-blue-500" />
-                      Динамика доходов и расходов по месяцам
+                      {t('analyses.report.charts.monthlyDynamics')}
                     </h3>
                     <ResponsiveContainer width="100%" height={300}>
                       <AreaChart data={result.analytics.monthly_breakdown}>
@@ -400,7 +415,7 @@ export function BankAnalysisReport({ result, onClose }: BankAnalysisReportProps)
                         <YAxis tick={{ fontSize: 12 }} tickFormatter={(v) => `${(v / 1000).toFixed(0)}K`} />
                         <Tooltip
                           contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.15)', background: 'rgba(255,255,255,0.95)' }}
-                          formatter={(value: number, name: string) => [formatCurrency(value), name === 'income' ? 'Доход' : 'Расход']}
+                          formatter={(value: number, name: string) => [formatCurrency(value), name === 'income' ? t('analyses.report.charts.income') : t('analyses.report.charts.expense')]}
                         />
                         <Area type="monotone" dataKey="income" stroke="#34a853" fill="url(#colorIncome)" strokeWidth={2.5} name="income" />
                         <Area type="monotone" dataKey="expense" stroke="#ea4335" fill="url(#colorExpense)" strokeWidth={2.5} name="expense" />
@@ -416,7 +431,7 @@ export function BankAnalysisReport({ result, onClose }: BankAnalysisReportProps)
                     <div className="p-6 bg-white dark:bg-gray-800/50 rounded-2xl border border-gray-200/50 dark:border-gray-700/40">
                       <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
                         <PieChartIcon className="w-5 h-5 text-red-500" />
-                        Категории расходов
+                        {t('analyses.report.charts.expenseCategories')}
                       </h3>
                       <ResponsiveContainer width="100%" height={250}>
                         <PieChart>
@@ -459,7 +474,7 @@ export function BankAnalysisReport({ result, onClose }: BankAnalysisReportProps)
                     <div className="p-6 bg-white dark:bg-gray-800/50 rounded-2xl border border-gray-200/50 dark:border-gray-700/40">
                       <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
                         <PieChartIcon className="w-5 h-5 text-green-500" />
-                        Источники дохода
+                        {t('analyses.report.charts.incomeCategories')}
                       </h3>
                       <ResponsiveContainer width="100%" height={250}>
                         <PieChart>
@@ -503,7 +518,7 @@ export function BankAnalysisReport({ result, onClose }: BankAnalysisReportProps)
                   <div className="p-6 bg-white dark:bg-gray-800/50 rounded-2xl border border-gray-200/50 dark:border-gray-700/40">
                     <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
                       <Store className="w-5 h-5 text-slate-500" />
-                      Топ мерчанты
+                      {t('analyses.report.charts.topMerchants')}
                     </h3>
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                       {result.analytics.top_merchants.slice(0, 9).map((merchant, i) => (
@@ -519,7 +534,7 @@ export function BankAnalysisReport({ result, onClose }: BankAnalysisReportProps)
                             </div>
                             <div className="min-w-0">
                               <p className="text-sm font-medium text-gray-900 dark:text-white truncate">{merchant.merchant}</p>
-                              <p className="text-xs text-gray-500">{merchant.count} операций</p>
+                              <p className="text-xs text-gray-500">{t('analyses.report.charts.operationsCount', { count: merchant.count })}</p>
                             </div>
                           </div>
                           <span className="text-sm font-semibold text-gray-900 dark:text-white ml-2 flex-shrink-0">
@@ -536,7 +551,7 @@ export function BankAnalysisReport({ result, onClose }: BankAnalysisReportProps)
                   <div className="p-6 bg-white dark:bg-gray-800/50 rounded-2xl border border-gray-200/50 dark:border-gray-700/40">
                     <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
                       <Calendar className="w-5 h-5 text-blue-500" />
-                      Активность по дням недели
+                      {t('analyses.report.charts.weekdayActivity')}
                     </h3>
                     <ResponsiveContainer width="100%" height={220}>
                       <BarChart data={result.analytics.weekday_analysis}>
@@ -544,7 +559,7 @@ export function BankAnalysisReport({ result, onClose }: BankAnalysisReportProps)
                         <YAxis tick={{ fontSize: 12 }} tickFormatter={(v) => `${(v / 1000).toFixed(0)}K`} />
                         <Tooltip
                           contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.15)' }}
-                          formatter={(value: number) => [formatCurrency(value), 'Оборот']}
+                          formatter={(value: number) => [formatCurrency(value), t('analyses.report.charts.turnover')]}
                         />
                         <Bar dataKey="amount" fill="#2563eb" radius={[6, 6, 0, 0]} />
                       </BarChart>
@@ -558,7 +573,7 @@ export function BankAnalysisReport({ result, onClose }: BankAnalysisReportProps)
                  (!result.analytics?.top_merchants || result.analytics.top_merchants.length === 0) && (
                   <div className="text-center py-12">
                     <TrendingUp className="w-12 h-12 text-gray-300 dark:text-gray-700 mx-auto mb-3" />
-                    <p className="text-gray-500 dark:text-gray-400">Детальная аналитика по категориям и мерчантам будет доступна при наличии расширенных данных в выписке.</p>
+                    <p className="text-gray-500 dark:text-gray-400">{t('analyses.report.charts.noAnalyticsData')}</p>
                   </div>
                 )}
               </motion.div>
@@ -580,12 +595,11 @@ export function BankAnalysisReport({ result, onClose }: BankAnalysisReportProps)
                       >
                         <Fingerprint className="w-4 h-4 text-blue-500" />
                         <span className="text-sm font-medium text-blue-700 dark:text-blue-300">
-                          ntFAST AI Anti-Fraud Pipeline
+                          {t('analyses.report.antifraud.pipelineBadge')}
                         </span>
                       </div>
                       <p className="text-sm text-gray-500 dark:text-gray-400 max-w-2xl mx-auto">
-                        Каждая транзакция проходит через 11 rule-based модулей антифрод-анализа.
-                        Результаты объединяются взвешенным скорингом для финального Risk Score.
+                        {t('analyses.report.antifraud.pipelineDesc')}
                       </p>
                     </div>
 
@@ -595,25 +609,24 @@ export function BankAnalysisReport({ result, onClose }: BankAnalysisReportProps)
 
                       <div className="flex-1 w-full">
                         <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">
-                          Результат анализа
+                          {t('analyses.report.antifraud.resultTitle')}
                         </h3>
                         <p className="text-sm text-gray-600 dark:text-gray-300 mb-4">
-                          Композитный Risk Score рассчитан на основе взвешенных оценок всех модулей.
-                          Чем выше значение, тем больше подозрительных паттернов обнаружено.
+                          {t('analyses.report.antifraud.resultDesc')}
                         </p>
 
                         {/* Radar chart of modules */}
                         <ResponsiveContainer width="100%" height={220}>
                           <RadarChart data={[
-                            { module: 'Velocity', score: fraud.velocity.risk_score },
-                            { module: 'Граф', score: fraud.graph.risk_score },
-                            { module: 'Структ.', score: fraud.structuring.risk_score },
-                            { module: 'Cross-Ref', score: fraud.cross_reference.risk_score },
-                            { module: 'Мерчанты', score: fraud.merchant_risk.risk_score },
-                            ...(fraud.night_transactions ? [{ module: 'Ночные', score: fraud.night_transactions.risk_score }] : []),
-                            ...(fraud.duplicate_payments ? [{ module: 'Дубли', score: fraud.duplicate_payments.risk_score }] : []),
-                            ...(fraud.round_amounts ? [{ module: 'Круглые', score: fraud.round_amounts.risk_score }] : []),
-                            ...(fraud.profile_mismatch ? [{ module: 'Профиль', score: fraud.profile_mismatch.risk_score }] : []),
+                            { module: t('analyses.report.modules.velocity.short'), score: fraud.velocity.risk_score },
+                            { module: t('analyses.report.modules.graph.short'), score: fraud.graph.risk_score },
+                            { module: t('analyses.report.modules.structuring.short'), score: fraud.structuring.risk_score },
+                            { module: t('analyses.report.modules.crossReference.short'), score: fraud.cross_reference.risk_score },
+                            { module: t('analyses.report.modules.merchantRisk.short'), score: fraud.merchant_risk.risk_score },
+                            ...(fraud.night_transactions ? [{ module: t('analyses.report.modules.nightTransactions.short'), score: fraud.night_transactions.risk_score }] : []),
+                            ...(fraud.duplicate_payments ? [{ module: t('analyses.report.modules.duplicatePayments.short'), score: fraud.duplicate_payments.risk_score }] : []),
+                            ...(fraud.round_amounts ? [{ module: t('analyses.report.modules.roundAmounts.short'), score: fraud.round_amounts.risk_score }] : []),
+                            ...(fraud.profile_mismatch ? [{ module: t('analyses.report.modules.profileMismatch.short'), score: fraud.profile_mismatch.risk_score }] : []),
                           ]}>
                             <PolarGrid strokeDasharray="3 3" className="text-gray-300 dark:text-gray-600" />
                             <PolarAngleAxis dataKey="module" tick={{ fontSize: 11, fill: '#6b7280' }} />
@@ -628,20 +641,20 @@ export function BankAnalysisReport({ result, onClose }: BankAnalysisReportProps)
                     <div>
                       <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
                         <Layers className="w-5 h-5 text-blue-500" />
-                        Модули анализа
-                        <span className="text-xs text-gray-400 font-normal ml-2">Нажмите для подробностей</span>
+                        {t('analyses.report.antifraud.modulesTitle')}
+                        <span className="text-xs text-gray-400 font-normal ml-2">{t('analyses.report.antifraud.clickForDetails')}</span>
                       </h3>
                       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                         {[
-                          { key: 'velocity', name: 'Velocity-анализ', score: fraud.velocity.risk_score, detail: `${fraud.velocity.burst_alerts.length} всплесков, ${fraud.velocity.daily_spikes.length} аномальных дней` },
-                          { key: 'graph', name: 'Сетевой анализ', score: fraud.graph.risk_score, detail: `${fraud.graph.node_count} узлов, ${fraud.graph.cycles.length} циклов` },
-                          { key: 'structuring', name: 'Структурирование', score: fraud.structuring.risk_score, detail: `${fraud.structuring.just_under_threshold.length} порогов, ${fraud.structuring.split_groups.length} дроблений` },
-                          { key: 'cross_reference', name: 'Кросс-анализ', score: fraud.cross_reference.risk_score, detail: `Ratio: ${fraud.cross_reference.income_expense_ratio?.toFixed(2)}, ${fraud.cross_reference.rapid_pass_through.length} транзитов` },
-                          { key: 'merchant_risk', name: 'Рисковые мерчанты', score: fraud.merchant_risk.risk_score, detail: `${fraud.merchant_risk.high_risk_merchants.length} высокого, ${fraud.merchant_risk.medium_risk_merchants.length} среднего` },
-                          ...(fraud.night_transactions ? [{ key: 'night_transactions', name: 'Ночные транзакции', score: fraud.night_transactions.risk_score, detail: `${fraud.night_transactions.night_count} ночных, ${(fraud.night_transactions.night_ratio * 100).toFixed(1)}% от всех` }] : []),
-                          ...(fraud.duplicate_payments ? [{ key: 'duplicate_payments', name: 'Дубли платежей', score: fraud.duplicate_payments.risk_score, detail: `${fraud.duplicate_payments.total_duplicates} дубликатов` }] : []),
-                          ...(fraud.round_amounts ? [{ key: 'round_amounts', name: 'Круглые суммы', score: fraud.round_amounts.risk_score, detail: `${fraud.round_amounts.round_count} круглых, ${(fraud.round_amounts.round_ratio * 100).toFixed(1)}%` }] : []),
-                          ...(fraud.profile_mismatch ? [{ key: 'profile_mismatch', name: 'Профиль клиента', score: fraud.profile_mismatch.risk_score, detail: `${safeLen(fraud.profile_mismatch.mismatches)} несоответствий` }] : []),
+                          { key: 'velocity', name: t('analyses.report.modules.velocity.name'), score: fraud.velocity.risk_score, detail: `${fraud.velocity.burst_alerts.length} / ${fraud.velocity.daily_spikes.length}` },
+                          { key: 'graph', name: t('analyses.report.modules.graph.name'), score: fraud.graph.risk_score, detail: `${fraud.graph.node_count} / ${fraud.graph.cycles.length}` },
+                          { key: 'structuring', name: t('analyses.report.modules.structuring.name'), score: fraud.structuring.risk_score, detail: `${fraud.structuring.just_under_threshold.length} / ${fraud.structuring.split_groups.length}` },
+                          { key: 'cross_reference', name: t('analyses.report.modules.crossReference.name'), score: fraud.cross_reference.risk_score, detail: `Ratio: ${fraud.cross_reference.income_expense_ratio?.toFixed(2)} / ${fraud.cross_reference.rapid_pass_through.length}` },
+                          { key: 'merchant_risk', name: t('analyses.report.modules.merchantRisk.name'), score: fraud.merchant_risk.risk_score, detail: `${fraud.merchant_risk.high_risk_merchants.length} / ${fraud.merchant_risk.medium_risk_merchants.length}` },
+                          ...(fraud.night_transactions ? [{ key: 'night_transactions', name: t('analyses.report.modules.nightTransactions.name'), score: fraud.night_transactions.risk_score, detail: `${fraud.night_transactions.night_count} / ${(fraud.night_transactions.night_ratio * 100).toFixed(1)}%` }] : []),
+                          ...(fraud.duplicate_payments ? [{ key: 'duplicate_payments', name: t('analyses.report.modules.duplicatePayments.name'), score: fraud.duplicate_payments.risk_score, detail: `${fraud.duplicate_payments.total_duplicates}` }] : []),
+                          ...(fraud.round_amounts ? [{ key: 'round_amounts', name: t('analyses.report.modules.roundAmounts.name'), score: fraud.round_amounts.risk_score, detail: `${fraud.round_amounts.round_count} / ${(fraud.round_amounts.round_ratio * 100).toFixed(1)}%` }] : []),
+                          ...(fraud.profile_mismatch ? [{ key: 'profile_mismatch', name: t('analyses.report.modules.profileMismatch.name'), score: fraud.profile_mismatch.risk_score, detail: `${safeLen(fraud.profile_mismatch.mismatches)}` }] : []),
                         ].map((mod, i) => (
                           <ModuleScoreCard
                             key={mod.key}
@@ -674,10 +687,10 @@ export function BankAnalysisReport({ result, onClose }: BankAnalysisReportProps)
                               <div>
                                 <h4 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
                                   <Zap className="w-5 h-5 text-amber-500" />
-                                  Velocity-анализ
+                                  {t('analyses.report.modules.velocity.name')}
                                 </h4>
                                 <p className="text-xs text-gray-500 mt-1">
-                                  Обнаружение аномальных всплесков транзакций, дневных пиков и ускорения оборота.
+                                  {t('analyses.report.modules.velocity.desc')}
                                 </p>
                               </div>
                               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -685,7 +698,7 @@ export function BankAnalysisReport({ result, onClose }: BankAnalysisReportProps)
                                   <div>
                                     <h5 className="text-sm font-semibold text-orange-600 dark:text-orange-400 mb-2 flex items-center gap-1.5">
                                       <Zap className="w-3.5 h-3.5" />
-                                      Серии быстрых транзакций ({fraud.velocity.burst_alerts.length})
+                                      {t('analyses.report.modules.velocity.burstAlerts', { count: fraud.velocity.burst_alerts.length })}
                                     </h5>
                                     <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
                                       {fraud.velocity.burst_alerts.map((burst, i) => (
@@ -694,8 +707,8 @@ export function BankAnalysisReport({ result, onClose }: BankAnalysisReportProps)
                                           className="p-3 bg-orange-50 dark:bg-orange-900/20 rounded-xl text-sm border border-orange-200/50 dark:border-orange-800/30"
                                         >
                                           <div className="flex justify-between items-center">
-                                            <span className="font-semibold text-orange-700 dark:text-orange-300">{burst.transaction_count} транзакций</span>
-                                            <span className="text-xs text-gray-500">за {burst.window_hours}ч</span>
+                                            <span className="font-semibold text-orange-700 dark:text-orange-300">{burst.transaction_count} {t('analyses.report.transactionsSuffix')}</span>
+                                            <span className="text-xs text-gray-500">{burst.window_hours}h</span>
                                           </div>
                                           <div className="text-gray-600 dark:text-gray-400 mt-1">
                                             Сумма: {formatCurrency(burst.total_amount)}
@@ -709,7 +722,7 @@ export function BankAnalysisReport({ result, onClose }: BankAnalysisReportProps)
                                   <div>
                                     <h5 className="text-sm font-semibold text-red-600 dark:text-red-400 mb-2 flex items-center gap-1.5">
                                       <Activity className="w-3.5 h-3.5" />
-                                      Дни с аномальной активностью ({fraud.velocity.daily_spikes.length})
+                                      {t('analyses.report.modules.velocity.dailySpikes', { count: fraud.velocity.daily_spikes.length })}
                                     </h5>
                                     <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
                                       {fraud.velocity.daily_spikes.map((spike, i) => (
@@ -735,7 +748,7 @@ export function BankAnalysisReport({ result, onClose }: BankAnalysisReportProps)
                               {fraud.velocity.burst_alerts.length === 0 && fraud.velocity.daily_spikes.length === 0 && (
                                 <div className="text-center py-8 text-gray-400">
                                   <CheckCircle className="w-8 h-8 mx-auto mb-2 text-green-400" />
-                                  <p className="text-sm">Аномальных всплесков не обнаружено</p>
+                                  <p className="text-sm">{t('analyses.report.modules.velocity.noAnomalies')}</p>
                                 </div>
                               )}
                             </div>
@@ -747,31 +760,31 @@ export function BankAnalysisReport({ result, onClose }: BankAnalysisReportProps)
                               <div>
                                 <h4 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
                                   <Network className="w-5 h-5 text-blue-500" />
-                                  Сетевой анализ
+                                  {t('analyses.report.modules.graph.name')}
                                 </h4>
                                 <p className="text-xs text-gray-500 mt-1">
-                                  Построение графа связей между контрагентами. Поиск циклических переводов и центральных узлов.
+                                  {t('analyses.report.modules.graph.desc')}
                                 </p>
                               </div>
                               <div className="grid grid-cols-3 gap-4 mb-4">
                                 <div className="text-center p-3 bg-blue-50 dark:bg-blue-900/20 rounded-xl">
                                   <p className="text-2xl font-bold text-blue-600 dark:text-blue-400">{fraud.graph.node_count}</p>
-                                  <p className="text-xs text-gray-500">Узлов</p>
+                                  <p className="text-xs text-gray-500">{t('analyses.report.modules.graph.nodes')}</p>
                                 </div>
                                 <div className="text-center p-3 bg-blue-50 dark:bg-blue-900/20 rounded-xl">
                                   <p className="text-2xl font-bold text-blue-600 dark:text-blue-400">{fraud.graph.edge_count}</p>
-                                  <p className="text-xs text-gray-500">Связей</p>
+                                  <p className="text-xs text-gray-500">{t('analyses.report.modules.graph.edges')}</p>
                                 </div>
                                 <div className="text-center p-3 bg-red-50 dark:bg-red-900/20 rounded-xl">
                                   <p className="text-2xl font-bold text-red-600 dark:text-red-400">{fraud.graph.cycles.length}</p>
-                                  <p className="text-xs text-gray-500">Циклов</p>
+                                  <p className="text-xs text-gray-500">{t('analyses.report.modules.graph.cycles')}</p>
                                 </div>
                               </div>
 
                               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                                 {fraud.graph.cycles.length > 0 && (
                                   <div>
-                                    <h5 className="text-sm font-semibold text-red-600 dark:text-red-400 mb-2">Круговые переводы</h5>
+                                    <h5 className="text-sm font-semibold text-red-600 dark:text-red-400 mb-2">{t('analyses.report.modules.graph.circular')}</h5>
                                     <div className="space-y-2 max-h-48 overflow-y-auto">
                                       {fraud.graph.cycles.slice(0, 10).map((cycle, i) => (
                                         <div key={i} className="p-3 bg-red-50 dark:bg-red-900/20 rounded-xl text-xs border border-red-200/50 dark:border-red-800/30">
@@ -786,13 +799,13 @@ export function BankAnalysisReport({ result, onClose }: BankAnalysisReportProps)
                                 )}
                                 {fraud.graph.hub_nodes.length > 0 && (
                                   <div>
-                                    <h5 className="text-sm font-semibold text-slate-600 dark:text-slate-400 mb-2">Ключевые контрагенты</h5>
+                                    <h5 className="text-sm font-semibold text-slate-600 dark:text-slate-400 mb-2">{t('analyses.report.modules.graph.hubs')}</h5>
                                     <div className="space-y-2 max-h-48 overflow-y-auto">
                                       {fraud.graph.hub_nodes.slice(0, 10).map((hub, i) => (
                                         <div key={i} className="p-3 bg-slate-50 dark:bg-slate-900/20 rounded-xl text-xs border border-slate-200/50 dark:border-slate-800/30 flex justify-between items-center">
                                           <div>
                                             <span className="font-medium text-slate-700 dark:text-slate-300">{hub.name}</span>
-                                            <span className="text-gray-400 ml-1">({hub.connections} связей)</span>
+                                            <span className="text-gray-400 ml-1">({t('analyses.report.modules.graph.connections', { count: hub.connections })})</span>
                                           </div>
                                           <span className="text-slate-600 font-medium">{formatCurrency(hub.total_volume)}</span>
                                         </div>
@@ -810,23 +823,23 @@ export function BankAnalysisReport({ result, onClose }: BankAnalysisReportProps)
                               <div>
                                 <h4 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
                                   <Layers className="w-5 h-5 text-amber-500" />
-                                  Обнаружение структурирования
+                                  {t('analyses.report.modules.structuring.name')}
                                 </h4>
                                 <p className="text-xs text-gray-500 mt-1">
-                                  Поиск паттернов дробления крупных сумм: суммы у пороговых значений, разбивка операций, смурфинг.
+                                  {t('analyses.report.modules.structuring.desc')}
                                 </p>
                               </div>
                               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                                 {fraud.structuring.just_under_threshold.length > 0 && (
                                   <div>
                                     <h5 className="text-sm font-semibold text-amber-600 dark:text-amber-400 mb-2">
-                                      Суммы у порога ({fraud.structuring.just_under_threshold.length})
+                                      {t('analyses.report.modules.structuring.underThreshold', { count: fraud.structuring.just_under_threshold.length })}
                                     </h5>
                                     <div className="space-y-1.5 max-h-40 overflow-y-auto">
                                       {fraud.structuring.just_under_threshold.slice(0, 8).map((item, i) => (
                                         <div key={i} className="text-xs p-2 bg-amber-50 dark:bg-amber-900/20 rounded-lg border border-amber-200/50 dark:border-amber-800/30">
                                           <span className="font-medium">{formatCurrency(item.amount)}</span>
-                                          <span className="text-gray-500 ml-1">({item.pct_of_threshold}% от порога)</span>
+                                          <span className="text-gray-500 ml-1">({t('analyses.report.modules.structuring.ofThreshold', { pct: item.pct_of_threshold })})</span>
                                         </div>
                                       ))}
                                     </div>
@@ -835,7 +848,7 @@ export function BankAnalysisReport({ result, onClose }: BankAnalysisReportProps)
                                 {fraud.structuring.split_groups.length > 0 && (
                                   <div>
                                     <h5 className="text-sm font-semibold text-red-600 dark:text-red-400 mb-2">
-                                      Дробление ({fraud.structuring.split_groups.length})
+                                      {t('analyses.report.modules.structuring.splitting', { count: fraud.structuring.split_groups.length })}
                                     </h5>
                                     <div className="space-y-1.5 max-h-40 overflow-y-auto">
                                       {fraud.structuring.split_groups.map((group, i) => (
@@ -850,13 +863,13 @@ export function BankAnalysisReport({ result, onClose }: BankAnalysisReportProps)
                                 {fraud.structuring.smurfing_patterns.length > 0 && (
                                   <div>
                                     <h5 className="text-sm font-semibold text-slate-600 dark:text-slate-400 mb-2">
-                                      Smurfing ({fraud.structuring.smurfing_patterns.length})
+                                      {t('analyses.report.modules.structuring.smurfing', { count: fraud.structuring.smurfing_patterns.length })}
                                     </h5>
                                     <div className="space-y-1.5 max-h-40 overflow-y-auto">
                                       {fraud.structuring.smurfing_patterns.map((p, i) => (
                                         <div key={i} className="text-xs p-2 bg-slate-50 dark:bg-slate-900/20 rounded-lg border border-slate-200/50 dark:border-slate-800/30">
                                           <div className="font-medium">{formatCurrency(p.amount)} x{p.occurrence_count}</div>
-                                          <div className="text-gray-500">{p.unique_counterparties} получателей</div>
+                                          <div className="text-gray-500">{t('analyses.report.modules.structuring.recipients', { count: p.unique_counterparties })}</div>
                                         </div>
                                       ))}
                                     </div>
@@ -866,7 +879,7 @@ export function BankAnalysisReport({ result, onClose }: BankAnalysisReportProps)
                               {fraud.structuring.just_under_threshold.length === 0 && fraud.structuring.split_groups.length === 0 && fraud.structuring.smurfing_patterns.length === 0 && (
                                 <div className="text-center py-8 text-gray-400">
                                   <CheckCircle className="w-8 h-8 mx-auto mb-2 text-green-400" />
-                                  <p className="text-sm">Признаков структурирования не обнаружено</p>
+                                  <p className="text-sm">{t('analyses.report.modules.structuring.noPatterns')}</p>
                                 </div>
                               )}
                             </div>
@@ -878,21 +891,21 @@ export function BankAnalysisReport({ result, onClose }: BankAnalysisReportProps)
                               <div>
                                 <h4 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
                                   <ArrowLeftRight className="w-5 h-5 text-blue-500" />
-                                  Кросс-анализ
+                                  {t('analyses.report.modules.crossReference.name')}
                                 </h4>
                                 <p className="text-xs text-gray-500 mt-1">
-                                  Сопоставление входящих и исходящих потоков. Обнаружение транзитных операций и необъяснимых поступлений.
+                                  {t('analyses.report.modules.crossReference.desc')}
                                 </p>
                               </div>
                               <div className="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-xl mb-4">
                                 <p className="text-sm text-gray-600 dark:text-gray-300">
-                                  Соотношение доход/расход: <span className="font-bold text-blue-600 dark:text-blue-400">{fraud.cross_reference.income_expense_ratio?.toFixed(2)}</span>
+                                  {t('analyses.report.modules.crossReference.ratio')}: <span className="font-bold text-blue-600 dark:text-blue-400">{fraud.cross_reference.income_expense_ratio?.toFixed(2)}</span>
                                 </p>
                               </div>
                               {fraud.cross_reference.rapid_pass_through.length > 0 && (
                                 <div>
                                   <h5 className="text-sm font-semibold text-orange-600 dark:text-orange-400 mb-2">
-                                    Транзитные операции ({fraud.cross_reference.rapid_pass_through.length})
+                                    {t('analyses.report.modules.crossReference.rapidPassThrough', { count: fraud.cross_reference.rapid_pass_through.length })}
                                   </h5>
                                   <div className="space-y-2 max-h-60 overflow-y-auto">
                                     {fraud.cross_reference.rapid_pass_through.map((pt, i) => (
@@ -904,7 +917,7 @@ export function BankAnalysisReport({ result, onClose }: BankAnalysisReportProps)
                                           <span className="text-green-600 font-semibold">+{formatCurrency(pt.income_amount)}</span>
                                           <div className="flex items-center gap-1 text-gray-400 text-xs">
                                             <Clock className="w-3 h-3" />
-                                            {pt.time_gap_hours}ч
+                                            {pt.time_gap_hours}h
                                           </div>
                                           <span className="text-red-600 font-semibold">-{formatCurrency(pt.expense_amount)}</span>
                                         </div>
@@ -919,7 +932,7 @@ export function BankAnalysisReport({ result, onClose }: BankAnalysisReportProps)
                               {fraud.cross_reference.rapid_pass_through.length === 0 && (
                                 <div className="text-center py-8 text-gray-400">
                                   <CheckCircle className="w-8 h-8 mx-auto mb-2 text-green-400" />
-                                  <p className="text-sm">Транзитных операций не обнаружено</p>
+                                  <p className="text-sm">{t('analyses.report.modules.crossReference.noTransits')}</p>
                                 </div>
                               )}
                             </div>
@@ -931,21 +944,21 @@ export function BankAnalysisReport({ result, onClose }: BankAnalysisReportProps)
                               <div>
                                 <h4 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
                                   <Store className="w-5 h-5 text-red-500" />
-                                  Рисковые мерчанты
+                                  {t('analyses.report.modules.merchantRisk.name')}
                                 </h4>
                                 <p className="text-xs text-gray-500 mt-1">
-                                  Мерчанты из категорий повышенного риска: гемблинг, криптообменники, анонимные платёжные системы.
+                                  {t('analyses.report.modules.merchantRisk.desc')}
                                 </p>
                               </div>
                               <div className="p-3 bg-gray-50 dark:bg-gray-700/30 rounded-xl mb-2">
                                 <p className="text-sm text-gray-600 dark:text-gray-300">
-                                  Высокорисковые мерчанты: <span className="font-bold text-red-500">{fraud.merchant_risk.total_high_risk_pct.toFixed(1)}%</span> от расходов ({formatCurrency(fraud.merchant_risk.total_high_risk_amount)})
+                                  {t('analyses.report.modules.merchantRisk.highRiskShare', { pct: fraud.merchant_risk.total_high_risk_pct.toFixed(1), amount: formatCurrency(fraud.merchant_risk.total_high_risk_amount) })}
                                 </p>
                               </div>
                               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 {fraud.merchant_risk.high_risk_merchants.length > 0 && (
                                   <div>
-                                    <h5 className="text-xs font-bold text-red-500 uppercase mb-2">Высокий риск</h5>
+                                    <h5 className="text-xs font-bold text-red-500 uppercase mb-2">{t('analyses.report.modules.merchantRisk.highRisk')}</h5>
                                     <div className="space-y-2">
                                       {fraud.merchant_risk.high_risk_merchants.map((m, i) => (
                                         <div key={i} className="flex justify-between p-2 bg-red-50 dark:bg-red-900/20 rounded-lg text-xs border border-red-200/50 dark:border-red-800/30">
@@ -964,7 +977,7 @@ export function BankAnalysisReport({ result, onClose }: BankAnalysisReportProps)
                                 )}
                                 {fraud.merchant_risk.medium_risk_merchants.length > 0 && (
                                   <div>
-                                    <h5 className="text-xs font-bold text-yellow-500 uppercase mb-2">Средний риск</h5>
+                                    <h5 className="text-xs font-bold text-yellow-500 uppercase mb-2">{t('analyses.report.modules.merchantRisk.mediumRisk')}</h5>
                                     <div className="space-y-2">
                                       {fraud.merchant_risk.medium_risk_merchants.map((m, i) => (
                                         <div key={i} className="flex justify-between p-2 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg text-xs border border-yellow-200/50 dark:border-yellow-800/30">
@@ -985,7 +998,7 @@ export function BankAnalysisReport({ result, onClose }: BankAnalysisReportProps)
                               {fraud.merchant_risk.high_risk_merchants.length === 0 && fraud.merchant_risk.medium_risk_merchants.length === 0 && (
                                 <div className="text-center py-8 text-gray-400">
                                   <CheckCircle className="w-8 h-8 mx-auto mb-2 text-green-400" />
-                                  <p className="text-sm">Рисковых мерчантов не обнаружено</p>
+                                  <p className="text-sm">{t('analyses.report.modules.merchantRisk.noRisky')}</p>
                                 </div>
                               )}
                             </div>
@@ -997,42 +1010,42 @@ export function BankAnalysisReport({ result, onClose }: BankAnalysisReportProps)
                               <div>
                                 <h4 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
                                   <Moon className="w-5 h-5 text-blue-500" />
-                                  Ночные транзакции
+                                  {t('analyses.report.modules.nightTransactions.name')}
                                 </h4>
                                 <p className="text-xs text-gray-500 mt-1">
-                                  Операции в период 23:00-06:00. Крупные ночные переводы и серии ночных операций могут указывать на подозрительную активность.
+                                  {t('analyses.report.modules.nightTransactions.desc')}
                                 </p>
                               </div>
                               <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
                                 <div className="text-center p-3 bg-blue-50 dark:bg-blue-900/20 rounded-xl">
                                   <p className="text-2xl font-bold text-blue-600 dark:text-blue-400">{fraud.night_transactions.night_count}</p>
-                                  <p className="text-xs text-gray-500">Ночных операций</p>
+                                  <p className="text-xs text-gray-500">{t('analyses.report.modules.nightTransactions.nightCount')}</p>
                                 </div>
                                 <div className="text-center p-3 bg-blue-50 dark:bg-blue-900/20 rounded-xl">
                                   <p className="text-2xl font-bold text-blue-600 dark:text-blue-400">{(fraud.night_transactions.night_ratio * 100).toFixed(1)}%</p>
-                                  <p className="text-xs text-gray-500">Доля ночных</p>
+                                  <p className="text-xs text-gray-500">{t('analyses.report.modules.nightTransactions.nightRatio')}</p>
                                 </div>
                                 <div className="text-center p-3 bg-blue-50 dark:bg-blue-900/20 rounded-xl">
                                   <p className="text-2xl font-bold text-blue-600 dark:text-blue-400">{formatCurrency(fraud.night_transactions.night_total_amount)}</p>
-                                  <p className="text-xs text-gray-500">Сумма ночных</p>
+                                  <p className="text-xs text-gray-500">{t('analyses.report.modules.nightTransactions.nightAmount')}</p>
                                 </div>
                                 <div className="text-center p-3 bg-red-50 dark:bg-red-900/20 rounded-xl">
                                   <p className="text-2xl font-bold text-red-600 dark:text-red-400">{safeLen(fraud.night_transactions.large_night_transfers)}</p>
-                                  <p className="text-xs text-gray-500">Крупных ночных</p>
+                                  <p className="text-xs text-gray-500">{t('analyses.report.modules.nightTransactions.largeNight')}</p>
                                 </div>
                               </div>
                               {safeLen(fraud.night_transactions.night_clusters) > 0 && (
                                 <div className="p-3 bg-amber-50 dark:bg-amber-900/20 rounded-xl">
                                   <p className="text-sm text-amber-700 dark:text-amber-300">
                                     <AlertTriangle className="w-4 h-4 inline mr-1" />
-                                    Обнаружено <span className="font-bold">{safeLen(fraud.night_transactions.night_clusters)}</span> серий ночных операций (кластеры в 2-часовом окне)
+                                    {t('analyses.report.modules.nightTransactions.clustersWarn', { count: safeLen(fraud.night_transactions.night_clusters) })}
                                   </p>
                                 </div>
                               )}
                               {fraud.night_transactions.night_count === 0 && (
                                 <div className="text-center py-8 text-gray-400">
                                   <CheckCircle className="w-8 h-8 mx-auto mb-2 text-green-400" />
-                                  <p className="text-sm">Ночных транзакций не обнаружено</p>
+                                  <p className="text-sm">{t('analyses.report.modules.nightTransactions.noNight')}</p>
                                 </div>
                               )}
                             </div>
@@ -1044,37 +1057,37 @@ export function BankAnalysisReport({ result, onClose }: BankAnalysisReportProps)
                               <div>
                                 <h4 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
                                   <Copy className="w-5 h-5 text-orange-500" />
-                                  Дублирующие платежи
+                                  {t('analyses.report.modules.duplicatePayments.name')}
                                 </h4>
                                 <p className="text-xs text-gray-500 mt-1">
-                                  Повторяющиеся платежи на одинаковые суммы одному получателю или рассылка одинаковых сумм разным получателям.
+                                  {t('analyses.report.modules.duplicatePayments.desc')}
                                 </p>
                               </div>
                               <div className="grid grid-cols-3 gap-4 mb-4">
                                 <div className="text-center p-3 bg-orange-50 dark:bg-orange-900/20 rounded-xl">
                                   <p className="text-2xl font-bold text-orange-600 dark:text-orange-400">{fraud.duplicate_payments.total_duplicates}</p>
-                                  <p className="text-xs text-gray-500">Дубликатов</p>
+                                  <p className="text-xs text-gray-500">{t('analyses.report.modules.duplicatePayments.totalDuplicates')}</p>
                                 </div>
                                 <div className="text-center p-3 bg-orange-50 dark:bg-orange-900/20 rounded-xl">
                                   <p className="text-2xl font-bold text-orange-600 dark:text-orange-400">{safeLen(fraud.duplicate_payments.duplicate_groups)}</p>
-                                  <p className="text-xs text-gray-500">Групп</p>
+                                  <p className="text-xs text-gray-500">{t('analyses.report.modules.duplicatePayments.groups')}</p>
                                 </div>
                                 <div className="text-center p-3 bg-red-50 dark:bg-red-900/20 rounded-xl">
                                   <p className="text-2xl font-bold text-red-600 dark:text-red-400">{safeLen(fraud.duplicate_payments.same_amount_diff_recipient)}</p>
-                                  <p className="text-xs text-gray-500">Рассылок</p>
+                                  <p className="text-xs text-gray-500">{t('analyses.report.modules.duplicatePayments.fanOut')}</p>
                                 </div>
                               </div>
                               {fraud.duplicate_payments.total_duplicate_amount > 0 && (
                                 <div className="p-3 bg-gray-50 dark:bg-gray-700/30 rounded-xl">
                                   <p className="text-sm text-gray-600 dark:text-gray-300">
-                                    Общая сумма дублирующих платежей: <span className="font-bold text-orange-600 dark:text-orange-400">{formatCurrency(fraud.duplicate_payments.total_duplicate_amount)}</span>
+                                    {t('analyses.report.modules.duplicatePayments.totalAmount')}: <span className="font-bold text-orange-600 dark:text-orange-400">{formatCurrency(fraud.duplicate_payments.total_duplicate_amount)}</span>
                                   </p>
                                 </div>
                               )}
                               {fraud.duplicate_payments.total_duplicates === 0 && (
                                 <div className="text-center py-8 text-gray-400">
                                   <CheckCircle className="w-8 h-8 mx-auto mb-2 text-green-400" />
-                                  <p className="text-sm">Дублирующих платежей не обнаружено</p>
+                                  <p className="text-sm">{t('analyses.report.modules.duplicatePayments.noDuplicates')}</p>
                                 </div>
                               )}
                             </div>
@@ -1086,34 +1099,34 @@ export function BankAnalysisReport({ result, onClose }: BankAnalysisReportProps)
                               <div>
                                 <h4 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
                                   <CircleDollarSign className="w-5 h-5 text-emerald-500" />
-                                  Круглые суммы
+                                  {t('analyses.report.modules.roundAmounts.name')}
                                 </h4>
                                 <p className="text-xs text-gray-500 mt-1">
-                                  Высокая доля круглых сумм может указывать на фиктивные операции или обналичивание.
+                                  {t('analyses.report.modules.roundAmounts.desc')}
                                 </p>
                               </div>
                               <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
                                 <div className="text-center p-3 bg-emerald-50 dark:bg-emerald-900/20 rounded-xl">
                                   <p className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">{fraud.round_amounts.round_count}</p>
-                                  <p className="text-xs text-gray-500">Круглых</p>
+                                  <p className="text-xs text-gray-500">{t('analyses.report.modules.roundAmounts.roundCount')}</p>
                                 </div>
                                 <div className="text-center p-3 bg-emerald-50 dark:bg-emerald-900/20 rounded-xl">
                                   <p className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">{(fraud.round_amounts.round_ratio * 100).toFixed(1)}%</p>
-                                  <p className="text-xs text-gray-500">Доля круглых</p>
+                                  <p className="text-xs text-gray-500">{t('analyses.report.modules.roundAmounts.roundRatio')}</p>
                                 </div>
                                 <div className="text-center p-3 bg-emerald-50 dark:bg-emerald-900/20 rounded-xl">
                                   <p className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">{formatCurrency(fraud.round_amounts.round_total_amount)}</p>
-                                  <p className="text-xs text-gray-500">Сумма круглых</p>
+                                  <p className="text-xs text-gray-500">{t('analyses.report.modules.roundAmounts.roundAmount')}</p>
                                 </div>
                                 <div className="text-center p-3 bg-red-50 dark:bg-red-900/20 rounded-xl">
                                   <p className="text-2xl font-bold text-red-600 dark:text-red-400">{safeLen(fraud.round_amounts.consecutive_round)}</p>
-                                  <p className="text-xs text-gray-500">Подряд</p>
+                                  <p className="text-xs text-gray-500">{t('analyses.report.modules.roundAmounts.consecutive')}</p>
                                 </div>
                               </div>
                               {fraud.round_amounts.round_count === 0 && (
                                 <div className="text-center py-8 text-gray-400">
                                   <CheckCircle className="w-8 h-8 mx-auto mb-2 text-green-400" />
-                                  <p className="text-sm">Аномалий с круглыми суммами не обнаружено</p>
+                                  <p className="text-sm">{t('analyses.report.modules.roundAmounts.noRound')}</p>
                                 </div>
                               )}
                             </div>
@@ -1125,34 +1138,34 @@ export function BankAnalysisReport({ result, onClose }: BankAnalysisReportProps)
                               <div>
                                 <h4 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
                                   <UserX className="w-5 h-5 text-red-500" />
-                                  Несоответствие профилю
+                                  {t('analyses.report.modules.profileMismatch.name')}
                                 </h4>
                                 <p className="text-xs text-gray-500 mt-1">
-                                  Операции, нетипичные для данного типа клиента: превышение лимитов, необычные категории, аномалии дохода.
+                                  {t('analyses.report.modules.profileMismatch.desc')}
                                 </p>
                               </div>
                               <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
                                 <div className="text-center p-3 bg-red-50 dark:bg-red-900/20 rounded-xl">
                                   <p className="text-2xl font-bold text-red-600 dark:text-red-400">{safeLen(fraud.profile_mismatch.mismatches)}</p>
-                                  <p className="text-xs text-gray-500">Несоответствий</p>
+                                  <p className="text-xs text-gray-500">{t('analyses.report.modules.profileMismatch.mismatches')}</p>
                                 </div>
                                 <div className="text-center p-3 bg-red-50 dark:bg-red-900/20 rounded-xl">
                                   <p className="text-2xl font-bold text-red-600 dark:text-red-400">{safeLen(fraud.profile_mismatch.oversized_transactions)}</p>
-                                  <p className="text-xs text-gray-500">Крупных</p>
+                                  <p className="text-xs text-gray-500">{t('analyses.report.modules.profileMismatch.oversized')}</p>
                                 </div>
                                 <div className="text-center p-3 bg-red-50 dark:bg-red-900/20 rounded-xl">
                                   <p className="text-2xl font-bold text-red-600 dark:text-red-400">{safeLen(fraud.profile_mismatch.unexpected_activity)}</p>
-                                  <p className="text-xs text-gray-500">Нетипичных</p>
+                                  <p className="text-xs text-gray-500">{t('analyses.report.modules.profileMismatch.unexpected')}</p>
                                 </div>
                                 <div className="text-center p-3 bg-red-50 dark:bg-red-900/20 rounded-xl">
                                   <p className="text-2xl font-bold text-red-600 dark:text-red-400">{safeLen(fraud.profile_mismatch.income_anomalies)}</p>
-                                  <p className="text-xs text-gray-500">Аномалий дохода</p>
+                                  <p className="text-xs text-gray-500">{t('analyses.report.modules.profileMismatch.incomeAnomalies')}</p>
                                 </div>
                               </div>
                               {safeLen(fraud.profile_mismatch.mismatches) === 0 && (
                                 <div className="text-center py-8 text-gray-400">
                                   <CheckCircle className="w-8 h-8 mx-auto mb-2 text-green-400" />
-                                  <p className="text-sm">Профиль клиента соответствует операциям</p>
+                                  <p className="text-sm">{t('analyses.report.modules.profileMismatch.noMismatches')}</p>
                                 </div>
                               )}
                             </div>
@@ -1164,9 +1177,9 @@ export function BankAnalysisReport({ result, onClose }: BankAnalysisReportProps)
                 ) : (
                   <div className="text-center py-16">
                     <Shield className="w-16 h-16 text-gray-300 dark:text-gray-700 mx-auto mb-4" />
-                    <p className="text-gray-500 dark:text-gray-400 text-lg">ntFAST Антифрод-анализ</p>
+                    <p className="text-gray-500 dark:text-gray-400 text-lg">{t('analyses.report.antifraud.noData')}</p>
                     <p className="text-gray-400 dark:text-gray-500 text-sm mt-1">
-                      Данные антифрод-анализа недоступны для этого файла. Повторите загрузку.
+                      {t('analyses.report.antifraud.noDataDesc')}
                     </p>
                   </div>
                 )}
@@ -1185,29 +1198,29 @@ export function BankAnalysisReport({ result, onClose }: BankAnalysisReportProps)
                   <div className="p-5 bg-gradient-to-br from-blue-50 to-blue-50 dark:from-blue-900/20 dark:to-blue-900/20 rounded-2xl border border-blue-200/50 dark:border-blue-800/40">
                     <h3 className="text-sm font-semibold text-blue-700 dark:text-blue-300 mb-3 flex items-center gap-2">
                       <Fingerprint className="w-4 h-4" />
-                      Профиль аккаунта (определён AI)
+                      {t('analyses.report.accountProfile.title')}
                     </h3>
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
                       <div>
-                        <span className="text-gray-500 dark:text-gray-400">Тип:</span>
+                        <span className="text-gray-500 dark:text-gray-400">{t('analyses.report.accountProfile.type')}:</span>
                         <span className="ml-1 font-medium text-gray-900 dark:text-white capitalize">
-                          {fraud.account_profile.account_type?.replace('_', ' ') || 'unknown'}
+                          {fraud.account_profile.account_type?.replace('_', ' ') || t('analyses.report.accountProfile.unknown')}
                         </span>
                       </div>
                       <div>
-                        <span className="text-gray-500 dark:text-gray-400">Сред. доход/мес:</span>
+                        <span className="text-gray-500 dark:text-gray-400">{t('analyses.report.accountProfile.avgIncome')}:</span>
                         <span className="ml-1 font-medium text-gray-900 dark:text-white">
                           {formatCurrency(fraud.account_profile.avg_monthly_income || 0)}
                         </span>
                       </div>
                       <div>
-                        <span className="text-gray-500 dark:text-gray-400">Сред. расход/мес:</span>
+                        <span className="text-gray-500 dark:text-gray-400">{t('analyses.report.accountProfile.avgExpense')}:</span>
                         <span className="ml-1 font-medium text-gray-900 dark:text-white">
                           {formatCurrency(fraud.account_profile.avg_monthly_expense || 0)}
                         </span>
                       </div>
                       <div>
-                        <span className="text-gray-500 dark:text-gray-400">Регулярность:</span>
+                        <span className="text-gray-500 dark:text-gray-400">{t('analyses.report.accountProfile.regularity')}:</span>
                         <span className="ml-1 font-medium text-gray-900 dark:text-white">
                           {((fraud.account_profile.income_regularity_score || 0) * 100).toFixed(0)}%
                         </span>
@@ -1219,14 +1232,14 @@ export function BankAnalysisReport({ result, onClose }: BankAnalysisReportProps)
                 <div className="flex items-center justify-between">
                   <h3 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
                     <FileText className="w-5 h-5 text-blue-500" />
-                    Все транзакции ({result.transactions?.length || 0})
+                    {t('analyses.report.transactions.all', { count: result.transactions?.length || 0 })}
                   </h3>
                   {result.transactions?.length > 50 && (
                     <button
                       onClick={() => setShowAllTransactions(!showAllTransactions)}
                       className="text-sm text-blue-600 dark:text-blue-400 font-medium hover:text-blue-700 flex items-center gap-1"
                     >
-                      {showAllTransactions ? 'Показать первые 50' : 'Показать все'}
+                      {showAllTransactions ? t('analyses.report.transactions.showFirst50') : t('analyses.report.transactions.showAll')}
                       <ChevronDown className={`w-4 h-4 transition-transform ${showAllTransactions ? 'rotate-180' : ''}`} />
                     </button>
                   )}
@@ -1239,10 +1252,10 @@ export function BankAnalysisReport({ result, onClose }: BankAnalysisReportProps)
                       <thead className="bg-gray-50 dark:bg-gray-800/80 sticky top-0 z-10">
                         <tr>
                           <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase">#</th>
-                          <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase">Дата</th>
-                          <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase">Описание</th>
-                          <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase">Категория</th>
-                          <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase">Сумма</th>
+                          <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase">{t('analyses.report.transactions.dateCol')}</th>
+                          <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase">{t('analyses.report.transactions.descriptionCol')}</th>
+                          <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase">{t('analyses.report.transactions.categoryCol')}</th>
+                          <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase">{t('analyses.report.transactions.amountCol')}</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-gray-100 dark:divide-gray-800/50">
@@ -1253,7 +1266,7 @@ export function BankAnalysisReport({ result, onClose }: BankAnalysisReportProps)
                           >
                             <td className="px-4 py-3 text-gray-400 text-xs">{i + 1}</td>
                             <td className="px-4 py-3 text-gray-600 dark:text-gray-400 whitespace-nowrap">
-                              {new Date(tx.date).toLocaleDateString('ru-RU')}
+                              {new Date(tx.date).toLocaleDateString(locale)}
                             </td>
                             <td className="px-4 py-3 text-gray-900 dark:text-white max-w-xs truncate">
                               {tx.details}
@@ -1277,8 +1290,8 @@ export function BankAnalysisReport({ result, onClose }: BankAnalysisReportProps)
                 ) : (
                   <div className="text-center py-12 bg-gray-50 dark:bg-gray-800/30 rounded-2xl border border-gray-200/50 dark:border-gray-700/40">
                     <FileText className="w-12 h-12 text-gray-300 dark:text-gray-700 mx-auto mb-3" />
-                    <p className="text-gray-500 dark:text-gray-400">Данные транзакций недоступны для отображения в таблице.</p>
-                    <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">Информация о транзакциях доступна в антифрод-анализе.</p>
+                    <p className="text-gray-500 dark:text-gray-400">{t('analyses.report.transactions.noTransactions')}</p>
+                    <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">{t('analyses.report.transactions.infoInAntifraud')}</p>
                   </div>
                 )}
 
@@ -1287,7 +1300,7 @@ export function BankAnalysisReport({ result, onClose }: BankAnalysisReportProps)
                   <div className="p-6 bg-yellow-50 dark:bg-yellow-900/20 rounded-2xl border border-yellow-200/50 dark:border-yellow-800/40">
                     <h3 className="text-lg font-semibold text-yellow-700 dark:text-yellow-400 mb-3 flex items-center gap-2">
                       <AlertTriangle className="w-5 h-5" />
-                      Аномалии ({result.analytics.anomalies.length})
+                      {t('analyses.report.transactions.anomalies', { count: result.analytics.anomalies.length })}
                     </h3>
                     <div className="space-y-2">
                       {result.analytics.anomalies.map((anomaly, i) => (
@@ -1324,14 +1337,14 @@ export function BankAnalysisReport({ result, onClose }: BankAnalysisReportProps)
                         <RiskScoreGauge score={fraud.composite_score} riskLevel={fraud.risk_level} size={180} />
                       </div>
                       <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">
-                        Заключение ntFAST AI
+                        {t('analyses.report.conclusions.title')}
                       </h3>
                       <p className="text-sm text-gray-600 dark:text-gray-300 max-w-2xl mx-auto">
-                        На основе анализа {result.summary.total_transactions} транзакций за период
-                        {result.account.period?.from && ` с ${result.account.period.from}`}
-                        {result.account.period?.to && ` по ${result.account.period.to}`},
-                        система ntFAST оценила общий уровень риска как <span className="font-bold">
-                          {fraud.risk_level === 'critical' ? 'КРИТИЧЕСКИЙ' : fraud.risk_level === 'high' ? 'ВЫСОКИЙ' : fraud.risk_level === 'medium' ? 'СРЕДНИЙ' : 'НИЗКИЙ'}
+                        {t('analyses.report.conclusions.summary', {
+                          count: result.summary.total_transactions,
+                          period: `${result.account.period?.from ? t('analyses.report.conclusions.periodFrom', { from: result.account.period.from }) : ''}${result.account.period?.to ? t('analyses.report.conclusions.periodTo', { to: result.account.period.to }) : ''}`,
+                        })} <span className="font-bold">
+                          {t(`analyses.report.conclusions.riskLevels.${fraud.risk_level}`)}
                         </span> ({fraud.composite_score.toFixed(1)}/100).
                       </p>
                     </div>
@@ -1340,7 +1353,7 @@ export function BankAnalysisReport({ result, onClose }: BankAnalysisReportProps)
                     <div className="p-6 bg-white dark:bg-gray-800/50 rounded-2xl border border-gray-200/50 dark:border-gray-700/40">
                       <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
                         <Fingerprint className="w-5 h-5 text-blue-500" />
-                        Этапы анализа ntFAST
+                        {t('analyses.report.conclusions.stages')}
                       </h3>
                       <div className="space-y-3">
                         {[
@@ -1363,7 +1376,7 @@ export function BankAnalysisReport({ result, onClose }: BankAnalysisReportProps)
                               : 'Признаков структурирования (дробления для обхода порогов) не обнаружено.'
                           },
                           {
-                            step: 4, name: 'Кросс-анализ доходов/расходов', score: fraud.cross_reference.risk_score,
+                            step: 4, name: 'Транзитные переводы доходов/расходов', score: fraud.cross_reference.risk_score,
                             desc: `Соотношение доходов к расходам: ${fraud.cross_reference.income_expense_ratio?.toFixed(2) || 'N/A'}. ${fraud.cross_reference.rapid_pass_through.length > 0 ? `⚠️ ${fraud.cross_reference.rapid_pass_through.length} транзитных операций (приход → быстрый отток похожей суммы за 48ч).` : 'Транзитных операций (pass-through) не обнаружено.'}`
                           },
                           {
@@ -1435,7 +1448,7 @@ export function BankAnalysisReport({ result, onClose }: BankAnalysisReportProps)
                       >
                         <h3 className="text-lg font-semibold text-red-700 dark:text-red-400 mb-4 flex items-center gap-2">
                           <AlertTriangle className="w-5 h-5" />
-                          Красные флаги ({fraud.red_flags.length})
+                          {t('analyses.report.conclusions.redFlags', { count: fraud.red_flags.length })}
                         </h3>
                         <div className="space-y-2">
                           {fraud.red_flags.map((flag, i) => (
@@ -1460,7 +1473,7 @@ export function BankAnalysisReport({ result, onClose }: BankAnalysisReportProps)
                       >
                         <h3 className="text-lg font-semibold text-blue-700 dark:text-blue-400 mb-4 flex items-center gap-2">
                           <Sparkles className="w-5 h-5" />
-                          Рекомендации ntFAST AI ({fraud.recommendations.length})
+                          {t('analyses.report.conclusions.recommendations', { count: fraud.recommendations.length })}
                         </h3>
                         <div className="space-y-2">
                           {fraud.recommendations.map((rec, i) => (
@@ -1484,17 +1497,17 @@ export function BankAnalysisReport({ result, onClose }: BankAnalysisReportProps)
                     >
                       <div className="flex items-center justify-center gap-2 text-sm text-gray-400 dark:text-gray-500">
                         <Shield className="w-4 h-4" />
-                        <span>Отчёт сгенерирован системой <span className="font-semibold text-blue-500">ntFAST AI v2.0</span></span>
+                        <span>{t('analyses.report.conclusions.reportGenerated')} <span className="font-semibold text-blue-500">ntFAST AI v2.0</span></span>
                       </div>
                       <p className="text-xs text-gray-400 dark:text-gray-600 mt-1">
-                        Financial Analysis System for Transactions &bull; {new Date().toLocaleString('ru-RU')}
+                        {t('analyses.report.subtitle')} &bull; {new Date().toLocaleString(locale)}
                       </p>
                     </div>
                   </>
                 ) : (
                   <div className="text-center py-16">
                     <Target className="w-16 h-16 text-gray-300 dark:text-gray-700 mx-auto mb-4" />
-                    <p className="text-gray-500 dark:text-gray-400">Выводы будут доступны после антифрод-анализа</p>
+                    <p className="text-gray-500 dark:text-gray-400">{t('analyses.report.conclusions.noConclusions')}</p>
                   </div>
                 )}
               </motion.div>

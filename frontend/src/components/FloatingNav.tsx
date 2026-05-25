@@ -22,9 +22,7 @@ export const FloatingNav = () => {
   const location = useLocation();
   const { t } = useTranslation();
   const [userMenuOpen, setUserMenuOpen] = useState(false);
-  const [langMenuOpen, setLangMenuOpen] = useState(false);
   const userMenuRef = useRef<HTMLDivElement>(null);
-  const langMenuRef = useRef<HTMLDivElement>(null);
 
   const menuItems = [
     { icon: Home, label: t('sidebar.home'), path: '/' },
@@ -32,12 +30,17 @@ export const FloatingNav = () => {
     { icon: ScanSearch, label: t('sidebar.analyses'), path: '/analyses' },
   ];
 
-  const currentLang = languages.find(l => l.code === language) || languages[0];
+  const currentLangIndex = languages.findIndex(l => l.code === language);
+  const currentLang = currentLangIndex >= 0 ? languages[currentLangIndex] : languages[0];
+
+  const cycleLanguage = () => {
+    const nextIndex = (currentLangIndex + 1) % languages.length;
+    setLanguage(languages[nextIndex].code);
+  };
 
   useEffect(() => {
     function handleClick(e: MouseEvent) {
       if (userMenuRef.current && !userMenuRef.current.contains(e.target as Node)) setUserMenuOpen(false);
-      if (langMenuRef.current && !langMenuRef.current.contains(e.target as Node)) setLangMenuOpen(false);
     }
     document.addEventListener('mousedown', handleClick);
     return () => document.removeEventListener('mousedown', handleClick);
@@ -86,43 +89,27 @@ export const FloatingNav = () => {
         {theme === 'dark' ? <Sun style={{ width: 15, height: 15 }} /> : <Moon style={{ width: 15, height: 15 }} />}
       </button>
 
-      {/* Language switcher */}
-      <div className="relative" ref={langMenuRef}>
-        <button
-          onClick={() => setLangMenuOpen(!langMenuOpen)}
-          className="nav-item"
-          style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}
-        >
-          <Languages style={{ width: 14, height: 14 }} />
-          <span style={{ fontSize: 12 }}>{currentLang.name}</span>
-        </button>
-        <AnimatePresence>
-          {langMenuOpen && (
-            <motion.div
-              initial={{ opacity: 0, y: -8, scale: 0.95 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: -8, scale: 0.95 }}
-              transition={{ duration: 0.15 }}
-              className="nav-dropdown"
-              style={{ right: 0, minWidth: 140 }}
-            >
-              {languages.map((lang) => (
-                <button
-                  key={lang.code}
-                  onClick={() => { setLanguage(lang.code); setLangMenuOpen(false); }}
-                  className={`nav-dropdown-item ${language === lang.code ? 'active' : ''}`}
-                >
-                  <span>{lang.flag}</span>
-                  <span>{lang.name}</span>
-                  {language === lang.code && (
-                    <span className="nav-dropdown-dot" />
-                  )}
-                </button>
-              ))}
-            </motion.div>
-          )}
+      {/* Language switcher — single-click cycle */}
+      <button
+        onClick={cycleLanguage}
+        className="nav-item"
+        style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+        title={t('common.switchLanguage', { next: languages[(currentLangIndex + 1) % languages.length].name })}
+      >
+        <Languages style={{ width: 14, height: 14 }} />
+        <AnimatePresence mode="wait" initial={false}>
+          <motion.span
+            key={currentLang.code}
+            initial={{ opacity: 0, y: -4 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 4 }}
+            transition={{ duration: 0.12 }}
+            style={{ fontSize: 12, display: 'inline-block', minWidth: 18, textAlign: 'center' }}
+          >
+            {currentLang.name}
+          </motion.span>
         </AnimatePresence>
-      </div>
+      </button>
 
       <div className="nav-divider" />
 

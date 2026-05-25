@@ -87,7 +87,8 @@ let cachedAnalyses: Analysis[] = [];
    ═══════════════════════════════════════════════════════════════ */
 
 export function Analyses() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const dateLocale = i18n.language === 'kk' ? 'kk-KZ' : i18n.language === 'en' ? 'en-US' : 'ru-RU';
 
   /* ── data state ── */
   const [analyses, setAnalyses] = useState<Analysis[]>(cachedAnalyses);
@@ -785,7 +786,7 @@ export function Analyses() {
                     {/* Date */}
                     <td>
                       <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-                        {new Date(analysis.created_at.endsWith('Z') ? analysis.created_at : `${analysis.created_at}Z`).toLocaleString('ru-RU', {
+                        {new Date(analysis.created_at.endsWith('Z') ? analysis.created_at : `${analysis.created_at}Z`).toLocaleString(dateLocale, {
                           day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit'
                         })}
                       </span>
