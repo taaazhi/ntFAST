@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status, Query, UploadFile
 from sqlalchemy.orm import Session, defer
 from typing import List, Optional
 import os
+import re
 import shutil
 from datetime import datetime
 from pathlib import Path
@@ -13,6 +14,19 @@ from app.schemas.analysis import AnalysisCreate, AnalysisUpdate, AnalysisRespons
 from app.services.auth_service import get_current_user
 
 router = APIRouter()
+
+
+def _sanitize_filename(name: str) -> str:
+    """Strip path separators and limit filename to safe characters.
+    Prevents path traversal via crafted upload filenames like '../../etc/passwd'."""
+    if not name:
+        return "unnamed"
+    # Strip directory components first (defeats ..\..\ and ../../ tricks)
+    safe = Path(name).name
+    # Whitelist a..z A..Z 0..9 . _ - and replace the rest with underscore
+    safe = re.sub(r"[^a-zA-Z0-9._-]", "_", safe)
+    # Limit length
+    return safe[:200] or "unnamed"
 
 
 # IMPORTANT: Specific routes MUST come BEFORE parametrized routes like /{analysis_id}
@@ -27,8 +41,11 @@ async def upload_file_for_analysis(
     Upload a bank statement file (PDF, CSV, XLSX, XLS) for ML analysis
     Creates a new Analysis and triggers file parsing
     """
+    # SECURITY: sanitize uploaded filename FIRST to defeat path traversal attempts
+    original_name = _sanitize_filename(file.filename or "")
+
     # Validate file extension
-    file_extension = file.filename.split(".")[-1].lower()
+    file_extension = original_name.rsplit(".", 1)[-1].lower() if "." in original_name else ""
     if file_extension not in settings.ALLOWED_FILE_TYPES:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -49,13 +66,19 @@ async def upload_file_for_analysis(
     await file.seek(0)
 
     # Create uploads directory if it doesn't exist
-    upload_dir = Path(settings.UPLOAD_DIR)
+    upload_dir = Path(settings.UPLOAD_DIR).resolve()
     upload_dir.mkdir(parents=True, exist_ok=True)
 
-    # Generate unique filename with timestamp
+    # Generate unique filename with timestamp + sanitized name
     timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
-    safe_filename = f"{timestamp}_{file.filename}"
-    file_path = upload_dir / safe_filename
+    safe_filename = f"{timestamp}_{original_name}"
+    file_path = (upload_dir / safe_filename).resolve()
+
+    # Defence in depth: ensure resolved path stays inside upload_dir
+    try:
+        file_path.relative_to(upload_dir)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid file path")
 
     # Save file to disk
     try:
@@ -70,7 +93,7 @@ async def upload_file_for_analysis(
     # Create Analysis record in database
     db_analysis = Analysis(
         analyst_id=current_user.id,
-        file_name=file.filename,
+        file_name=original_name,
         file_path=str(file_path),
         file_type=file_extension,
         file_size=file_size,

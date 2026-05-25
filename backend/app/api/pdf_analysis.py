@@ -2,16 +2,52 @@
 API endpoints for PDF Financial Analysis
 """
 import os
+import re
 import tempfile
 import logging
+from pathlib import Path
 from typing import Optional
 from fastapi import APIRouter, UploadFile, File, HTTPException, Query
 from fastapi.responses import JSONResponse
 
+from app.core.config import settings
 from app.services.pdf_analyzer import FinancialAnalyzer, analyze_pdf_file
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
+
+
+def _sanitize_filename(name: str) -> str:
+    """Strip path separators and limit filename to safe characters."""
+    if not name:
+        return "unnamed"
+    # Strip directory components
+    safe = Path(name).name
+    # Whitelist a..z A..Z 0..9 . _ - and replace the rest
+    safe = re.sub(r"[^a-zA-Z0-9._-]", "_", safe)
+    # Limit length
+    return safe[:200] or "unnamed"
+
+
+def _validate_path_inside(path: str, base_dir: str) -> Path:
+    """
+    Resolve a path and ensure it stays inside base_dir.
+    Raises HTTPException(400) on traversal attempts.
+    """
+    try:
+        base = Path(base_dir).resolve()
+        target = (base / path).resolve() if not Path(path).is_absolute() else Path(path).resolve()
+    except (OSError, ValueError):
+        raise HTTPException(status_code=400, detail="Invalid file path")
+
+    # Python 3.9+ supports is_relative_to; fallback via str check for safety
+    try:
+        if not target.is_relative_to(base):
+            raise HTTPException(status_code=400, detail="Path traversal denied")
+    except AttributeError:
+        if not str(target).startswith(str(base) + os.sep) and str(target) != str(base):
+            raise HTTPException(status_code=400, detail="Path traversal denied")
+    return target
 
 
 @router.post("/analyze")
@@ -29,8 +65,9 @@ async def analyze_pdf(
     - Builds social profile
     - Generates AI summary (if Ollama is available)
     """
-    # Validate file type
-    if not file.filename.lower().endswith('.pdf'):
+    # Validate file type — sanitize filename first
+    safe_name = _sanitize_filename(file.filename or "")
+    if not safe_name.lower().endswith('.pdf'):
         raise HTTPException(status_code=400, detail="Only PDF files are supported")
 
     # Save uploaded file temporarily
@@ -40,20 +77,22 @@ async def analyze_pdf(
             tmp.write(content)
             tmp_path = tmp.name
 
-        logger.info(f"Analyzing uploaded PDF: {file.filename}")
+        logger.info(f"Analyzing uploaded PDF: {safe_name}")
 
         # Run analysis
         analyzer = FinancialAnalyzer(use_ai=use_ai)
         result = analyzer.analyze_pdf(tmp_path, anonymize=anonymize)
 
-        # Add original filename
-        result["original_filename"] = file.filename
+        # Add original (sanitized) filename
+        result["original_filename"] = safe_name
 
         return JSONResponse(content=result)
 
+    except HTTPException:
+        raise
     except Exception as e:
-        logger.error(f"PDF analysis failed: {e}")
-        raise HTTPException(status_code=500, detail=f"Analysis failed: {str(e)}")
+        logger.error(f"PDF analysis failed: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Analysis failed")
 
     finally:
         # Cleanup temp file
@@ -68,24 +107,32 @@ async def analyze_pdf_by_path(
     anonymize: bool = Query(True)
 ):
     """
-    Analyze PDF by file path (for local testing)
+    Analyze PDF by file path inside the configured UPLOAD_DIR (for local testing).
 
-    WARNING: This endpoint accepts file paths and should be secured in production
+    SECURITY: `pdf_path` is resolved against `settings.UPLOAD_DIR` and rejected
+    if it escapes that directory. Absolute paths outside UPLOAD_DIR are also
+    rejected to prevent reading arbitrary files like .env or /etc/passwd.
     """
-    if not os.path.exists(pdf_path):
-        raise HTTPException(status_code=404, detail="PDF file not found")
-
+    # Reject early on extension mismatch
     if not pdf_path.lower().endswith('.pdf'):
         raise HTTPException(status_code=400, detail="Only PDF files are supported")
 
+    # SECURITY: resolve and validate path lives inside UPLOAD_DIR
+    safe_path = _validate_path_inside(pdf_path, settings.UPLOAD_DIR)
+
+    if not safe_path.exists() or not safe_path.is_file():
+        raise HTTPException(status_code=404, detail="PDF file not found")
+
     try:
         analyzer = FinancialAnalyzer(use_ai=use_ai)
-        result = analyzer.analyze_pdf(pdf_path, anonymize=anonymize)
+        result = analyzer.analyze_pdf(str(safe_path), anonymize=anonymize)
         return JSONResponse(content=result)
 
+    except HTTPException:
+        raise
     except Exception as e:
-        logger.error(f"PDF analysis failed: {e}")
-        raise HTTPException(status_code=500, detail=f"Analysis failed: {str(e)}")
+        logger.error(f"PDF analysis failed: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Analysis failed")
 
 
 @router.get("/ollama-status")

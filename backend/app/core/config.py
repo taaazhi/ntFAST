@@ -6,10 +6,11 @@ from typing import Optional
 logger = logging.getLogger(__name__)
 
 _DEFAULT_SECRET = "your-secret-key-change-in-production-09d25e094faa6ca2556c818166b7a9563b93f7099f6f0f4caa6cf63b88e8d3e7"
+_MIN_SECRET_LEN = 32
 
 
 def _generate_secret_key() -> str:
-    """Generate a secure random SECRET_KEY if not provided."""
+    """Generate a secure random SECRET_KEY (used only in DEBUG mode)."""
     key = secrets.token_hex(32)
     logger.warning(
         "[SECURITY] SECRET_KEY was not set — generated a random key. "
@@ -35,13 +36,16 @@ class Settings(BaseSettings):
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_DAYS: int = 30
 
-    # CORS — Railway domains added automatically via validate_startup()
-    BACKEND_CORS_ORIGINS: list[str] = ["http://localhost:5173", "http://localhost:3000"]
+    # CORS — local development origins (localhost + 127.0.0.1 + LAN)
+    BACKEND_CORS_ORIGINS: list[str] = [
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+        "http://192.168.8.208:5173",
+    ]
 
-    # Railway.app auto-detection
-    RAILWAY_PUBLIC_DOMAIN: str = ""
-    RAILWAY_ENVIRONMENT: str = ""
-    PORT: int = 8000  # Railway sets this
+    PORT: int = 8000
 
     # Email Configuration
     SMTP_SERVER: str = "smtp.mail.ru"
@@ -97,17 +101,35 @@ class Settings(BaseSettings):
         case_sensitive = True
 
     def validate_startup(self) -> None:
-        """Validate critical settings on application startup."""
+        """Validate critical settings on application startup.
+
+        SECURITY: refuses to start in non-DEBUG mode if SECRET_KEY is missing,
+        default, or too short. In DEBUG mode falls back to an ephemeral
+        auto-generated key (logs a warning).
+        """
         warnings = []
 
-        # SECURITY: Never run with the default secret key
-        if self.SECRET_KEY == _DEFAULT_SECRET:
-            self.SECRET_KEY = _generate_secret_key()
-            warnings.append(
-                "SECRET_KEY was default — auto-generated a random key. "
-                "Set SECRET_KEY in .env for persistent JWT sessions: "
-                "python -c \"import secrets; print(secrets.token_hex(32))\""
-            )
+        # SECURITY: Never run with the default secret key in production
+        is_default = (self.SECRET_KEY == _DEFAULT_SECRET) or not self.SECRET_KEY
+        is_weak = len(self.SECRET_KEY) < _MIN_SECRET_LEN
+
+        if is_default or is_weak:
+            if self.DEBUG:
+                # Dev convenience — auto-generate ephemeral key
+                self.SECRET_KEY = _generate_secret_key()
+                warnings.append(
+                    "SECRET_KEY was default/weak — auto-generated ephemeral key (DEBUG mode). "
+                    "Set SECRET_KEY in .env for persistent JWT sessions: "
+                    "python -c \"import secrets; print(secrets.token_hex(32))\""
+                )
+            else:
+                # Production — fail fast, do not silently weaken security
+                raise RuntimeError(
+                    "[SECURITY] SECRET_KEY is missing, default, or shorter than "
+                    f"{_MIN_SECRET_LEN} chars. Set a strong SECRET_KEY in .env before starting "
+                    "the application. Generate one with: "
+                    "python -c \"import secrets; print(secrets.token_hex(32))\""
+                )
 
         if not self.SMTP_USERNAME and self.USE_REAL_EMAIL:
             warnings.append(
@@ -117,24 +139,6 @@ class Settings(BaseSettings):
 
         if "sqlite" not in self.DATABASE_URL and "localhost" not in self.DATABASE_URL:
             logger.info(f"Database: remote ({self.DATABASE_URL.split('@')[-1].split('/')[0]})")
-
-        # Railway.app: auto-add CORS origins for Railway domains
-        if self.RAILWAY_ENVIRONMENT or self.RAILWAY_PUBLIC_DOMAIN:
-            import os
-            railway_origins = []
-            # Add all Railway service domains from env
-            for key, val in os.environ.items():
-                if 'RAILWAY' in key and 'DOMAIN' in key and val:
-                    railway_origins.append(f"https://{val}")
-                    railway_origins.append(f"http://{val}")
-            # Add any custom domain
-            if self.RAILWAY_PUBLIC_DOMAIN:
-                railway_origins.append(f"https://{self.RAILWAY_PUBLIC_DOMAIN}")
-            for origin in railway_origins:
-                if origin not in self.BACKEND_CORS_ORIGINS:
-                    self.BACKEND_CORS_ORIGINS.append(origin)
-            if railway_origins:
-                logger.info(f"[RAILWAY] Added CORS origins: {railway_origins}")
 
         for w in warnings:
             logger.warning(f"[CONFIG] {w}")

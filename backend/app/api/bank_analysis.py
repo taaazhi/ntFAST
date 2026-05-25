@@ -9,9 +9,11 @@ API эндпоинты для универсального анализа бан
 v2: Все результаты сохраняются в PostgreSQL (Analysis, Transaction, Subject)
 """
 import os
+import re
 import asyncio
 import tempfile
 import logging
+from pathlib import Path
 from typing import Optional
 from datetime import datetime
 from fastapi import APIRouter, UploadFile, File, HTTPException, Query, Request, Depends
@@ -33,6 +35,15 @@ logger = logging.getLogger(__name__)
 
 # Допустимые расширения файлов
 ALLOWED_EXTENSIONS = {".pdf", ".xlsx", ".xls"}
+
+
+def _sanitize_filename(name: str) -> str:
+    """Strip path separators and whitelist filename chars (defeats path traversal)."""
+    if not name:
+        return "unnamed"
+    safe = Path(name).name
+    safe = re.sub(r"[^a-zA-Z0-9._-]", "_", safe)
+    return safe[:200] or "unnamed"
 
 
 def _get_file_extension(filename: str) -> str:
@@ -359,8 +370,11 @@ async def analyze_bank_statement(
     - Анализ по категориям
     - Антифрод-анализ
     """
+    # SECURITY: sanitize filename FIRST (defeats ../../etc/passwd traversal attempts)
+    safe_filename = _sanitize_filename(file.filename or "")
+
     # Валидация типа файла
-    ext = _validate_file_extension(file.filename)
+    ext = _validate_file_extension(safe_filename)
 
     # Создаём прогресс-callback для WebSocket
     progress_callback = None
@@ -379,21 +393,21 @@ async def analyze_bank_statement(
             tmp_path = tmp.name
 
         file_size = len(content)
-        logger.info(f"Анализируем банковскую выписку: {file.filename} ({ext})")
+        logger.info(f"Анализируем банковскую выписку: {safe_filename} ({ext})")
 
         # Запускаем анализ в thread pool — не блокируем event loop,
         # чтобы WebSocket прогресс доходил до клиента в реальном времени
         analyzer = BankAnalyzer(tmp_path, on_progress=progress_callback)
         result = await asyncio.to_thread(analyzer.analyze)
 
-        # Добавляем оригинальное имя файла
-        result["meta"]["original_filename"] = file.filename
+        # Добавляем оригинальное (санитизированное) имя файла
+        result["meta"]["original_filename"] = safe_filename
 
         # ── Сохраняем в PostgreSQL ──
         analysis_id = _save_analysis_to_db(
             db=db,
             result=result,
-            filename=file.filename,
+            filename=safe_filename,
             file_ext=ext,
             file_size=file_size,
             user_id=current_user.id,
