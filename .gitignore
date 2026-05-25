@@ -67,3 +67,19 @@ redis/
 
 # Office temp files
 ~$*
+
+# Local test artefacts — bank statements / build scripts / practice files
+# that should never reach the repo (data leak, large binaries)
+Binance-*.xlsx
+gold_statement*.pdf
+build_diary_*.js
+build_otzyv*.js
+build_report*.js
+report_unpacked/
+report_text.txt
+practice_photos/
+docs/video_script_kk.md
+*.JPG
+*.heic
+"\320\232\320\276\320\275\320\272\321\203\321\200\321\201\321\202\321\213\322\233 \320\266\322\261\320\274\321\213\321\201 - ntFAST.pdf"
+

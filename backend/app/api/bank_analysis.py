@@ -100,7 +100,12 @@ def _save_analysis_to_db(
         # IMPORTANT: BankAnalyzer returns "account" (not "account_info")
         # and "fraud_report" (not "fraud_analysis")
         account = result.get("account") or result.get("account_info") or {}
-        fraud = result.get("fraud_report") or result.get("fraud_analysis") or {}
+        # Use a dict locally for safe .get() calls. Separately compute
+        # fraud_for_storage which is None if empty — so the JSON column in DB
+        # is NULL (not {}), and frontend `if (!fraud)` correctly detects no-data.
+        fraud_raw = result.get("fraud_report") or result.get("fraud_analysis")
+        fraud = fraud_raw if isinstance(fraud_raw, dict) else {}
+        fraud_for_storage = fraud if fraud else None
         summary = result.get("summary", {})
 
         db_analysis = Analysis(
@@ -130,10 +135,10 @@ def _save_analysis_to_db(
             total_expense=summary.get("total_expense", 0),
             net_flow=summary.get("net_flow", 0),
 
-            # Антифрод
+            # Антифрод — fraud_report is None (not {}) when no fraud data
             fraud_composite_score=fraud.get("composite_score"),
             fraud_risk_level=fraud.get("risk_level"),
-            fraud_report=fraud,
+            fraud_report=fraud_for_storage,
             fraud_red_flags=fraud.get("red_flags"),
             fraud_recommendations=fraud.get("recommendations"),
 

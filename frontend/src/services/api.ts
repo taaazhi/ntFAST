@@ -818,7 +818,4 @@ export const bankAnalysisAPI = {
   },
 };
 
-// Обратная совместимость
-export const kaspiAnalysisAPI = bankAnalysisAPI;
-
 export default api;
