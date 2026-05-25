@@ -81,7 +81,10 @@ export function useAnalysisProgress() {
     const maxRetries = 5;
 
     const attemptConnect = () => {
-      const wsUrl = `${WS_BASE_URL}/ws/analysis/${sessionId}`;
+      // SECURITY: пробрасываем JWT-токен через query-параметр — backend валидирует
+      // его перед accept(), без токена соединение закрывается с кодом 1008.
+      const token = localStorage.getItem('access_token') || '';
+      const wsUrl = `${WS_BASE_URL}/ws/analysis/${encodeURIComponent(sessionId)}?token=${encodeURIComponent(token)}`;
       const ws = new WebSocket(wsUrl);
       wsRef.current = ws;
 

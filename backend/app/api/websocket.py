@@ -359,10 +359,34 @@ async def websocket_activity_endpoint(
 async def websocket_analysis_progress(
     websocket: WebSocket,
     session_id: str,
+    token: Optional[str] = Query(None),
 ):
     """
     WebSocket для реал-тайм прогресса анализа файлов.
+
+    SECURITY: требует JWT-токен в query (?token=...). Без валидного токена
+    соединение закрывается до начала обмена данными — это предотвращает
+    подбор session_id и перехват прогресса чужих анализов.
     """
+    # SECURITY: validate JWT before accepting the connection
+    if not token:
+        # 1008 = Policy Violation (RFC 6455). close() works without prior accept.
+        await websocket.close(code=1008, reason="Missing authentication token")
+        return
+
+    payload = decode_access_token(token)
+    if not payload or "sub" not in payload:
+        await websocket.close(code=1008, reason="Invalid or expired token")
+        return
+
+    try:
+        user_id = int(payload["sub"])
+    except (TypeError, ValueError):
+        await websocket.close(code=1008, reason="Malformed token claims")
+        return
+
+    logger.debug(f"WS analysis: authenticated user_id={user_id} for session={session_id}")
+
     await analysis_progress.connect(websocket, session_id)
 
     try:

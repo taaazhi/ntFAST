@@ -309,8 +309,9 @@ async def forgot_password(
 
     SECURITY: Returns the same response and approximate timing whether or not
     the email exists, to prevent enumeration attacks that probe for valid users.
+    The SMTP send is dispatched to a background task so the response time does
+    not depend on whether the email actually exists in the database.
     """
-    import asyncio
     from app.services.email_service import EmailService
     from app.utils.security_info import SecurityInfoCollector
 
@@ -319,16 +320,13 @@ async def forgot_password(
     # Check if user exists
     user = get_user_by_email(db, request_data.email)
     if not user:
-        # SECURITY: equalize timing with the path that hashes/sends — bcrypt + SMTP take ~100ms.
-        # This prevents timing-based enumeration of registered emails.
-        await asyncio.sleep(0.1)
-        logger.info(f"Password reset requested for non-existent email (suppressed)")
+        logger.info("Password reset requested for non-existent email (suppressed)")
         return GENERIC_RESPONSE
 
-    # Create verification code
+    # Create verification code (fast DB write)
     code = EmailService.create_verification_code(db, request_data.email)
 
-    # Collect security information using new collector
+    # Collect security information (in-process, no network) — runs for both branches in similar time
     security_info = await SecurityInfoCollector.collect_security_info(
         request=request,
         user_name=user.full_name,
@@ -343,17 +341,26 @@ async def forgot_password(
     else:
         location_str = loc["ip"]
 
-    # Send password reset email with security info
-    EmailService.send_password_reset_code(
-        email=request_data.email,
-        code=code,
-        user_name=security_info["user"]["display_name"],
-        device_info=security_info["device"]["formatted"],
-        location=location_str,
-        time_info=security_info["time"]["formatted"]
-    )
+    # SECURITY: Move SMTP send to a background task.
+    # Why: SMTP can block 1-5 seconds. If we await it on the real-email branch
+    # but return immediately on the missing-email branch, an attacker can
+    # enumerate registered emails by timing the response. By fire-and-forget,
+    # both branches return in <100ms.
+    async def _send_in_background() -> None:
+        # smtplib.SMTP is blocking — run it in a thread to avoid stalling the event loop
+        await asyncio.to_thread(
+            EmailService.send_password_reset_code,
+            request_data.email,
+            code,
+            security_info["user"]["display_name"],
+            security_info["device"]["formatted"],
+            location_str,
+            security_info["time"]["formatted"],
+        )
 
-    logger.info(f"Password reset code sent to {request_data.email} from IP {loc['ip']}")
+    _safe_create_task(_send_in_background(), name="smtp_password_reset")
+
+    logger.info(f"Password reset code queued for {request_data.email} from IP {loc['ip']}")
 
     return GENERIC_RESPONSE
 
