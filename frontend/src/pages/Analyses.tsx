@@ -111,6 +111,7 @@ export function Analyses() {
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [batchDeleting, setBatchDeleting] = useState(false);
 
+
   /* ── upload state ── */
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [isDragging, setIsDragging] = useState(false);
@@ -347,14 +348,17 @@ export function Analyses() {
     try {
       const [fullAnalysis, txData] = await Promise.all([
         analysesAPI.getById(analysis.id) as Promise<Analysis>,
-        analysesAPI.getTransactions(analysis.id).catch(() => ({ transactions: [] })),
+        analysesAPI
+          .getTransactions(analysis.id)
+          .catch(() => ({ transactions: [] as any[] })) as Promise<{ transactions?: any[] }>,
       ]);
-      const parsedAccount = fullAnalysis.parsed_account_info || {};
-      const rawAnalytics = fullAnalysis.analytics_result || {};
-      const fraudReport = fullAnalysis.fraud_report || null;
+      const parsedAccount = fullAnalysis?.parsed_account_info || {};
+      const rawAnalytics = fullAnalysis?.analytics_result || {};
+      const fraudReport = fullAnalysis?.fraud_report || null;
       const analyticsData = rawAnalytics.analytics || rawAnalytics;
       const contactsData = rawAnalytics.contacts || analyticsData.contacts || {};
-      const transactions = (txData.transactions || []).map((tx: any) => ({
+      const rawTransactions: any[] = Array.isArray(txData?.transactions) ? txData!.transactions! : [];
+      const transactions = rawTransactions.map((tx: any) => ({
         date: tx.transaction_date || tx.date || '',
         amount: parseFloat(tx.amount) || 0,
         type: tx.transaction_type || tx.type || '',

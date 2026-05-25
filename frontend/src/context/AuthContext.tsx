@@ -27,23 +27,30 @@ interface AuthProviderProps {
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  // Track mount status so async work that finishes after unmount doesn't trigger
+  // "Can't perform a React state update on an unmounted component" warnings.
+  const isMountedRef = React.useRef(true);
 
   useEffect(() => {
+    isMountedRef.current = true;
     const initAuth = async () => {
       const token = localStorage.getItem('access_token');
       if (token) {
         try {
           const currentUser = await authAPI.getCurrentUser();
-          setUser(currentUser);
+          if (isMountedRef.current) setUser(currentUser);
         } catch (error) {
           localStorage.removeItem('access_token');
         }
       }
-      setLoading(false);
+      if (isMountedRef.current) setLoading(false);
     };
 
     initAuth();
     // Heartbeat is handled by WebSocket in useActivityMonitor (single mechanism)
+    return () => {
+      isMountedRef.current = false;
+    };
   }, []);
 
   const login = async (credentials: LoginCredentials) => {
@@ -68,7 +75,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       localStorage.setItem('previous_login', currentUser.previous_login);
     }
 
-    setUser(currentUser);
+    if (isMountedRef.current) setUser(currentUser);
   };
 
   const logout = async () => {

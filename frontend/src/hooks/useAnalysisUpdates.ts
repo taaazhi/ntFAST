@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { analysesAPI } from '../services/api';
 
 interface AnalysisUpdate {
@@ -10,13 +10,23 @@ interface AnalysisUpdate {
 }
 
 /**
- * Hook to get real-time analysis updates via polling
- * Polls the server every few seconds to check for analysis status changes
+ * Hook to get real-time analysis updates via polling.
+ *
+ * `onUpdate` is intentionally read via a ref to keep `pollAnalyses` identity
+ * stable across renders — this prevents the polling interval from being
+ * recreated every time the parent re-renders with a fresh callback.
  */
 export function useAnalysisUpdates(onUpdate?: (update: AnalysisUpdate) => void) {
   const [latestUpdate, setLatestUpdate] = useState<AnalysisUpdate | null>(null);
   const [analyses, setAnalyses] = useState<any[]>([]);
   const [isPolling, setIsPolling] = useState(false);
+
+  // Always-latest reference to the caller's callback — avoids stale closure
+  // without forcing pollAnalyses to be re-created.
+  const onUpdateRef = useRef(onUpdate);
+  useEffect(() => {
+    onUpdateRef.current = onUpdate;
+  }, [onUpdate]);
 
   const pollAnalyses = useCallback(async () => {
     try {
@@ -34,15 +44,12 @@ export function useAnalysisUpdates(onUpdate?: (update: AnalysisUpdate) => void) 
         };
 
         setLatestUpdate(update);
-
-        if (onUpdate) {
-          onUpdate(update);
-        }
+        onUpdateRef.current?.(update);
       }
     } catch (error) {
       console.error('Failed to poll analyses:', error);
     }
-  }, [onUpdate]);
+  }, []);
 
   const startPolling = useCallback(() => {
     setIsPolling(true);

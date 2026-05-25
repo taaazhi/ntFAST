@@ -45,9 +45,13 @@ export function BackgroundAnalysisProvider({ children }: { children: React.React
 
   const analysisProgress = useAnalysisProgress();
   const onCompleteRef = useRef<(() => void) | null>(null);
+  // Mirror isAnalyzing in a ref to read inside callbacks without making the
+  // callback identity flip on every state change (avoids infinite useEffect loops).
+  const isAnalyzingRef = useRef(false);
+  isAnalyzingRef.current = isAnalyzing;
 
   const startAnalysis = useCallback((file: File, onComplete?: () => void) => {
-    if (isAnalyzing) {
+    if (isAnalyzingRef.current) {
       toast.warning('Analysis is already running');
       return;
     }
@@ -87,7 +91,10 @@ export function BackgroundAnalysisProvider({ children }: { children: React.React
           onCompleteRef.current = null;
         }
       });
-  }, [isAnalyzing, analysisProgress]);
+    // `analysisProgress` is a stable object from useAnalysisProgress; safe to
+    // include without identity churn. `isAnalyzing` is intentionally read via
+    // ref above to keep startAnalysis identity stable across re-renders.
+  }, [analysisProgress]);
 
   const dismissResult = useCallback(() => {
     setResult(null);

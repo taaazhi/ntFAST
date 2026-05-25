@@ -13,9 +13,13 @@ import type {
 // Empty string = same origin (nginx proxy in Docker), otherwise direct backend URL
 const BACKEND_HOST = import.meta.env.VITE_API_URL ?? 'http://localhost:8000';
 const API_BASE_URL = BACKEND_HOST ? `${BACKEND_HOST}/api` : '/api';
+// Guard window access for SSR/test environments where `window` is undefined.
+const _sameOriginWS = typeof window !== 'undefined'
+  ? `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}`
+  : 'ws://localhost:8000';
 export const WS_BASE_URL = BACKEND_HOST
   ? BACKEND_HOST.replace(/^http/, 'ws')
-  : `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}`;
+  : _sameOriginWS;
 
 const api = axios.create({
   baseURL: API_BASE_URL,
@@ -48,6 +52,27 @@ api.interceptors.response.use(
   }
 );
 
+// Common API response shapes
+export interface ApiMessageResponse { message: string }
+export interface LoginHistoryItem {
+  id: number;
+  login_time: string | null;
+  logout_time: string | null;
+  session_duration: number | null;
+  ip_address: string | null;
+  user_agent: string | null;
+  location: string | null;
+  is_suspicious: boolean;
+}
+export interface ActiveSession {
+  id: number;
+  login_time: string | null;
+  ip_address: string | null;
+  user_agent: string | null;
+  location: string | null;
+  is_suspicious: boolean;
+}
+
 // Auth API
 export const authAPI = {
   login: async (credentials: LoginCredentials): Promise<AuthResponse> => {
@@ -63,8 +88,8 @@ export const authAPI = {
     return response.data;
   },
 
-  register: async (data: RegisterData): Promise<any> => {
-    const response = await api.post('/auth/register', data);
+  register: async (data: RegisterData): Promise<ApiMessageResponse & { verification_required?: boolean; email?: string }> => {
+    const response = await api.post<ApiMessageResponse & { verification_required?: boolean; email?: string }>('/auth/register', data);
     return response.data;
   },
 
@@ -87,33 +112,33 @@ export const authAPI = {
     await api.post('/auth/logout');
   },
 
-  changePassword: async (data: { current_password: string; new_password: string }): Promise<any> => {
-    const response = await api.post('/auth/change-password', data);
+  changePassword: async (data: { current_password: string; new_password: string }): Promise<ApiMessageResponse> => {
+    const response = await api.post<ApiMessageResponse>('/auth/change-password', data);
     return response.data;
   },
 
-  forgotPassword: async (data: { email: string }): Promise<any> => {
-    const response = await api.post('/auth/forgot-password', data);
+  forgotPassword: async (data: { email: string }): Promise<ApiMessageResponse> => {
+    const response = await api.post<ApiMessageResponse>('/auth/forgot-password', data);
     return response.data;
   },
 
-  resetPassword: async (data: { email: string; code: string; new_password: string }): Promise<any> => {
-    const response = await api.post('/auth/reset-password', data);
+  resetPassword: async (data: { email: string; code: string; new_password: string }): Promise<ApiMessageResponse> => {
+    const response = await api.post<ApiMessageResponse>('/auth/reset-password', data);
     return response.data;
   },
 
-  loginHistory: async (limit: number = 10): Promise<any> => {
-    const response = await api.get(`/auth/login-history?limit=${limit}`);
+  loginHistory: async (limit: number = 10): Promise<{ history: LoginHistoryItem[] }> => {
+    const response = await api.get<{ history: LoginHistoryItem[] }>(`/auth/login-history?limit=${limit}`);
     return response.data;
   },
 
-  activeSessions: async (): Promise<any> => {
-    const response = await api.get('/auth/active-sessions');
+  activeSessions: async (): Promise<{ active_sessions: ActiveSession[] }> => {
+    const response = await api.get<{ active_sessions: ActiveSession[] }>('/auth/active-sessions');
     return response.data;
   },
 
-  closeAllSessions: async (): Promise<any> => {
-    const response = await api.post('/auth/close-all-sessions');
+  closeAllSessions: async (): Promise<ApiMessageResponse & { sessions_closed?: number }> => {
+    const response = await api.post<ApiMessageResponse & { sessions_closed?: number }>('/auth/close-all-sessions');
     return response.data;
   },
 };
