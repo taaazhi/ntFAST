@@ -91,20 +91,25 @@ export function Analyses() {
   const { t, i18n } = useTranslation();
   const dateLocale = i18n.language === 'kk' ? 'kk-KZ' : i18n.language === 'en' ? 'en-US' : 'ru-RU';
 
+  // Read initial filter/sort state from URL so refresh/share preserves the view.
+  // Safe at module load — useState init runs once.
+  const _initialParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
+  const _initParam = (key: string, fallback: string): string => _initialParams?.get(key) ?? fallback;
+
   /* ── data state ── */
   const [analyses, setAnalyses] = useState<Analysis[]>(cachedAnalyses);
   const [loading, setLoading] = useState(cachedAnalyses.length === 0);
 
-  /* ── filters state ── */
-  const [searchQuery, setSearchQuery] = useState('');
-  const [filterStatus, setFilterStatus] = useState<string>('all');
-  const [filterRiskLevel, setFilterRiskLevel] = useState<string>('all');
-  const [dateFrom, setDateFrom] = useState('');
-  const [dateTo, setDateTo] = useState('');
+  /* ── filters state (hydrated from URL on first render) ── */
+  const [searchQuery, setSearchQuery] = useState(_initParam('q', ''));
+  const [filterStatus, setFilterStatus] = useState<string>(_initParam('status', 'all'));
+  const [filterRiskLevel, setFilterRiskLevel] = useState<string>(_initParam('risk', 'all'));
+  const [dateFrom, setDateFrom] = useState(_initParam('from', ''));
+  const [dateTo, setDateTo] = useState(_initParam('to', ''));
 
   /* ── sort state ── */
-  const [sortBy, setSortBy] = useState<SortField>('created_at');
-  const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
+  const [sortBy, setSortBy] = useState<SortField>(_initParam('sort', 'created_at') as SortField);
+  const [sortOrder, setSortOrder] = useState<SortOrder>(_initParam('order', 'desc') as SortOrder);
 
   /* ── pagination state ── */
   const [currentPage, setCurrentPage] = useState(1);
@@ -228,6 +233,23 @@ export function Analyses() {
   useEffect(() => {
     setCurrentPage(1);
     setSelectedIds(new Set());
+  }, [searchQuery, filterStatus, filterRiskLevel, dateFrom, dateTo, sortBy, sortOrder]);
+
+  // Sync filter/sort state → URL search params so refresh preserves the view
+  // and users can copy/share filtered URLs. replaceState (no history entries).
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const params = new URLSearchParams();
+    if (searchQuery) params.set('q', searchQuery);
+    if (filterStatus !== 'all') params.set('status', filterStatus);
+    if (filterRiskLevel !== 'all') params.set('risk', filterRiskLevel);
+    if (dateFrom) params.set('from', dateFrom);
+    if (dateTo) params.set('to', dateTo);
+    if (sortBy !== 'created_at') params.set('sort', sortBy);
+    if (sortOrder !== 'desc') params.set('order', sortOrder);
+    const qs = params.toString();
+    const newUrl = qs ? `${window.location.pathname}?${qs}` : window.location.pathname;
+    window.history.replaceState(null, '', newUrl);
   }, [searchQuery, filterStatus, filterRiskLevel, dateFrom, dateTo, sortBy, sortOrder]);
 
   /* ═══════════════════ SORT HANDLER ═══════════════════ */
