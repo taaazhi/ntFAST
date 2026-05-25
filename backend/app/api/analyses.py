@@ -625,3 +625,91 @@ async def get_task_status(
         "result": task.result if task.ready() else None,
         "info": task.info
     }
+
+
+@router.post("/{analysis_id}/reanalyze", status_code=status.HTTP_202_ACCEPTED)
+async def reanalyze(
+    analysis_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Re-trigger Celery processing for an existing analysis without re-uploading the file.
+
+    Useful when the original analysis failed or the user wants to apply updated
+    fraud-detection rules. The same file path is reused.
+    """
+    from app.tasks.file_processing_tasks import process_file_task
+    import logging as _logging
+    _logger = _logging.getLogger(__name__)
+
+    db_analysis = db.query(Analysis).filter(Analysis.id == analysis_id).first()
+    if not db_analysis:
+        raise HTTPException(status_code=404, detail="Analysis not found")
+
+    # Authorization: analysts can only re-run their own analyses; admins anyone.
+    if current_user.role != "admin" and db_analysis.analyst_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Not authorized to re-analyze")
+
+    if not db_analysis.file_path:
+        raise HTTPException(status_code=400, detail="Original file path is missing — cannot re-analyze")
+
+    # Reset to pending and re-queue
+    db_analysis.status = "pending"
+    db_analysis.risk_score = 0
+    try:
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise HTTPException(status_code=500, detail="Failed to reset analysis state")
+
+    try:
+        task = process_file_task.delay(db_analysis.id, db_analysis.file_path)
+    except Exception as e:
+        _logger.error(f"Re-analyze enqueue failed: {e}", exc_info=True)
+        db_analysis.status = "failed"
+        db.commit()
+        raise HTTPException(status_code=503, detail="Analysis queue is unavailable")
+
+    return {
+        "id": db_analysis.id,
+        "status": db_analysis.status,
+        "task_id": task.id,
+        "message": "Analysis re-queued",
+    }
+
+
+@router.post("/{analysis_id}/cancel", status_code=status.HTTP_200_OK)
+async def cancel_analysis(
+    analysis_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Cancel a running/pending analysis.
+
+    Marks the Analysis row as 'cancelled'. If the Celery task is still queued
+    we cannot reliably revoke it without storing task_id, so we just mark the
+    DB row — the task will see status=cancelled and abort on its next checkpoint
+    (or finish but the result is ignored by the UI).
+    """
+    db_analysis = db.query(Analysis).filter(Analysis.id == analysis_id).first()
+    if not db_analysis:
+        raise HTTPException(status_code=404, detail="Analysis not found")
+
+    if current_user.role != "admin" and db_analysis.analyst_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Not authorized to cancel")
+
+    # Only cancellable while not yet terminal
+    if db_analysis.status not in ("pending", "parsing", "analyzing"):
+        raise HTTPException(
+            status_code=400,
+            detail=f"Cannot cancel analysis in '{db_analysis.status}' state",
+        )
+
+    db_analysis.status = "cancelled"
+    try:
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise HTTPException(status_code=500, detail="Failed to cancel analysis")
+
+    return {"id": db_analysis.id, "status": db_analysis.status, "message": "Analysis cancelled"}

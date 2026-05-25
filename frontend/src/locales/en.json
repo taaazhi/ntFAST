@@ -98,12 +98,21 @@
     "delete": "Delete",
     "loading": "Loading...",
     "createSubject": "Create Subject",
+    "editSubject": "Edit Subject",
+    "addSubject": "Add Subject",
     "enterName": "Enter name",
     "enter12Digits": "Enter 12 digits",
     "selectType": "Select type",
     "cancel": "Cancel",
     "create": "Create",
-    "creating": "Creating..."
+    "creating": "Creating...",
+    "createSuccess": "Subject created",
+    "updateSuccess": "Subject updated",
+    "deleteSuccess": "Subject deleted",
+    "confirmDelete": "Delete this subject?",
+    "allTypes": "All types",
+    "noSubjects": "No subjects yet",
+    "noSubjectsDesc": "Create your first subject to get started"
   },
   "analyses": {
     "title": "Transaction Analyses",
@@ -220,6 +229,12 @@
     "contacts": "Contacts",
     "transactionsList": "Transactions",
     "exportError": "PDF export failed. Please try again.",
+    "reanalyze": "Re-analyze",
+    "reanalyzeQueued": "Analysis re-queued",
+    "cancel": "Cancel",
+    "cancelled": "Analysis cancelled",
+    "exportCsv": "Export CSV",
+    "exportCsvSuccess": "CSV downloaded",
     "report": {
       "subtitle": "Financial Analysis System for Transactions",
       "downloadPdf": "Download PDF Report",
@@ -394,7 +409,11 @@
         "amountCol": "Amount",
         "noTransactions": "Transaction data is not available for the table.",
         "infoInAntifraud": "Transaction info is available in the antifraud analysis.",
-        "anomalies": "Anomalies ({{count}})"
+        "anomalies": "Anomalies ({{count}})",
+        "searchPlaceholder": "Search by description or category…",
+        "typeFilter": "Operation type",
+        "typeAll": "All",
+        "noMatch": "No transactions found"
       },
       "accountProfile": {
         "title": "Account Profile (AI-detected)",

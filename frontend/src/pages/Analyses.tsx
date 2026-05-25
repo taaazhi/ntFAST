@@ -460,6 +460,31 @@ export function Analyses() {
     }
   };
 
+  const handleReanalyze = async (id: number) => {
+    try {
+      await analysesAPI.reanalyze(id);
+      toast.success(t('analyses.reanalyzeQueued') || 'Analysis re-queued');
+      // Mark as pending locally so UI updates immediately
+      setAnalyses(prev => prev.map(a => a.id === id ? { ...a, status: 'pending' as Analysis['status'] } : a));
+      // Trigger refresh after small delay so server-side status syncs
+      setTimeout(() => void loadData(), 1500);
+    } catch (err: any) {
+      const detail = err?.response?.data?.detail || 'Re-analyze failed';
+      toast.error(String(detail));
+    }
+  };
+
+  const handleCancelAnalysis = async (id: number) => {
+    try {
+      await analysesAPI.cancel(id);
+      toast.success(t('analyses.cancelled') || 'Analysis cancelled');
+      setAnalyses(prev => prev.map(a => a.id === id ? { ...a, status: 'failed' as Analysis['status'] } : a));
+    } catch (err: any) {
+      const detail = err?.response?.data?.detail || 'Cancel failed';
+      toast.error(String(detail));
+    }
+  };
+
   const getFileIcon = (filename: string) => {
     const ext = filename.split('.').pop()?.toLowerCase();
     if (ext === 'pdf') return <FileType2 style={{ width: 18, height: 18, color: 'var(--danger)' }} />;
@@ -816,7 +841,7 @@ export function Analyses() {
                       <div className="flex items-center gap-2">
                         <button
                           onClick={() => handleViewAnalysis(analysis)}
-                          disabled={viewingLoading === analysis.id}
+                          disabled={viewingLoading === analysis.id || analysis.status !== 'completed'}
                           className="glass-action-btn"
                           style={{ padding: '6px 12px' }}
                           aria-label={t('analyses.view') || 'View'}
@@ -824,6 +849,30 @@ export function Analyses() {
                           {viewingLoading === analysis.id ? <Loader2 style={{ width: 14, height: 14, animation: 'spin 1s linear infinite' }} /> : <Eye style={{ width: 14, height: 14 }} />}
                           {t('analyses.view')}
                         </button>
+                        {/* Re-analyze: completed or failed → can re-run */}
+                        {(analysis.status === 'completed' || analysis.status === 'failed') && (
+                          <button
+                            onClick={() => handleReanalyze(analysis.id)}
+                            className="glass-action-btn"
+                            style={{ padding: '6px 10px' }}
+                            aria-label={t('analyses.reanalyze') || 'Re-analyze'}
+                            title={t('analyses.reanalyze') || 'Re-analyze'}
+                          >
+                            <RotateCcw style={{ width: 14, height: 14 }} />
+                          </button>
+                        )}
+                        {/* Cancel: only while in-flight */}
+                        {(analysis.status === 'pending' || analysis.status === 'parsing' || analysis.status === 'analyzing' || analysis.status === 'in_progress') && (
+                          <button
+                            onClick={() => handleCancelAnalysis(analysis.id)}
+                            className="glass-action-btn"
+                            style={{ padding: '6px 10px' }}
+                            aria-label={t('analyses.cancel') || 'Cancel'}
+                            title={t('analyses.cancel') || 'Cancel'}
+                          >
+                            <X style={{ width: 14, height: 14 }} />
+                          </button>
+                        )}
                         <button
                           onClick={() => handleDeleteAnalysis(analysis.id)}
                           className="glass-action-btn danger"

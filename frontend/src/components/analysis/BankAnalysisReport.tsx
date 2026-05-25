@@ -42,6 +42,10 @@ export function BankAnalysisReport({ result, onClose }: BankAnalysisReportProps)
   const [showAllTransactions, setShowAllTransactions] = useState(false);
   const [pdfLoading, setPdfLoading] = useState(false);
 
+  // Transaction filter state (Details section)
+  const [txSearch, setTxSearch] = useState('');
+  const [txTypeFilter, setTxTypeFilter] = useState<'all' | 'income' | 'expense'>('all');
+
   const fraud = result.fraud_report;
   const locale = intlLocale(i18n.language);
 
@@ -1229,24 +1233,74 @@ export function BankAnalysisReport({ result, onClose }: BankAnalysisReportProps)
                   </div>
                 )}
 
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between flex-wrap gap-3">
                   <h3 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
                     <FileText className="w-5 h-5 text-blue-500" />
                     {t('analyses.report.transactions.all', { count: result.transactions?.length || 0 })}
                   </h3>
-                  {result.transactions?.length > 50 && (
-                    <button
-                      onClick={() => setShowAllTransactions(!showAllTransactions)}
-                      className="text-sm text-blue-600 dark:text-blue-400 font-medium hover:text-blue-700 flex items-center gap-1"
+                  {/* Search + type filter */}
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <input
+                      type="text"
+                      value={txSearch}
+                      onChange={(e) => setTxSearch(e.target.value)}
+                      placeholder={t('analyses.report.transactions.searchPlaceholder') || 'Search by description / category…'}
+                      aria-label={t('analyses.report.transactions.searchPlaceholder') || 'Search transactions'}
+                      className="px-3 py-1.5 text-sm rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400"
+                      style={{ minWidth: 220 }}
+                    />
+                    <select
+                      value={txTypeFilter}
+                      onChange={(e) => setTxTypeFilter(e.target.value as 'all' | 'income' | 'expense')}
+                      aria-label={t('analyses.report.transactions.typeFilter') || 'Type filter'}
+                      className="px-3 py-1.5 text-sm rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
                     >
-                      {showAllTransactions ? t('analyses.report.transactions.showFirst50') : t('analyses.report.transactions.showAll')}
-                      <ChevronDown className={`w-4 h-4 transition-transform ${showAllTransactions ? 'rotate-180' : ''}`} />
-                    </button>
-                  )}
+                      <option value="all">{t('analyses.report.transactions.typeAll') || 'All'}</option>
+                      <option value="income">{t('analyses.report.charts.income') || 'Income'}</option>
+                      <option value="expense">{t('analyses.report.charts.expense') || 'Expense'}</option>
+                    </select>
+                    {(txSearch || txTypeFilter !== 'all') && (
+                      <button
+                        onClick={() => { setTxSearch(''); setTxTypeFilter('all'); }}
+                        className="text-xs text-blue-600 dark:text-blue-400 hover:underline px-2"
+                      >
+                        {t('common.reset') || 'Reset'}
+                      </button>
+                    )}
+                  </div>
                 </div>
 
-                {result.transactions && result.transactions.length > 0 ? (
+                {result.transactions && result.transactions.length > 0 ? (() => {
+                  // Apply search + type filter
+                  const needle = txSearch.trim().toLowerCase();
+                  const filtered = result.transactions.filter((tx: any) => {
+                    if (txTypeFilter === 'income' && tx.amount < 0) return false;
+                    if (txTypeFilter === 'expense' && tx.amount >= 0) return false;
+                    if (!needle) return true;
+                    const desc = String(tx.details || '').toLowerCase();
+                    const cat = String(tx.category || '').toLowerCase();
+                    return desc.includes(needle) || cat.includes(needle);
+                  });
+                  const visibleSlice = showAllTransactions ? filtered : filtered.slice(0, 50);
+                  return (
                 <div className="overflow-hidden rounded-2xl border border-gray-200/50 dark:border-gray-700/40">
+                  {/* Result count + Show all toggle */}
+                  <div className="flex items-center justify-between px-4 py-2 bg-gray-50 dark:bg-gray-800/60 border-b border-gray-200/50 dark:border-gray-700/40 text-xs text-gray-500 dark:text-gray-400">
+                    <span>
+                      {filtered.length === result.transactions.length
+                        ? `${filtered.length}`
+                        : `${filtered.length} / ${result.transactions.length}`}
+                    </span>
+                    {filtered.length > 50 && (
+                      <button
+                        onClick={() => setShowAllTransactions(!showAllTransactions)}
+                        className="text-blue-600 dark:text-blue-400 font-medium hover:text-blue-700 flex items-center gap-1"
+                      >
+                        {showAllTransactions ? t('analyses.report.transactions.showFirst50') : t('analyses.report.transactions.showAll')}
+                        <ChevronDown className={`w-3.5 h-3.5 transition-transform ${showAllTransactions ? 'rotate-180' : ''}`} />
+                      </button>
+                    )}
+                  </div>
                   <div className="max-h-[600px] overflow-y-auto">
                     <table className="w-full text-sm">
                       <thead className="bg-gray-50 dark:bg-gray-800/80 sticky top-0 z-10">
@@ -1259,7 +1313,7 @@ export function BankAnalysisReport({ result, onClose }: BankAnalysisReportProps)
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-gray-100 dark:divide-gray-800/50">
-                        {(showAllTransactions ? result.transactions : result.transactions.slice(0, 50)).map((tx, i) => (
+                        {visibleSlice.map((tx: any, i: number) => (
                           <tr
                             key={i}
                             className="hover:bg-gray-50/80 dark:hover:bg-gray-800/30 transition-colors"
@@ -1283,11 +1337,19 @@ export function BankAnalysisReport({ result, onClose }: BankAnalysisReportProps)
                             </td>
                           </tr>
                         ))}
+                        {visibleSlice.length === 0 && (
+                          <tr>
+                            <td colSpan={5} className="px-4 py-8 text-center text-sm text-gray-500 dark:text-gray-400">
+                              {t('analyses.report.transactions.noMatch') || 'No transactions match the filter'}
+                            </td>
+                          </tr>
+                        )}
                       </tbody>
                     </table>
                   </div>
                 </div>
-                ) : (
+                  );
+                })() : (
                   <div className="text-center py-12 bg-gray-50 dark:bg-gray-800/30 rounded-2xl border border-gray-200/50 dark:border-gray-700/40">
                     <FileText className="w-12 h-12 text-gray-300 dark:text-gray-700 mx-auto mb-3" />
                     <p className="text-gray-500 dark:text-gray-400">{t('analyses.report.transactions.noTransactions')}</p>

@@ -9,6 +9,7 @@ import { ForgotPassword } from './components/ForgotPassword';
 import { Dashboard } from './pages/Dashboard';
 import { Analyses } from './pages/Analyses';
 import { Settings } from './pages/Settings';
+import Subjects from './pages/Subjects';
 import ErrorBoundary from './components/ErrorBoundary';
 import { Landing } from './pages/Landing';
 
@@ -38,6 +39,7 @@ function App() {
                   <Route path="/" element={<Landing />} />
                   <Route path="/dashboard" element={<Dashboard />} />
                   <Route path="/analyses" element={<Analyses />} />
+                  <Route path="/subjects" element={<Subjects />} />
                   <Route path="/settings" element={<Settings />} />
                 </Route>
                 <Route path="*" element={<Navigate to="/" replace />} />

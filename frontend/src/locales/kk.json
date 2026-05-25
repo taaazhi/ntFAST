@@ -98,12 +98,21 @@
     "delete": "Жою",
     "loading": "Жүктелуде...",
     "createSubject": "Субъект жасау",
+    "editSubject": "Субъектіні өзгерту",
+    "addSubject": "Субъект қосу",
     "enterName": "Атын енгізіңіз",
     "enter12Digits": "12 санды енгізіңіз",
     "selectType": "Түрін таңдаңыз",
     "cancel": "Болдырмау",
     "create": "Жасау",
-    "creating": "Жасалуда..."
+    "creating": "Жасалуда...",
+    "createSuccess": "Субъект жасалды",
+    "updateSuccess": "Субъект жаңартылды",
+    "deleteSuccess": "Субъект жойылды",
+    "confirmDelete": "Субъектіні жою керек пе?",
+    "allTypes": "Барлық түрлер",
+    "noSubjects": "Субъектілер әлі жоқ",
+    "noSubjectsDesc": "Бастау үшін бірінші субъектіні жасаңыз"
   },
   "analyses": {
     "title": "Транзакциялар талдауы",
@@ -168,6 +177,12 @@
     "noResults": "Ештеңе табылмады",
     "noResultsDesc": "Іздеу параметрлерін өзгертіп көріңіз",
     "uploading": "Жүктеу",
+    "reanalyze": "Қайта талдау",
+    "reanalyzeQueued": "Талдау қайта жіберілді",
+    "cancel": "Тоқтату",
+    "cancelled": "Талдау тоқтатылды",
+    "exportCsv": "CSV экспорттау",
+    "exportCsvSuccess": "CSV файлы жүктелді",
     "transactions": "транзакциялар",
     "totalIncome": "Жалпы кіріс",
     "totalExpenses": "Жалпы шығыс",
@@ -394,7 +409,11 @@
         "amountCol": "Сома",
         "noTransactions": "Кестеде көрсету үшін транзакция деректері қолжетімді емес.",
         "infoInAntifraud": "Транзакциялар туралы ақпарат антифрод-талдауда қолжетімді.",
-        "anomalies": "Ауытқулар ({{count}})"
+        "anomalies": "Ауытқулар ({{count}})",
+        "searchPlaceholder": "Сипаттама немесе санат бойынша іздеу…",
+        "typeFilter": "Операция түрі",
+        "typeAll": "Барлығы",
+        "noMatch": "Транзакциялар табылған жоқ"
       },
       "accountProfile": {
         "title": "Аккаунт профилі (AI анықтады)",

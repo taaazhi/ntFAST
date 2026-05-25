@@ -98,12 +98,21 @@
     "delete": "Удалить",
     "loading": "Загрузка...",
     "createSubject": "Создать субъект",
+    "editSubject": "Изменить субъект",
+    "addSubject": "Добавить субъект",
     "enterName": "Введите имя",
     "enter12Digits": "Введите 12 цифр",
     "selectType": "Выберите тип",
     "cancel": "Отмена",
     "create": "Создать",
-    "creating": "Создание..."
+    "creating": "Создание...",
+    "createSuccess": "Субъект создан",
+    "updateSuccess": "Субъект обновлён",
+    "deleteSuccess": "Субъект удалён",
+    "confirmDelete": "Удалить субъект?",
+    "allTypes": "Все типы",
+    "noSubjects": "Субъектов пока нет",
+    "noSubjectsDesc": "Создайте первого субъекта, чтобы начать"
   },
   "analyses": {
     "title": "Анализы транзакций",
@@ -220,6 +229,12 @@
     "noResultsDesc": "Попробуйте изменить параметры поиска",
     "uploading": "Загрузка",
     "exportError": "Ошибка экспорта PDF. Попробуйте ещё раз.",
+    "reanalyze": "Перезапустить",
+    "reanalyzeQueued": "Анализ перезапущен",
+    "cancel": "Отменить",
+    "cancelled": "Анализ отменён",
+    "exportCsv": "Экспорт CSV",
+    "exportCsvSuccess": "CSV-файл загружен",
     "report": {
       "subtitle": "Финансовая аналитическая система транзакций",
       "downloadPdf": "Скачать PDF-отчёт",
@@ -394,7 +409,11 @@
         "amountCol": "Сумма",
         "noTransactions": "Данные транзакций недоступны для отображения в таблице.",
         "infoInAntifraud": "Информация о транзакциях доступна в антифрод-анализе.",
-        "anomalies": "Аномалии ({{count}})"
+        "anomalies": "Аномалии ({{count}})",
+        "searchPlaceholder": "Поиск по описанию или категории…",
+        "typeFilter": "Тип операции",
+        "typeAll": "Все",
+        "noMatch": "Транзакции не найдены"
       },
       "accountProfile": {
         "title": "Профиль аккаунта (определён AI)",

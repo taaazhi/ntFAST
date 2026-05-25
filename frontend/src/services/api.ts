@@ -280,6 +280,16 @@ export const analysesAPI = {
     const response = await api.get(`/analyses/${analysisId}/transactions`);
     return response.data;
   },
+
+  reanalyze: async (analysisId: number): Promise<{ id: number; status: string; task_id: string; message: string }> => {
+    const response = await api.post(`/analyses/${analysisId}/reanalyze`);
+    return response.data;
+  },
+
+  cancel: async (analysisId: number): Promise<{ id: number; status: string; message: string }> => {
+    const response = await api.post(`/analyses/${analysisId}/cancel`);
+    return response.data;
+  },
 };
 
 // Transactions API
