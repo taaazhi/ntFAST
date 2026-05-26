@@ -71,6 +71,9 @@ export interface ActiveSession {
   user_agent: string | null;
   location: string | null;
   is_suspicious: boolean;
+  // Server-decided "this is the request that just asked" flag (matches UA+IP).
+  // Falls back to most-recent session if no exact match exists.
+  is_current?: boolean;
 }
 
 // Auth API

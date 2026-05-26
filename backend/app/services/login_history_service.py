@@ -1,7 +1,11 @@
 from sqlalchemy.orm import Session
 from app.models.login_history import LoginHistory
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import List, Optional
+
+# Session is auto-closed after this many days without any login activity.
+# Tied to JWT exp (30 days) loosely — but 7 days is a sensible inactivity threshold.
+SESSION_INACTIVITY_DAYS = 7
 
 
 def create_login_record(
@@ -98,21 +102,54 @@ def get_user_login_history(
         .all()
 
 
+def expire_stale_sessions(db: Session, user_id: int, inactivity_days: int = SESSION_INACTIVITY_DAYS) -> int:
+    """Lazy cleanup: close any LoginHistory rows older than `inactivity_days`.
+
+    Called from `get_active_sessions` so the active-sessions API never returns
+    sessions older than the inactivity threshold. Returns count of rows closed.
+
+    Why lazy: avoids a background scheduler — runs at most once per /active-sessions
+    request and operates on at most a handful of rows per user.
+    """
+    cutoff = datetime.utcnow() - timedelta(days=inactivity_days)
+    stale = (
+        db.query(LoginHistory)
+        .filter(
+            LoginHistory.user_id == user_id,
+            LoginHistory.logout_time.is_(None),
+            LoginHistory.login_time < cutoff,
+        )
+        .all()
+    )
+    if not stale:
+        return 0
+    now = datetime.utcnow()
+    for record in stale:
+        record.logout_time = now
+        if record.login_time:
+            record.session_duration = int((now - record.login_time).total_seconds())
+    try:
+        db.commit()
+    except Exception:
+        db.rollback()
+        return 0
+    return len(stale)
+
+
 def get_active_sessions(db: Session, user_id: int) -> List[LoginHistory]:
     """
-    Get all active (not logged out) sessions for a user
+    Get all active (not logged out) sessions for a user.
 
-    Args:
-        db: Database session
-        user_id: ID of the user
-
-    Returns:
-        List of active LoginHistory records
+    Side effect: closes sessions inactive for > SESSION_INACTIVITY_DAYS days
+    before returning, so callers never see ancient stale rows.
     """
+    # Lazy cleanup of expired sessions
+    expire_stale_sessions(db, user_id)
+
     return db.query(LoginHistory)\
         .filter(
             LoginHistory.user_id == user_id,
-            LoginHistory.logout_time == None
+            LoginHistory.logout_time == None  # noqa: E711
         )\
         .order_by(LoginHistory.login_time.desc())\
         .all()

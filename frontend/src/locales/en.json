@@ -659,6 +659,7 @@
     "confirmCloseAllSessions": "Close all sessions?",
     "closeAllSessionsWarning": "This will close all active sessions on all devices. You will need to log in again.",
     "confirmClose": "Close All",
+    "localDev": "local dev",
     "unknown": "Unknown"
   },
   "landing": {

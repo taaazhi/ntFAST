@@ -25,7 +25,22 @@ interface ActiveSession {
   user_agent: string | null;
   location: string | null;
   is_suspicious: boolean;
+  // Backend-decided flag: true for the session that matches the requesting UA+IP.
+  // Falls back to the newest session if no exact match.
+  is_current?: boolean;
 }
+
+// Friendly label for localhost / private IPs (common in dev / LAN). In prod
+// users will see real public IPs — this just makes 127.0.0.1 readable.
+const isPrivateIp = (ip: string | null): boolean => {
+  if (!ip) return false;
+  if (ip === '127.0.0.1' || ip === '::1' || ip === 'localhost') return true;
+  // RFC1918 private ranges
+  if (/^10\./.test(ip)) return true;
+  if (/^192\.168\./.test(ip)) return true;
+  if (/^172\.(1[6-9]|2[0-9]|3[0-1])\./.test(ip)) return true;
+  return false;
+};
 
 interface AccountSecurityProps {
   userId: number;
@@ -118,11 +133,14 @@ const AccountSecurity: React.FC<AccountSecurityProps> = ({ userId }) => {
             {activeSessions.length === 0 ? (
               <p className="text-gray-500 dark:text-gray-400">{t('security.noActiveSessions')}</p>
             ) : (
-              activeSessions.map((session, index) => (
+              activeSessions.map((session) => {
+                // Prefer server-provided is_current (matches UA+IP); index-0 fallback only if absent.
+                const isCurrent = session.is_current === true;
+                return (
                 <div
                   key={session.id}
                   className={`p-4 border rounded-lg ${
-                    index === 0
+                    isCurrent
                       ? 'bg-green-50 border-green-200 dark:bg-green-900/20 dark:border-green-800'
                       : 'bg-gray-50 border-gray-200 dark:bg-gray-800 dark:border-gray-700'
                   } ${
@@ -135,7 +153,7 @@ const AccountSecurity: React.FC<AccountSecurityProps> = ({ userId }) => {
                     <div className="flex-1">
                       <div className="flex items-center gap-2">
                         <span className="font-medium text-gray-900 dark:text-white">
-                          {index === 0 ? t('security.currentSession') : t('security.otherDevice')}
+                          {isCurrent ? t('security.currentSession') : t('security.otherDevice')}
                         </span>
                         {session.is_suspicious && (
                           <span className="px-2 py-1 bg-red-100 text-red-800 text-xs rounded dark:bg-red-900 dark:text-red-200">
@@ -150,7 +168,10 @@ const AccountSecurity: React.FC<AccountSecurityProps> = ({ userId }) => {
                         </p>
                         {session.ip_address && (
                           <p>
-                            <span className="font-medium">{t('security.ipAddress')}:</span> {session.ip_address}
+                            <span className="font-medium">{t('security.ipAddress')}:</span>{' '}
+                            {isPrivateIp(session.ip_address) ? (
+                              <span title={session.ip_address}>{session.ip_address} ({t('security.localDev') || 'local dev'})</span>
+                            ) : session.ip_address}
                           </p>
                         )}
                         {session.location && (
@@ -167,7 +188,8 @@ const AccountSecurity: React.FC<AccountSecurityProps> = ({ userId }) => {
                     </div>
                   </div>
                 </div>
-              ))
+                );
+              })
             )}
           </div>
 

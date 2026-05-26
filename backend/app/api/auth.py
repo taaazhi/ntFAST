@@ -1,5 +1,6 @@
 import asyncio
 import logging
+from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status, Request
 from fastapi.security import OAuth2PasswordRequestForm
@@ -489,16 +490,37 @@ async def get_login_history(
 
 @router.get("/active-sessions")
 async def get_active_sessions_endpoint(
+    request: Request,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
-    Get all active (not logged out) sessions for current user
-    Useful for detecting unauthorized access
+    Get all active (not logged out) sessions for current user.
+
+    Marks ONE session as `is_current` by matching the requesting user-agent + IP
+    against each LoginHistory row. Picks the most-recent match — handles the case
+    where the same browser logged in multiple times (older login is no longer current).
+
+    Stale sessions (> SESSION_INACTIVITY_DAYS without activity) are auto-closed
+    by `get_active_sessions` before this endpoint sees them.
     """
     from app.services.login_history_service import get_active_sessions
 
     sessions = get_active_sessions(db, current_user.id)
+
+    # Identify which row represents THIS request
+    current_ua = request.headers.get("user-agent", "") or ""
+    current_ip = get_client_ip(request) or ""
+    # Pick the most-recent session whose UA+IP match — sessions list is already
+    # ordered newest-first by service, so first match wins.
+    current_session_id: Optional[int] = None
+    for r in sessions:
+        if (r.user_agent or "") == current_ua and (r.ip_address or "") == current_ip:
+            current_session_id = r.id
+            break
+    # Fallback: if no exact match (e.g. proxy stripped UA), mark the newest one
+    if current_session_id is None and sessions:
+        current_session_id = sessions[0].id
 
     sessions_data = [
         {
@@ -507,7 +529,9 @@ async def get_active_sessions_endpoint(
             "ip_address": record.ip_address,
             "user_agent": record.user_agent,
             "location": record.location,
-            "is_suspicious": bool(record.is_suspicious)
+            "is_suspicious": bool(record.is_suspicious),
+            # New: server-decided "is this the request that just asked?"
+            "is_current": record.id == current_session_id,
         }
         for record in sessions
     ]
@@ -515,7 +539,7 @@ async def get_active_sessions_endpoint(
     return {
         "user_id": current_user.id,
         "active_sessions": sessions_data,
-        "count": len(sessions_data)
+        "count": len(sessions_data),
     }
 
 
