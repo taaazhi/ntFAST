@@ -670,13 +670,20 @@ export const Settings = () => {
                                     checked={checked}
                                     onChange={() => toggleNotifPref(item.key)}
                                     aria-label={item.title}
-                                    className="sr-only peer"
+                                    className="sr-only"
                                   />
+                                  {/* Toggle track. position:relative is REQUIRED so the absolutely-positioned
+                                      knob below anchors inside this div (not the page). Pure-React control —
+                                      no Tailwind `after:` pseudo to avoid the double-knob bug. */}
                                   <div
-                                    className="w-14 h-7 rounded-full peer after:content-[''] after:absolute after:top-0.5 after:left-[4px] after:bg-white after:rounded-full after:h-6 after:w-6 after:transition-all shadow-inner"
                                     style={{
+                                      position: 'relative',
+                                      width: 56,
+                                      height: 28,
+                                      borderRadius: 14,
                                       background: checked ? 'var(--accent)' : 'var(--card-border)',
-                                      // Manual peer-checked emulation since :checked is on the hidden input
+                                      transition: 'background 0.2s ease',
+                                      boxShadow: 'inset 0 1px 2px rgba(0,0,0,0.05)',
                                     }}
                                   >
                                     <div
@@ -688,6 +695,7 @@ export const Settings = () => {
                                         height: 24,
                                         background: '#fff',
                                         borderRadius: '50%',
+                                        boxShadow: '0 1px 3px rgba(0,0,0,0.15)',
                                         transition: 'left 0.2s ease',
                                       }}
                                     />

@@ -82,6 +82,21 @@ def process_file_task(self, analysis_id: int, file_path: str) -> Dict[str, Any]:
             if analysis:
                 analysis.status = "failed"
                 self.db.commit()
+                # Persistent notification so the user sees the failure in the bell icon
+                # next time they open the app — Celery runs in background so toast won't fire.
+                try:
+                    from app.services.notification_service import notify
+                    notify(
+                        self.db,
+                        user_id=analysis.analyst_id,
+                        kind="analysis_failed",
+                        severity="error",
+                        title=f"Analysis failed: {analysis.file_name or '#' + str(analysis.id)}",
+                        body=str(e)[:300] if str(e) else None,
+                        data={"analysis_id": analysis.id},
+                    )
+                except Exception:
+                    pass
         except Exception as db_error:
             logger.error(f"Failed to update analysis status: {str(db_error)}")
 
