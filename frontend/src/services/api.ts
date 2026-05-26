@@ -160,6 +160,13 @@ export const emailVerificationAPI = {
 };
 
 // Users Management API
+export interface NotificationSettings {
+  email: boolean;
+  in_app: boolean;
+  security: boolean;
+  analyses: boolean;
+}
+
 export const usersAPI = {
   getAll: async (): Promise<any> => {
     const response = await api.get('/users/');
@@ -177,6 +184,16 @@ export const usersAPI = {
 
   getProfile: async (userId: number): Promise<any> => {
     const response = await api.get(`/users/${userId}/profile`);
+    return response.data;
+  },
+
+  getNotificationSettings: async (): Promise<NotificationSettings> => {
+    const response = await api.get<NotificationSettings>('/users/me/notification-settings');
+    return response.data;
+  },
+
+  updateNotificationSettings: async (patch: Partial<NotificationSettings>): Promise<NotificationSettings> => {
+    const response = await api.put<NotificationSettings>('/users/me/notification-settings', patch);
     return response.data;
   },
 };

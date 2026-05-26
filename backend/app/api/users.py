@@ -11,7 +11,7 @@ from app.services.user_service import (
     delete_user,
     get_user_analysis_stats
 )
-from app.services.auth_service import get_current_active_admin
+from app.services.auth_service import get_current_active_admin, get_current_user
 from app.models.user import User
 
 router = APIRouter()
@@ -171,3 +171,33 @@ async def delete_user_by_id(
         )
 
     return {"message": "User deleted successfully"}
+
+
+# ───────── Notification preferences (per-user, NOT admin-only) ─────────
+
+@router.get("/me/notification-settings")
+async def get_my_notification_settings(
+    current_user: User = Depends(get_current_user),
+):
+    """Return the current user's notification preferences, with defaults applied for missing keys."""
+    from app.services.notification_settings_service import get_settings
+    return get_settings(current_user)
+
+
+@router.put("/me/notification-settings")
+async def update_my_notification_settings(
+    payload: dict,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Update the current user's notification preferences.
+
+    Body: {"email": true/false, "in_app": true/false, "security": true/false, "analyses": true/false}
+    Unknown keys are silently ignored to keep the API stable across future toggle additions.
+    """
+    from app.services.notification_settings_service import update_settings
+    try:
+        updated = update_settings(db, current_user, payload or {})
+    except Exception:
+        raise HTTPException(status_code=500, detail="Failed to update settings")
+    return updated

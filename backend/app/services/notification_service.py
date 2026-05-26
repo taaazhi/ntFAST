@@ -27,13 +27,33 @@ def notify(
     data: Optional[dict[str, Any]] = None,
     severity: str = "info",
     broadcast: bool = True,
+    force: bool = False,
 ) -> Optional[Notification]:
     """Create a Notification row and (optionally) push a WS event.
 
-    Returns the created Notification or None on failure (failure is logged
-    but never raised — notification creation must NEVER break the caller's
-    primary flow, e.g. login or analysis completion).
+    Honours per-user notification settings: if the user has disabled the relevant
+    category (security/analyses) OR in_app entirely, no row is created. Pass
+    `force=True` to bypass preferences (use only for safety-critical alerts).
+
+    Returns the created Notification or None on failure / suppression (suppression
+    is logged at debug level only — it's expected behavior, not an error).
     """
+    # Check user preferences before doing any DB work
+    if not force:
+        try:
+            from app.models.user import User
+            from app.services.notification_settings_service import should_create_in_app
+            user = db.query(User).filter(User.id == user_id).first()
+            if user and not should_create_in_app(user, kind):
+                logger.debug(
+                    f"notify(): suppressed kind={kind} for user={user_id} (user prefs)"
+                )
+                return None
+        except Exception as e:
+            # Preferences lookup failed — fall through and deliver the notification
+            # (better to over-deliver than to drop important events silently).
+            logger.debug(f"notify(): prefs check failed, delivering anyway: {e}")
+
     try:
         n = Notification(
             user_id=user_id,

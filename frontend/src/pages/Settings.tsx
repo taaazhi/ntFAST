@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   UserRound,
@@ -6,20 +6,24 @@ import {
   BellRing,
   AtSign,
   ShieldCheck,
+  Bell,
+  BarChart3,
   CalendarDays,
   Timer,
   BadgeCheck,
   AlertCircle,
   UsersRound,
   Eye,
-  EyeOff
+  EyeOff,
+  Loader2
 } from 'lucide-react';
+import { toast } from 'sonner';
 import { useAuth } from '../context/AuthContext';
 import { useTranslation } from 'react-i18next';
 import UserManagement from '../components/UserManagement';
 import { PasswordStrength } from '../components/ui/PasswordStrength';
 import AccountSecurity from '../components/AccountSecurity';
-import { authAPI } from '../services/api';
+import { authAPI, usersAPI, NotificationSettings } from '../services/api';
 
 type TabType = 'profile' | 'userManagement' | 'security' | 'notifications';
 
@@ -41,6 +45,47 @@ export const Settings = () => {
   const [showCurrentPassword, setShowCurrentPassword] = useState(false);
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+
+  // Notification preferences — loaded from /api/users/me/notification-settings.
+  // null while loading, defaults filled in by backend on first GET.
+  const [notifSettings, setNotifSettings] = useState<NotificationSettings | null>(null);
+  const [notifSaving, setNotifSaving] = useState(false);
+
+  // Load notification settings when tab becomes active (lazy fetch).
+  useEffect(() => {
+    if (activeTab !== 'notifications' || notifSettings !== null) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const data = await usersAPI.getNotificationSettings();
+        if (!cancelled) setNotifSettings(data);
+      } catch (err) {
+        if (!cancelled) {
+          // Fallback to defaults so UI is usable even if endpoint fails
+          setNotifSettings({ email: true, in_app: true, security: true, analyses: true });
+        }
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [activeTab, notifSettings]);
+
+  const handleSaveNotifications = async () => {
+    if (!notifSettings) return;
+    setNotifSaving(true);
+    try {
+      const updated = await usersAPI.updateNotificationSettings(notifSettings);
+      setNotifSettings(updated);
+      toast.success(t('settings.notificationsSaved') || 'Notification preferences saved');
+    } catch (err: any) {
+      toast.error(err?.response?.data?.detail || t('common.error') || 'Save failed');
+    } finally {
+      setNotifSaving(false);
+    }
+  };
+
+  const toggleNotifPref = (key: keyof NotificationSettings) => {
+    setNotifSettings(prev => prev ? { ...prev, [key]: !prev[key] } : prev);
+  };
 
   const tabs = [
     { id: 'profile' as const, label: t('settings.profile'), icon: UserRound },
@@ -548,83 +593,112 @@ export const Settings = () => {
                       </div>
                       <div>
                         <h3 className="text-xl font-bold" style={{ color: 'var(--text)' }}>{t('settings.notifications')}</h3>
-                        <p className="text-sm" style={{ color: 'var(--text-muted)' }}>{t('settings.notifications')}</p>
+                        <p className="text-sm" style={{ color: 'var(--text-muted)' }}>{t('settings.notificationsDesc') || t('settings.notifications')}</p>
                       </div>
                     </div>
 
-                    <div className="space-y-4">
-                      {[
-                        {
-                          icon: AtSign,
-                          title: t('settings.emailNotifications'),
-                          description: t('settings.emailNotificationsDesc'),
-                          checked: true,
-                          color: 'blue'
-                        },
-                        {
-                          icon: AlertCircle,
-                          title: t('settings.systemAlerts'),
-                          description: t('settings.systemAlertsDesc'),
-                          checked: true,
-                          color: 'red'
-                        },
-                        {
-                          icon: ShieldCheck,
-                          title: t('settings.systemAlerts'),
-                          description: t('settings.systemAlertsDesc'),
-                          checked: true,
-                          color: 'green'
-                        },
-                        {
-                          icon: CalendarDays,
-                          title: t('settings.systemAlerts'),
-                          description: t('settings.systemAlertsDesc'),
-                          checked: false,
-                          color: 'slate'
-                        }
-                      ].map((item, index) => {
-                        const Icon = item.icon;
-                        const colorMap = {
-                          blue: 'var(--accent)',
-                          red: 'var(--danger)',
-                          green: 'var(--success)',
-                          slate: 'var(--accent)'
-                        };
-
-                        return (
-                          <motion.div
-                            key={index}
-                            initial={{ opacity: 0, y: 10 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            transition={{ delay: 0.05 * index }}
-                            className="group backdrop-blur-xl rounded-xl transition-all duration-300 p-6"
-                            style={{ background: 'var(--bg-secondary)', border: '1px solid var(--card-border)' }}
-                          >
-                            <div className="flex items-center justify-between">
-                              <div className="flex items-start gap-4 flex-1">
-                                <div className="w-12 h-12 rounded-xl flex items-center justify-center" style={{ background: colorMap[item.color as keyof typeof colorMap] }}>
-                                  <Icon className="w-6 h-6" style={{ color: '#ffffff' }} />
+                    {notifSettings === null ? (
+                      <div className="flex items-center justify-center py-12">
+                        <Loader2 className="w-6 h-6 animate-spin" style={{ color: 'var(--text-muted)' }} />
+                      </div>
+                    ) : (
+                      <div className="space-y-4">
+                        {/* Four distinct categories — fixes the earlier copy-paste bug where 3 toggles
+                            all said "Системные оповещения" with the same description. */}
+                        {([
+                          {
+                            key: 'email' as const,
+                            icon: AtSign,
+                            title: t('settings.emailNotifications'),
+                            description: t('settings.emailNotificationsDesc'),
+                            color: 'blue',
+                          },
+                          {
+                            key: 'in_app' as const,
+                            icon: Bell,
+                            title: t('settings.inAppNotifications') || 'In-app notifications',
+                            description: t('settings.inAppNotificationsDesc') || 'Show notifications in the bell icon',
+                            color: 'slate',
+                          },
+                          {
+                            key: 'security' as const,
+                            icon: ShieldCheck,
+                            title: t('settings.securityAlerts') || 'Security alerts',
+                            description: t('settings.securityAlertsDesc') || 'Login from new device, parallel sessions, password changes',
+                            color: 'green',
+                          },
+                          {
+                            key: 'analyses' as const,
+                            icon: BarChart3,
+                            title: t('settings.analysisAlerts') || 'Analysis events',
+                            description: t('settings.analysisAlertsDesc') || 'Bank statement analysis completed, failed, or cancelled',
+                            color: 'red',
+                          },
+                        ]).map((item, index) => {
+                          const Icon = item.icon;
+                          const colorMap = {
+                            blue: 'var(--accent)',
+                            red: 'var(--danger)',
+                            green: 'var(--success)',
+                            slate: 'var(--text-muted)',
+                          };
+                          const checked = notifSettings[item.key];
+                          return (
+                            <motion.div
+                              key={item.key}
+                              initial={{ opacity: 0, y: 10 }}
+                              animate={{ opacity: 1, y: 0 }}
+                              transition={{ delay: 0.05 * index }}
+                              className="group backdrop-blur-xl rounded-xl transition-all duration-300 p-6"
+                              style={{ background: 'var(--bg-secondary)', border: '1px solid var(--card-border)' }}
+                            >
+                              <div className="flex items-center justify-between">
+                                <div className="flex items-start gap-4 flex-1">
+                                  <div className="w-12 h-12 rounded-xl flex items-center justify-center" style={{ background: colorMap[item.color as keyof typeof colorMap] }}>
+                                    <Icon className="w-6 h-6" style={{ color: '#ffffff' }} />
+                                  </div>
+                                  <div>
+                                    <p className="font-semibold mb-1" style={{ color: 'var(--text)' }}>{item.title}</p>
+                                    <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
+                                      {item.description}
+                                    </p>
+                                  </div>
                                 </div>
-                                <div>
-                                  <p className="font-semibold mb-1" style={{ color: 'var(--text)' }}>{item.title}</p>
-                                  <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
-                                    {item.description}
-                                  </p>
-                                </div>
+                                <label className="relative inline-flex items-center cursor-pointer">
+                                  <input
+                                    type="checkbox"
+                                    checked={checked}
+                                    onChange={() => toggleNotifPref(item.key)}
+                                    aria-label={item.title}
+                                    className="sr-only peer"
+                                  />
+                                  <div
+                                    className="w-14 h-7 rounded-full peer after:content-[''] after:absolute after:top-0.5 after:left-[4px] after:bg-white after:rounded-full after:h-6 after:w-6 after:transition-all shadow-inner"
+                                    style={{
+                                      background: checked ? 'var(--accent)' : 'var(--card-border)',
+                                      // Manual peer-checked emulation since :checked is on the hidden input
+                                    }}
+                                  >
+                                    <div
+                                      style={{
+                                        position: 'absolute',
+                                        top: 2,
+                                        left: checked ? 30 : 4,
+                                        width: 24,
+                                        height: 24,
+                                        background: '#fff',
+                                        borderRadius: '50%',
+                                        transition: 'left 0.2s ease',
+                                      }}
+                                    />
+                                  </div>
+                                </label>
                               </div>
-                              <label className="relative inline-flex items-center cursor-pointer">
-                                <input
-                                  type="checkbox"
-                                  defaultChecked={item.checked}
-                                  className="sr-only peer"
-                                />
-                                <div className="w-14 h-7 rounded-full peer peer-checked:after:translate-x-7 peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[4px] after:bg-white after:rounded-full after:h-6 after:w-6 after:transition-all shadow-inner" style={{ background: 'var(--card-border)' }}></div>
-                              </label>
-                            </div>
-                          </motion.div>
-                        );
-                      })}
-                    </div>
+                            </motion.div>
+                          );
+                        })}
+                      </div>
+                    )}
 
                     <motion.button
                       initial={{ opacity: 0 }}
@@ -632,11 +706,19 @@ export const Settings = () => {
                       transition={{ delay: 0.3 }}
                       whileHover={{ scale: 1.02, y: -2 }}
                       whileTap={{ scale: 0.98 }}
-                      onClick={handleSave}
+                      onClick={handleSaveNotifications}
+                      disabled={notifSaving || notifSettings === null}
                       className="btn-gradient"
-                      style={{ width: '100%', padding: '14px 24px', justifyContent: 'center' }}
+                      style={{ width: '100%', padding: '14px 24px', justifyContent: 'center', opacity: (notifSaving || notifSettings === null) ? 0.6 : 1 }}
                     >
-                      {t('common.save')}
+                      {notifSaving ? (
+                        <span className="flex items-center gap-2 justify-center">
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                          {t('common.save')}…
+                        </span>
+                      ) : (
+                        t('common.save')
+                      )}
                     </motion.button>
                   </motion.div>
                 )}
