@@ -646,7 +646,32 @@
     "markAllRead": "Прочитать все",
     "markAsRead": "Отметить прочитанным",
     "clearAll": "Очистить всё",
-    "delete": "Удалить"
+    "delete": "Удалить",
+    "kind": {
+      "new_login": {
+        "title": "Новый вход в аккаунт",
+        "body": "{{device}} · {{ip}}"
+      },
+      "parallel_session": {
+        "title": "Обнаружена параллельная сессия",
+        "body": "Сейчас вы вошли с {{count}} устройств одновременно."
+      },
+      "password_changed": {
+        "title": "Пароль был изменён",
+        "body": "Если это были не вы — немедленно обратитесь к администратору."
+      },
+      "analysis_completed": {
+        "title": "Анализ завершён: {{filename}}",
+        "body": "Уровень риска: {{risk_level}}"
+      },
+      "analysis_cancelled": {
+        "title": "Анализ отменён: {{filename}}"
+      },
+      "analysis_failed": {
+        "title": "Ошибка анализа: {{filename}}",
+        "body": "{{error}}"
+      }
+    }
   },
   "security": {
     "activeSessions": "Активные сессии",

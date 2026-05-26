@@ -712,7 +712,8 @@ async def cancel_analysis(
         db.rollback()
         raise HTTPException(status_code=500, detail="Failed to cancel analysis")
 
-    # Persistent notification — user sees in bell that the analysis was cancelled
+    # Persistent notification — user sees in bell that the analysis was cancelled.
+    # Title is i18n key; filename lives in `data` for t() interpolation.
     try:
         from app.services.notification_service import notify
         notify(
@@ -720,8 +721,11 @@ async def cancel_analysis(
             user_id=db_analysis.analyst_id,
             kind="analysis_cancelled",
             severity="info",
-            title=f"Analysis cancelled: {db_analysis.file_name or '#' + str(db_analysis.id)}",
-            data={"analysis_id": db_analysis.id},
+            title="notifications.kind.analysis_cancelled.title",
+            data={
+                "filename": db_analysis.file_name or f"#{db_analysis.id}",
+                "analysis_id": db_analysis.id,
+            },
         )
     except Exception:
         pass

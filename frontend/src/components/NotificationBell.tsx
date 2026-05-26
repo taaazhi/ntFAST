@@ -226,14 +226,17 @@ export const NotificationBell = () => {
                       {/* Icon */}
                       <Icon className={`w-4 h-4 ${colorClass} flex-shrink-0 mt-0.5`} />
 
-                      {/* Content */}
+                      {/* Content. Title/body from backend are i18n KEYS like
+                          "notifications.kind.new_login.title" plus interpolation params in `data`.
+                          For legacy notifications that still hold raw English text, i18next's
+                          `defaultValue` fallback returns the original string unchanged. */}
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <p style={{ fontSize: 13, fontWeight: n.is_read ? 400 : 600, color: 'var(--text)', marginBottom: 2 }}>
-                          {n.title}
+                          {t(n.title, { ...(n.data || {}), defaultValue: n.title })}
                         </p>
                         {n.body && (
                           <p style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 4, lineHeight: 1.4 }}>
-                            {n.body}
+                            {t(n.body, { ...(n.data || {}), defaultValue: n.body })}
                           </p>
                         )}
                         <p style={{ fontSize: 11, color: 'var(--text-faint)' }}>

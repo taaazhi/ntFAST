@@ -437,7 +437,9 @@ async def analyze_bank_statement(
         else:
             logger.warning("Analysis completed but could not save to DB")
 
-        # Persistent notification — appears in the bell icon dropdown
+        # Persistent notification — appears in the bell icon dropdown.
+        # Title/body are i18n keys; the variable parts (filename, risk_level) live
+        # in the `data` JSON and get interpolated by frontend t() at render time.
         try:
             from app.services.notification_service import notify
             risk_level = (result.get("fraud_report") or {}).get("risk_level")
@@ -448,9 +450,14 @@ async def analyze_bank_statement(
                 user_id=current_user.id,
                 kind="analysis_completed",
                 severity=severity,
-                title=f"Analysis completed: {safe_filename}",
-                body=f"Risk level: {risk_level or 'n/a'}" if risk_level else None,
-                data={"analysis_id": analysis_id, "risk_level": risk_level, "composite_score": composite},
+                title="notifications.kind.analysis_completed.title",
+                body="notifications.kind.analysis_completed.body" if risk_level else None,
+                data={
+                    "filename": safe_filename,
+                    "analysis_id": analysis_id,
+                    "risk_level": risk_level,
+                    "composite_score": composite,
+                },
             )
         except Exception as e:
             logger.debug(f"analysis_completed notify failed (non-fatal): {e}")

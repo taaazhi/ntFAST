@@ -645,7 +645,32 @@
     "markAllRead": "Mark all read",
     "markAsRead": "Mark as read",
     "clearAll": "Clear all",
-    "delete": "Delete"
+    "delete": "Delete",
+    "kind": {
+      "new_login": {
+        "title": "New sign-in to your account",
+        "body": "{{device}} · {{ip}}"
+      },
+      "parallel_session": {
+        "title": "Parallel session detected",
+        "body": "You are now signed in from {{count}} devices simultaneously."
+      },
+      "password_changed": {
+        "title": "Password was changed",
+        "body": "If this was not you, contact the administrator immediately."
+      },
+      "analysis_completed": {
+        "title": "Analysis completed: {{filename}}",
+        "body": "Risk level: {{risk_level}}"
+      },
+      "analysis_cancelled": {
+        "title": "Analysis cancelled: {{filename}}"
+      },
+      "analysis_failed": {
+        "title": "Analysis failed: {{filename}}",
+        "body": "{{error}}"
+      }
+    }
   },
   "security": {
     "activeSessions": "Active Sessions",

@@ -201,15 +201,17 @@ async def login(
             "session_count": len(active_sessions),
             "latest_session_id": login_record.id
         }), name="ws_parallel_session")
-        # Persist as a notification so the user sees it in the bell next time they open the app
+        # Persist as a notification so the user sees it in the bell next time they open the app.
+        # Title/body are i18n KEYS — frontend resolves them via t(key, data) so the same row
+        # renders in whatever language the viewer currently uses.
         notify(
             db,
             user_id=user.id,
             kind="parallel_session",
             severity="warning",
-            title="Parallel session detected",
-            body=f"You are now signed in from {len(active_sessions)} devices simultaneously.",
-            data={"session_count": len(active_sessions), "latest_session_id": login_record.id},
+            title="notifications.kind.parallel_session.title",
+            body="notifications.kind.parallel_session.body",
+            data={"count": len(active_sessions), "latest_session_id": login_record.id},
         )
 
     # Persistent notification for the login itself (separate from the transient WS broadcast)
@@ -221,9 +223,14 @@ async def login(
             user_id=user.id,
             kind="new_login",
             severity="info",
-            title="New sign-in to your account",
-            body=f"{device} · {ip}",
-            data={"ip": ip, "user_agent": request.headers.get("user-agent", ""), "login_record_id": login_record.id},
+            title="notifications.kind.new_login.title",
+            body="notifications.kind.new_login.body",
+            data={
+                "device": device,
+                "ip": ip,
+                "user_agent": request.headers.get("user-agent", ""),
+                "login_record_id": login_record.id,
+            },
         )
     except Exception as e:
         logger.debug(f"new_login notify failed (non-fatal): {e}")
@@ -336,60 +343,84 @@ async def forgot_password(
     """
     Request password reset - sends verification code to email.
 
-    SECURITY: Returns the same response and approximate timing whether or not
-    the email exists, to prevent enumeration attacks that probe for valid users.
-    The SMTP send is dispatched to a background task so the response time does
-    not depend on whether the email actually exists in the database.
+    SECURITY: timing-attack defence.
+    The previous implementation awaited SecurityInfoCollector.collect_security_info
+    which performs httpx network calls (public IP lookup + geolocation, up to 5s).
+    That made the "real user" branch ~1.8s while the "fake email" branch was ~11ms,
+    leaking which emails are registered.
+
+    Fix: capture only request-local data (UA, IP from headers) synchronously, then
+    dispatch ALL slow work (geolocation, code generation, SMTP send) to a background
+    thread. The HTTP response always returns in <100ms regardless of whether the
+    email exists, so an attacker can't enumerate users by timing.
     """
     from app.services.email_service import EmailService
     from app.utils.security_info import SecurityInfoCollector
 
     GENERIC_RESPONSE = {"message": "If the email exists, a reset code has been sent"}
 
-    # Check if user exists
+    # Look up user — fast DB query, runs for both branches
     user = get_user_by_email(db, request_data.email)
     if not user:
         logger.info("Password reset requested for non-existent email (suppressed)")
         return GENERIC_RESPONSE
 
-    # Create verification code (fast DB write)
-    code = EmailService.create_verification_code(db, request_data.email)
+    # Capture request data synchronously (no network calls) — needed because the
+    # Request object isn't safe to use across the response boundary.
+    user_id = user.id
+    user_email = request_data.email
+    user_full_name = user.full_name
+    request_headers = dict(request.headers)
+    request_ip = get_client_ip(request)
 
-    # Collect security information (in-process, no network) — runs for both branches in similar time
-    security_info = await SecurityInfoCollector.collect_security_info(
-        request=request,
-        user_name=user.full_name,
-        code=code,
-        timezone="Asia/Almaty"
-    )
+    async def _do_reset_work() -> None:
+        """Do everything slow in the background: code gen + geo lookup + SMTP."""
+        from app.core.database import SessionLocal
+        bg_db = SessionLocal()
+        try:
+            # Generate + persist verification code
+            code = EmailService.create_verification_code(bg_db, user_email)
 
-    # Format location string with IP
-    loc = security_info["location"]
-    if loc["city"] != "Unknown" and loc["country_code"]:
-        location_str = f"{loc['city']}, {loc['country_code']} ({loc['ip']})"
-    else:
-        location_str = loc["ip"]
+            # Build a minimal fake Request-like object for SecurityInfoCollector
+            # (it only reads .headers and .client.host)
+            class _ReqStub:
+                def __init__(self, headers, ip):
+                    self.headers = headers
+                    class _Client:
+                        def __init__(self, host): self.host = host
+                    self.client = _Client(ip)
 
-    # SECURITY: Move SMTP send to a background task.
-    # Why: SMTP can block 1-5 seconds. If we await it on the real-email branch
-    # but return immediately on the missing-email branch, an attacker can
-    # enumerate registered emails by timing the response. By fire-and-forget,
-    # both branches return in <100ms.
-    async def _send_in_background() -> None:
-        # smtplib.SMTP is blocking — run it in a thread to avoid stalling the event loop
-        await asyncio.to_thread(
-            EmailService.send_password_reset_code,
-            request_data.email,
-            code,
-            security_info["user"]["display_name"],
-            security_info["device"]["formatted"],
-            location_str,
-            security_info["time"]["formatted"],
-        )
+            stub_req = _ReqStub(request_headers, request_ip)
+            security_info = await SecurityInfoCollector.collect_security_info(
+                request=stub_req,
+                user_name=user_full_name,
+                code=code,
+                timezone="Asia/Almaty",
+            )
 
-    _safe_create_task(_send_in_background(), name="smtp_password_reset")
+            loc = security_info["location"]
+            if loc["city"] != "Unknown" and loc["country_code"]:
+                location_str = f"{loc['city']}, {loc['country_code']} ({loc['ip']})"
+            else:
+                location_str = loc["ip"]
 
-    logger.info(f"Password reset code queued for {request_data.email} from IP {loc['ip']}")
+            # SMTP send is blocking — run in a thread
+            await asyncio.to_thread(
+                EmailService.send_password_reset_code,
+                user_email,
+                code,
+                security_info["user"]["display_name"],
+                security_info["device"]["formatted"],
+                location_str,
+                security_info["time"]["formatted"],
+            )
+            logger.info(f"Password reset email delivered to {user_email}")
+        except Exception as e:
+            logger.error(f"Password reset background work failed for user {user_id}: {e}", exc_info=True)
+        finally:
+            bg_db.close()
+
+    _safe_create_task(_do_reset_work(), name="password_reset_background")
 
     return GENERIC_RESPONSE
 
@@ -443,8 +474,8 @@ async def reset_password(
             user_id=user.id,
             kind="password_changed",
             severity="warning",
-            title="Password was changed",
-            body="If this was not you, contact the administrator immediately.",
+            title="notifications.kind.password_changed.title",
+            body="notifications.kind.password_changed.body",
         )
     except Exception as e:
         logger.debug(f"password_changed notify failed (non-fatal): {e}")

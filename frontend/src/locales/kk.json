@@ -645,7 +645,32 @@
     "markAllRead": "Бәрін оқу",
     "markAsRead": "Оқылды деп белгілеу",
     "clearAll": "Барлығын тазалау",
-    "delete": "Жою"
+    "delete": "Жою",
+    "kind": {
+      "new_login": {
+        "title": "Аккаунтқа жаңа кіру",
+        "body": "{{device}} · {{ip}}"
+      },
+      "parallel_session": {
+        "title": "Параллель сеанс анықталды",
+        "body": "Сіз қазір {{count}} құрылғыдан бір уақытта кірдіңіз."
+      },
+      "password_changed": {
+        "title": "Құпия сөз өзгертілді",
+        "body": "Бұл сіз болмасаңыз — әкімшіге дереу хабарласыңыз."
+      },
+      "analysis_completed": {
+        "title": "Талдау аяқталды: {{filename}}",
+        "body": "Тәуекел деңгейі: {{risk_level}}"
+      },
+      "analysis_cancelled": {
+        "title": "Талдау тоқтатылды: {{filename}}"
+      },
+      "analysis_failed": {
+        "title": "Талдау қатесі: {{filename}}",
+        "body": "{{error}}"
+      }
+    }
   },
   "security": {
     "activeSessions": "Белсенді сеанстар",
