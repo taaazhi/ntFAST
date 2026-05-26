@@ -712,4 +712,18 @@ async def cancel_analysis(
         db.rollback()
         raise HTTPException(status_code=500, detail="Failed to cancel analysis")
 
+    # Persistent notification — user sees in bell that the analysis was cancelled
+    try:
+        from app.services.notification_service import notify
+        notify(
+            db,
+            user_id=db_analysis.analyst_id,
+            kind="analysis_cancelled",
+            severity="info",
+            title=f"Analysis cancelled: {db_analysis.file_name or '#' + str(db_analysis.id)}",
+            data={"analysis_id": db_analysis.id},
+        )
+    except Exception:
+        pass
+
     return {"id": db_analysis.id, "status": db_analysis.status, "message": "Analysis cancelled"}

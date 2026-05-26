@@ -18,6 +18,7 @@ import { useAuth } from '../context/AuthContext';
 import { useTranslation } from 'react-i18next';
 import UserManagement from '../components/UserManagement';
 import { PasswordStrength } from '../components/ui/PasswordStrength';
+import AccountSecurity from '../components/AccountSecurity';
 import { authAPI } from '../services/api';
 
 type TabType = 'profile' | 'userManagement' | 'security' | 'notifications';
@@ -518,6 +519,17 @@ export const Settings = () => {
                         </div>
                       </div>
                     </motion.div>
+
+                    {/* Active sessions + login history (AccountSecurity component) */}
+                    {user?.id && (
+                      <motion.div
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.35 }}
+                      >
+                        <AccountSecurity userId={user.id} />
+                      </motion.div>
+                    )}
                   </motion.div>
                 )}
 

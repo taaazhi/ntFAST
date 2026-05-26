@@ -38,7 +38,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware
 from app.core.config import settings
 from app.core.database import init_db
-from app.api import auth, subjects, analyses, transactions, email_verification, users, websocket, pdf_analysis, bank_analysis
+from app.api import auth, subjects, analyses, transactions, email_verification, users, websocket, pdf_analysis, bank_analysis, notifications
 from app.middleware.activity_tracker import ActivityTrackerMiddleware
 from app.middleware.rate_limiter import RateLimiterMiddleware
 from app.middleware.security_headers import SecurityHeadersMiddleware
@@ -46,6 +46,7 @@ from app.middleware.security_headers import SecurityHeadersMiddleware
 # Import models to ensure they are registered with SQLAlchemy
 from app.models.user import User
 from app.models.login_history import LoginHistory
+from app.models.notification import Notification  # noqa: F401 — registers table
 
 logger = logging.getLogger(__name__)
 
@@ -168,6 +169,7 @@ app.include_router(transactions.router, prefix=f"{settings.API_PREFIX}/transacti
 app.include_router(websocket.router, tags=["WebSocket"])
 app.include_router(pdf_analysis.router, prefix=f"{settings.API_PREFIX}/pdf-analysis", tags=["PDF Analysis"])
 app.include_router(bank_analysis.router, prefix=f"{settings.API_PREFIX}/bank", tags=["Bank Statement Analysis"])
+app.include_router(notifications.router, prefix=f"{settings.API_PREFIX}/notifications", tags=["Notifications"])
 
 
 @app.on_event("startup")

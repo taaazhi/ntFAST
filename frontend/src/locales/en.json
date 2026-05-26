@@ -630,6 +630,15 @@
     "yes": "Yes",
     "no": "No"
   },
+  "notifications": {
+    "title": "Notifications",
+    "empty": "No notifications yet",
+    "unreadCount": "{{count}} unread",
+    "markAllRead": "Mark all read",
+    "markAsRead": "Mark as read",
+    "clearAll": "Clear all",
+    "delete": "Delete"
+  },
   "security": {
     "activeSessions": "Active Sessions",
     "closeAllSessions": "Close All Sessions",

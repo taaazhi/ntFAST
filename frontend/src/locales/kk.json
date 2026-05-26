@@ -630,6 +630,15 @@
     "yes": "Иә",
     "no": "Жоқ"
   },
+  "notifications": {
+    "title": "Хабарламалар",
+    "empty": "Әзірге хабарламалар жоқ",
+    "unreadCount": "{{count}} оқылмаған",
+    "markAllRead": "Бәрін оқу",
+    "markAsRead": "Оқылды деп белгілеу",
+    "clearAll": "Барлығын тазалау",
+    "delete": "Жою"
+  },
   "security": {
     "activeSessions": "Белсенді сеанстар",
     "closeAllSessions": "Барлық сеанстарды аяқтау",

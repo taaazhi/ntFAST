@@ -188,6 +188,8 @@ async def login(
 
     # SECURITY: Detect parallel sessions (multiple devices logged in simultaneously)
     from app.services.login_history_service import get_active_sessions
+    from app.services.notification_service import notify
+
     active_sessions = get_active_sessions(db, user.id)
     if len(active_sessions) > 1:  # More than 1 means user is logged in from multiple devices
         logger.warning(f"Parallel session detected for user {user.id}: {len(active_sessions)} active sessions")
@@ -198,6 +200,32 @@ async def login(
             "session_count": len(active_sessions),
             "latest_session_id": login_record.id
         }), name="ws_parallel_session")
+        # Persist as a notification so the user sees it in the bell next time they open the app
+        notify(
+            db,
+            user_id=user.id,
+            kind="parallel_session",
+            severity="warning",
+            title="Parallel session detected",
+            body=f"You are now signed in from {len(active_sessions)} devices simultaneously.",
+            data={"session_count": len(active_sessions), "latest_session_id": login_record.id},
+        )
+
+    # Persistent notification for the login itself (separate from the transient WS broadcast)
+    try:
+        ip = get_client_ip(request)
+        device = get_device_info(request.headers.get("user-agent", ""))
+        notify(
+            db,
+            user_id=user.id,
+            kind="new_login",
+            severity="info",
+            title="New sign-in to your account",
+            body=f"{device} · {ip}",
+            data={"ip": ip, "user_agent": request.headers.get("user-agent", ""), "login_record_id": login_record.id},
+        )
+    except Exception as e:
+        logger.debug(f"new_login notify failed (non-fatal): {e}")
 
     access_token = create_access_token(data={"sub": str(user.id)})
 
@@ -404,6 +432,21 @@ async def reset_password(
         )
 
     logger.info(f"Password successfully reset for {request.email}")
+
+    # Persistent notification — alerts the user that their password was changed,
+    # so an unauthorized reset is visible after the fact.
+    try:
+        from app.services.notification_service import notify
+        notify(
+            db,
+            user_id=user.id,
+            kind="password_changed",
+            severity="warning",
+            title="Password was changed",
+            body="If this was not you, contact the administrator immediately.",
+        )
+    except Exception as e:
+        logger.debug(f"password_changed notify failed (non-fatal): {e}")
 
     return {"message": "Password has been reset successfully"}
 

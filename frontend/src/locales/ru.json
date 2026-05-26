@@ -631,6 +631,15 @@
     "yes": "Да",
     "no": "Нет"
   },
+  "notifications": {
+    "title": "Уведомления",
+    "empty": "Пока нет уведомлений",
+    "unreadCount": "{{count}} непрочитанных",
+    "markAllRead": "Прочитать все",
+    "markAsRead": "Отметить прочитанным",
+    "clearAll": "Очистить всё",
+    "delete": "Удалить"
+  },
   "security": {
     "activeSessions": "Активные сессии",
     "closeAllSessions": "Завершить все сессии",

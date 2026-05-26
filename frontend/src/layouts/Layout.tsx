@@ -5,6 +5,7 @@ import { AnalysisNotification } from '../components/AnalysisNotification';
 import { useAuth } from '../context/AuthContext';
 import { ActivityProvider } from '../context/ActivityContext';
 import { BackgroundAnalysisProvider } from '../context/BackgroundAnalysisContext';
+import { NotificationsProvider } from '../context/NotificationsContext';
 
 export const Layout: React.FC = () => {
   const { isAuthenticated, loading } = useAuth();
@@ -24,22 +25,24 @@ export const Layout: React.FC = () => {
   return (
     <ActivityProvider>
       <BackgroundAnalysisProvider>
-        {/* Animated mesh gradient background */}
-        <div className="bg-mesh">
-          <div className="blob blob-1" />
-          <div className="blob blob-2" />
-          <div className="blob blob-3" />
-          <div className="blob blob-4" />
-        </div>
+        <NotificationsProvider>
+          {/* Animated mesh gradient background */}
+          <div className="bg-mesh">
+            <div className="blob blob-1" />
+            <div className="blob blob-2" />
+            <div className="blob blob-3" />
+            <div className="blob blob-4" />
+          </div>
 
-        {/* Floating navigation */}
-        <FloatingNav />
+          {/* Floating navigation */}
+          <FloatingNav />
 
-        {/* Main content */}
-        <main className="glass-content">
-          <AnalysisNotification />
-          <Outlet />
-        </main>
+          {/* Main content */}
+          <main className="glass-content">
+            <AnalysisNotification />
+            <Outlet />
+          </main>
+        </NotificationsProvider>
       </BackgroundAnalysisProvider>
     </ActivityProvider>
   );

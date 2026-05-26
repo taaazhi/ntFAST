@@ -7,6 +7,7 @@ import { useTheme } from '../context/ThemeContext';
 import { useLanguage } from '../context/LanguageContext';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { LogoIcon } from './ui/LogoIcon';
+import { NotificationBell } from './NotificationBell';
 
 const languages = [
   { code: 'ru', name: 'RU', flag: '🇷🇺' },
@@ -112,6 +113,11 @@ export const FloatingNav = () => {
           </motion.span>
         </AnimatePresence>
       </button>
+
+      <div className="nav-divider" />
+
+      {/* Notifications bell with badge */}
+      <NotificationBell />
 
       <div className="nav-divider" />
 

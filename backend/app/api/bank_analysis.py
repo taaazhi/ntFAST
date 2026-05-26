@@ -437,6 +437,24 @@ async def analyze_bank_statement(
         else:
             logger.warning("Analysis completed but could not save to DB")
 
+        # Persistent notification — appears in the bell icon dropdown
+        try:
+            from app.services.notification_service import notify
+            risk_level = (result.get("fraud_report") or {}).get("risk_level")
+            composite = (result.get("fraud_report") or {}).get("composite_score")
+            severity = "warning" if (composite and composite >= 60) else "success"
+            notify(
+                db,
+                user_id=current_user.id,
+                kind="analysis_completed",
+                severity=severity,
+                title=f"Analysis completed: {safe_filename}",
+                body=f"Risk level: {risk_level or 'n/a'}" if risk_level else None,
+                data={"analysis_id": analysis_id, "risk_level": risk_level, "composite_score": composite},
+            )
+        except Exception as e:
+            logger.debug(f"analysis_completed notify failed (non-fatal): {e}")
+
         # Уведомляем WebSocket о завершении
         if session_id:
             await analysis_progress.send_completed(session_id)

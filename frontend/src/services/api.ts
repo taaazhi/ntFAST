@@ -828,4 +828,61 @@ export const bankAnalysisAPI = {
   },
 };
 
+// Notifications API
+export type NotificationKind =
+  | 'analysis_completed'
+  | 'analysis_failed'
+  | 'analysis_cancelled'
+  | 'new_login'
+  | 'parallel_session'
+  | 'password_changed'
+  | 'system_alert'
+  | 'info';
+
+export type NotificationSeverity = 'info' | 'success' | 'warning' | 'error';
+
+export interface NotificationItem {
+  id: number;
+  kind: NotificationKind;
+  severity: NotificationSeverity;
+  title: string;
+  body?: string | null;
+  data?: Record<string, any> | null;
+  is_read: boolean;
+  created_at: string;
+  read_at?: string | null;
+}
+
+export interface NotificationListResponse {
+  items: NotificationItem[];
+  total: number;
+  unread: number;
+}
+
+export const notificationsAPI = {
+  list: async (params?: { skip?: number; limit?: number; unread_only?: boolean }): Promise<NotificationListResponse> => {
+    const response = await api.get<NotificationListResponse>('/notifications/', { params });
+    return response.data;
+  },
+
+  markAsRead: async (id: number): Promise<NotificationItem> => {
+    const response = await api.post<NotificationItem>(`/notifications/${id}/read`);
+    return response.data;
+  },
+
+  markAllRead: async (): Promise<{ updated: number }> => {
+    const response = await api.post<{ updated: number }>('/notifications/read-all');
+    return response.data;
+  },
+
+  delete: async (id: number): Promise<void> => {
+    await api.delete(`/notifications/${id}`);
+  },
+
+  deleteAll: async (): Promise<{ deleted: number }> => {
+    const response = await api.delete<{ deleted: number }>('/notifications/');
+    return response.data;
+  },
+};
+
 export default api;
