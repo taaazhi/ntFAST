@@ -83,3 +83,18 @@ docs/video_script_kk.md
 *.heic
 "\320\232\320\276\320\275\320\272\321\203\321\200\321\201\321\202\321\213\322\233 \320\266\322\261\320\274\321\213\321\201 - ntFAST.pdf"
 
+# ─── REAL personal/bank data — MUST NEVER be committed (PII, law №94-V) ───
+# Block real bank statements / parsed account dumps by default…
+*.xlsx
+*.xls
+*.pdf
+*_analysis_result.json
+kaspi_analysis_result.json
+*statement*.pdf
+*выписк*
+*История*
+# …but allow the clearly-synthetic demo data used by the project:
+!test_data/sample_bank_statement.csv
+!docs/subject_clean.xlsx
+!docs/subject_fraudster.xlsx
+
