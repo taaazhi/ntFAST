@@ -108,7 +108,7 @@ flowchart LR
 ### Option A — Docker (everything in one command)
 
 ```bash
-git clone https://github.com/Nurdaaa/ntfast.git
+git clone https://github.com/ntazhi/ntfast.git
 cd ntfast
 cp backend/.env.example backend/.env        # then edit secrets
 docker compose up --build
@@ -194,6 +194,6 @@ Released under the [MIT License](LICENSE).
 
 <div align="center">
 
-**ntFAST** — made in Kazakhstan 🇰🇿 · backend + AI + frontend by [@Nurdaaa](https://github.com/Nurdaaa)
+**ntFAST** — made in Kazakhstan 🇰🇿 · backend + AI + frontend by [@ntazhi](https://github.com/ntazhi)
 
 </div>
