@@ -1,344 +1,199 @@
+<div align="center">
+
 # ntFAST
-### Financial Analysis System for Transactions
 
-**Версия:** 2.0.0
-**Дата обновления:** 5 апреля 2026
-**Автор:** Нурдаулет
+### Network Transaction Fraud Analysis System
 
----
+**Privacy-first platform for analyzing bank statements and detecting financial fraud — powered by a local LLM, so sensitive data never leaves the server.**
 
-## О проекте
+[![Python](https://img.shields.io/badge/Python-3.11-3776AB?logo=python&logoColor=white)](https://www.python.org/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.109-009688?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
+[![React](https://img.shields.io/badge/React-18-61DAFB?logo=react&logoColor=black)](https://react.dev/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-4169E1?logo=postgresql&logoColor=white)](https://www.postgresql.org/)
+[![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?logo=docker&logoColor=white)](https://www.docker.com/)
+[![LLM](https://img.shields.io/badge/LLM-Llama%203.1%20(local)-000000?logo=ollama&logoColor=white)](https://ollama.com/)
 
-**ntFAST** — корпоративная платформа для анализа финансовых транзакций и выявления мошенничества, разработанная для Республики Казахстан.
-
-### Ключевые возможности
-
-- **FraudEngine v4** — 15+ модулей детекции мошенничества (графовый анализ, поведенческий анализ, NLP, структурирование, velocity-проверки и др.)
-- **Умный парсинг** — автоматический разбор банковских выписок (PDF, CSV, XLSX, XLS), включая Kaspi Bank
-- **Мультиязычность** — русский, казахский, английский
-- **Real-time мониторинг** — WebSocket обновления прогресса анализа
-- **Email верификация** — подтверждение регистрации по email
-- **Управление пользователями** — роли (admin/user), блокировка, история входов
-- **Мониторинг активности** — автоматический выход при неактивности
-- **PDF-отчёты** — генерация отчётов через ReportLab
-- **Тёмная/светлая тема**
-- **Часовой пояс** — Asia/Almaty
+</div>
 
 ---
 
-## Технологический стек
+## Overview
 
-| Компонент | Технология |
-|-----------|-----------|
-| **Backend** | FastAPI + Python 3.11 |
-| **Frontend** | React 18 + TypeScript 5 + Vite 5 |
-| **База данных** | PostgreSQL 16 (основная) / SQLite (fallback) |
-| **Кэш / Очереди** | Redis 7 + Celery |
-| **UI** | Tailwind CSS 3 + Framer Motion + Recharts |
-| **Деплой** | Railway / Docker Compose |
+**ntFAST** ingests bank statements (Kaspi, Halyk and generic Excel / PDF / CSV), normalizes the transactions, and runs them through a **14-module fraud-detection engine** that combines rule-based, statistical and LLM-driven analysis into a single explainable **risk score (0–100)**.
+
+The whole stack runs **on-premise**: parsing, scoring and the language model (Llama 3.1 via Ollama) all execute locally. No transaction ever leaves the machine — a hard requirement for handling financial data under Kazakhstan's Personal Data Protection Law (№94-V).
+
+> Built as a graduation project (Software Engineering) — awarded a copyright certificate, a 1st-degree diploma at an international student competition, and a conference publication.
 
 ---
 
-## Структура проекта
+## Key Features
 
-```
-FinancialAnalysisSystem/
-├── backend/                    # FastAPI backend
-│   ├── app/
-│   │   ├── api/                # API роутеры
-│   │   │   ├── auth.py         # /api/auth — авторизация, JWT
-│   │   │   ├── email_verification.py  # /api/email-verification
-│   │   │   ├── users.py        # /api/users — управление пользователями
-│   │   │   ├── analyses.py     # /api/analyses — анализы
-│   │   │   ├── transactions.py # /api/transactions
-│   │   │   ├── subjects.py     # /api/subjects — субъекты
-│   │   │   ├── bank_analysis.py    # /api/bank — банковские выписки
-│   │   │   ├── pdf_analysis.py     # /api/pdf-analysis
-│   │   │   ├── kaspi_analysis.py   # Kaspi Bank анализ
-│   │   │   └── websocket.py    # /ws — WebSocket
-│   │   ├── core/               # Конфигурация, БД, безопасность
-│   │   ├── models/             # SQLAlchemy модели
-│   │   ├── schemas/            # Pydantic схемы
-│   │   ├── services/
-│   │   │   ├── fraud/          # FraudEngine v4 (15+ модулей)
-│   │   │   │   ├── engine.py           # Главный движок
-│   │   │   │   ├── graph_analysis.py   # Графовый анализ связей
-│   │   │   │   ├── behavioral.py       # Поведенческий анализ
-│   │   │   │   ├── nlp_analyzer.py     # NLP анализ описаний
-│   │   │   │   ├── velocity.py         # Velocity-проверки
-│   │   │   │   ├── structuring.py      # Детекция структурирования
-│   │   │   │   ├── pattern_detector.py # Паттерны мошенничества
-│   │   │   │   ├── duplicate_detector.py # Дубликаты транзакций
-│   │   │   │   ├── merchant_risk.py    # Риск контрагентов
-│   │   │   │   ├── night_transactions.py # Ночные транзакции
-│   │   │   │   ├── round_amounts.py    # Круглые суммы
-│   │   │   │   ├── cross_reference.py  # Перекрёстные проверки
-│   │   │   │   ├── account_profiler.py # Профилирование счетов
-│   │   │   │   ├── profile_mismatch.py # Несоответствие профилей
-│   │   │   │   └── models.py           # ML модели
-│   │   │   ├── bank_analyzer/  # Анализатор банковских выписок
-│   │   │   ├── kaspi_analyzer/ # Kaspi Bank интеграция
-│   │   │   ├── pdf_analyzer/   # PDF анализ + fraud detector
-│   │   │   ├── parsers.py      # PDF, CSV, XLSX парсеры
-│   │   │   ├── smart_parser.py # Умный парсинг с автоопределением
-│   │   │   ├── auth_service.py
-│   │   │   ├── email_service.py
-│   │   │   ├── user_service.py
-│   │   │   ├── file_processing_service.py
-│   │   │   ├── login_history_service.py
-│   │   │   ├── websocket_manager.py
-│   │   │   └── storage.py
-│   │   └── main.py             # Точка входа FastAPI
-│   ├── Dockerfile
-│   ├── requirements.txt
-│   └── .env
-│
-├── frontend/                   # React SPA
-│   ├── src/
-│   │   ├── pages/              # Dashboard, Analyses, Settings, Landing
-│   │   ├── components/         # UI компоненты
-│   │   ├── context/            # Auth, Theme, Language контексты
-│   │   ├── services/           # API клиент (axios)
-│   │   ├── hooks/              # useActivityMonitor, useAnalysisProgress
-│   │   ├── locales/            # ru.json, en.json, kk.json
-│   │   └── i18n.ts
-│   ├── Dockerfile
-│   ├── Dockerfile.railway
-│   └── package.json
-│
-├── docker-compose.yml          # PostgreSQL 16 + Redis 7 + Backend + Frontend
-├── scripts/                    # Вспомогательные скрипты (генераторы документов)
-└── README.md
+- 📄 **Smart statement parsing** — Kaspi Bank & Halyk Bank layouts plus generic Excel / PDF / CSV, with automatic transaction normalization and de-duplication.
+- 🛡️ **14-module fraud engine** — rules + statistics (Z-score, IQR, Benford's Law) + graph analysis + a local LLM, aggregated into a weighted **composite risk score** with `LOW / MEDIUM / HIGH / CRITICAL` bands.
+- 🧠 **Local LLM (Llama 3.1 via Ollama)** — contextual NLP analysis of transaction descriptions without sending data to any cloud.
+- ⚡ **Async processing** — heavy parsing & scoring run in Celery workers; the UI streams live progress over WebSocket.
+- 🔐 **Auth & security** — JWT authentication, bcrypt password hashing, role-based access (admin / analyst), email verification, login history and active-session management.
+- 🔔 **Real-time notifications** — persistent bell-icon notifications + WebSocket events (new login, parallel session, analysis finished).
+- 🌐 **Trilingual UI** — Kazakh / Russian / English (i18next), with light & dark themes.
+- 📊 **Dashboards & reports** — interactive charts (Recharts) and exportable PDF reports.
+
+---
+
+## Architecture
+
+```mermaid
+flowchart LR
+    U["Analyst<br/>(browser)"] -->|HTTPS / WS| FE["React + TS<br/>Vite · Tailwind"]
+    FE -->|REST / WebSocket| API["FastAPI<br/>JWT · REST · WS"]
+    API -->|enqueue| Q[("Redis<br/>broker")]
+    Q --> W["Celery worker"]
+    W --> P["Statement parsers<br/>Kaspi · Halyk · PDF · Excel"]
+    P --> ENG["FraudEngine<br/>14 detection modules"]
+    ENG -->|prompt| LLM["Ollama<br/>Llama 3.1 (local)"]
+    ENG -->|risk score 0–100| DB[("PostgreSQL")]
+    API --> DB
+    W -->|progress| API
+    API -->|live updates| FE
 ```
 
+**Three tiers:** React client → FastAPI server → AI/analysis layer. Postgres is the source of truth; Redis backs both the Celery queue and caching; the LLM runs as a separate local service.
+
 ---
 
-## Быстрый старт
+## Tech Stack
 
-### Вариант 1: Docker Compose (рекомендуется)
+| Layer | Technologies |
+|-------|--------------|
+| **Backend** | Python 3.11 · FastAPI · SQLAlchemy 2 · Pydantic 2 · Alembic |
+| **Async / Queue** | Celery · Redis 7 |
+| **Database** | PostgreSQL 16 (SQLite fallback) |
+| **AI / ML** | Ollama (Llama 3.1) · pandas · NLP · statistical models (Z-score, IQR, Benford) |
+| **Parsing** | pdfplumber · openpyxl · xlrd · python-dateutil |
+| **Auth** | python-jose (JWT) · passlib + bcrypt |
+| **Frontend** | React 18 · TypeScript 5 · Vite 5 · Tailwind CSS 3 |
+| **UI** | Framer Motion · Recharts · react-i18next · lucide-react · sonner |
+| **Infra** | Docker Compose (5 services) · Railway |
+
+---
+
+## Fraud Detection Engine
+
+`backend/app/services/fraud/engine.py` orchestrates independent detectors and merges their signals into one composite score:
+
+| Module | What it catches |
+|--------|-----------------|
+| `velocity` | Abnormal transaction frequency / bursts |
+| `structuring` | Smurfing — amounts split to stay under reporting thresholds |
+| `graph_analysis` | Suspicious counterparty networks & money flows |
+| `cross_reference` | Links across subjects and accounts |
+| `merchant_risk` | High-risk merchant / category exposure |
+| `night_transactions` | Unusual activity during night hours |
+| `duplicate_detector` | Repeated / cloned transactions |
+| `round_amounts` | Artificially round-number transfers |
+| `profile_mismatch` | Activity inconsistent with the subject's profile |
+| `behavioral` | Deviation from the subject's historical behavior |
+| `nlp_analyzer` | **LLM** contextual analysis of transaction descriptions |
+| `account_profiler` | Builds the behavioral baseline per subject |
+| `pattern_detector` | Generic statistical anomaly patterns |
+| `whitelist` | Suppresses known-good counterparties to cut false positives |
+
+→ **Composite risk score 0–100** → `LOW · MEDIUM · HIGH · CRITICAL`, each flag fully explainable.
+
+---
+
+## Quick Start
+
+### Option A — Docker (everything in one command)
 
 ```bash
-git clone https://github.com/your-repo/FinancialAnalysisSystem.git
-cd FinancialAnalysisSystem
-
-# Запустить все сервисы
-docker-compose up -d
-
-# Backend: http://localhost:8000
-# Frontend: http://localhost:5173
+git clone https://github.com/Nurdaaa/ntfast.git
+cd ntfast
+cp backend/.env.example backend/.env        # then edit secrets
+docker compose up --build
 ```
 
-### Вариант 2: Локальный запуск
+Compose boots **5 services** with health-checks and the correct start order:
+`postgres` → `redis` → `backend` + `celery_worker` → `frontend`.
 
-**Требования:**
-- Python 3.11+
-- Node.js 18+
-- PostgreSQL 16 (или SQLite для разработки)
-- Redis 7 (для Celery задач)
+- Frontend → http://localhost
+- API + Swagger docs → http://localhost:8000/docs
 
-**Backend:**
+### Option B — Manual (local dev)
+
+> Requires Python 3.11, Node 18+, PostgreSQL 16, Redis 7, and [Ollama](https://ollama.com/) with `ollama pull llama3.1`.
+
+```bash
+# Backend
+cd backend
+pip install -r requirements.txt
+cp .env.example .env
+alembic upgrade head
+uvicorn app.main:app --reload --port 8000
+
+# Celery worker (separate terminal)
+celery -A app.core.celery_app worker --loglevel=info --pool=solo
+
+# Frontend (separate terminal)
+cd frontend
+npm install
+npm run dev
+```
+
+---
+
+## Project Structure
+
+```
+ntfast/
+├── backend/
+│   └── app/
+│       ├── api/          # REST routers (auth, analyses, subjects, transactions, …)
+│       ├── core/         # config, database, security, celery
+│       ├── models/       # SQLAlchemy models (user, subject, transaction, …)
+│       ├── schemas/      # Pydantic schemas
+│       ├── services/
+│       │   ├── fraud/         # the 14-module detection engine
+│       │   ├── bank_analyzer/ # statement parsers (Kaspi, Halyk, …)
+│       │   └── …
+│       ├── tasks/        # Celery tasks
+│       └── middleware/   # security headers, etc.
+├── frontend/
+│   └── src/              # React + TypeScript app (components, locales, pages)
+├── docs/                 # technical docs + architecture diagram (.drawio)
+├── test_data/            # synthetic sample statements
+└── docker-compose.yml
+```
+
+---
+
+## Testing
+
 ```bash
 cd backend
-
-# Виртуальное окружение
-python -m venv venv
-venv\Scripts\activate          # Windows
-source venv/bin/activate       # Linux/macOS
-
-# Зависимости
-pip install -r requirements.txt
-
-# Настроить .env (см. раздел "Переменные окружения")
-
-# Запустить
-python -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+pytest
 ```
 
-**Frontend:**
-```bash
-cd frontend
-
-# Зависимости
-npm install
-
-# Запустить dev-сервер
-npm run dev
-# Откроется на http://localhost:5173
-```
-
-### Вариант 3: Railway (Production)
-
-Проект настроен для деплоя на Railway:
-- **Backend** — Python сервис с Dockerfile
-- **Frontend** — Node.js сервис с Dockerfile.railway
-- **PostgreSQL** — Railway managed PostgreSQL
-- **Redis** — Railway managed Redis
-
-Необходимые переменные Railway:
-- `DATABASE_URL` — автоматически от Railway PostgreSQL
-- `REDIS_HOST`, `REDIS_PORT` — автоматически от Railway Redis
-- `VITE_API_URL` — URL backend-сервиса (для frontend, задаётся ДО сборки)
-- `SECRET_KEY` — секрет для JWT
-- `BACKEND_CORS_ORIGINS` — URL frontend-сервиса
+The fraud engine and parsers are covered by an automated test suite (`backend/tests/`).
 
 ---
 
-## Тестовый пользователь
+## Roadmap
 
-| Поле | Значение |
-|------|----------|
-| Email | admin@example.com |
-| Пароль | admin123 |
-| Роль | admin |
-
----
-
-## API
-
-**Базовый префикс:** `/api`
-
-| Endpoint | Описание |
-|----------|----------|
-| `POST /api/auth/login` | Авторизация, получение JWT токена |
-| `POST /api/auth/register` | Регистрация нового пользователя |
-| `GET /api/auth/me` | Текущий пользователь |
-| `POST /api/email-verification/send-code` | Отправка кода верификации |
-| `POST /api/email-verification/verify-code` | Проверка кода |
-| `GET /api/users/` | Список пользователей (admin) |
-| `GET /api/analyses/` | Список анализов |
-| `GET /api/analyses/stats` | Статистика анализов |
-| `POST /api/analyses/upload` | Загрузка файла для анализа |
-| `GET /api/transactions/` | Список транзакций |
-| `POST /api/bank/upload` | Загрузка банковской выписки |
-| `POST /api/pdf-analysis/upload` | Загрузка PDF для анализа |
-| `GET /health` | Проверка здоровья сервиса |
-| `WS /ws` | WebSocket (прогресс анализа, активность) |
-
-Swagger UI: `http://localhost:8000/docs`
+- [ ] Public REST API for third-party integrations
+- [ ] Graph database (Neo4j) for deeper network analysis
+- [ ] React Native mobile client
+- [ ] Federated learning across institutions
 
 ---
 
-## Модули FraudEngine
+## License
 
-| Модуль | Описание |
-|--------|----------|
-| `graph_analysis` | Графовый анализ связей между счетами |
-| `behavioral` | Поведенческий анализ паттернов пользователя |
-| `nlp_analyzer` | NLP анализ описаний транзакций |
-| `velocity` | Проверка скорости/частоты транзакций |
-| `structuring` | Детекция структурирования (дробление сумм) |
-| `pattern_detector` | Обнаружение известных схем мошенничества |
-| `duplicate_detector` | Поиск дублирующихся транзакций |
-| `merchant_risk` | Оценка риска контрагентов |
-| `night_transactions` | Анализ ночных транзакций |
-| `round_amounts` | Детекция подозрительных круглых сумм |
-| `cross_reference` | Перекрёстная проверка данных |
-| `account_profiler` | Профилирование поведения счёта |
-| `profile_mismatch` | Несоответствие профилю клиента |
+Released under the [MIT License](LICENSE).
 
-Каждый модуль возвращает оценку риска (0-10), итоговый `risk_score` — взвешенная агрегация всех модулей.
+<div align="center">
 
----
+**ntFAST** — made in Kazakhstan 🇰🇿 · backend + AI + frontend by [@Nurdaaa](https://github.com/Nurdaaa)
 
-## Поддерживаемые форматы файлов
-
-| Формат | Описание |
-|--------|----------|
-| PDF | Банковские выписки (парсинг через pdfplumber) |
-| CSV | Табличные данные транзакций |
-| XLSX | Excel файлы |
-| XLS | Старый формат Excel |
-
-Поддержка банков: **Kaspi Bank** (специализированный анализатор), универсальный парсинг для других банков.
-
----
-
-## Переменные окружения
-
-### Backend (.env)
-
-```env
-# База данных (PostgreSQL рекомендуется)
-DATABASE_URL=postgresql://postgres:postgres@localhost:5432/financial_analysis
-
-# JWT секрет
-SECRET_KEY=your-secret-key-change-in-production
-
-# CORS
-BACKEND_CORS_ORIGINS=["http://localhost:5173"]
-
-# Email (SMTP)
-SMTP_SERVER=smtp.gmail.com
-SMTP_PORT=465
-SMTP_USERNAME=your-email@gmail.com
-SMTP_PASSWORD=your-app-password
-USE_REAL_EMAIL=true
-REQUIRE_EMAIL_VERIFICATION=false
-
-# Redis
-REDIS_HOST=localhost
-REDIS_PORT=6379
-
-# Celery
-CELERY_BROKER_URL=redis://localhost:6379/0
-CELERY_RESULT_BACKEND=redis://localhost:6379/0
-
-# Приложение
-PROJECT_NAME=ntFAST
-API_PREFIX=/api
-```
-
-### Frontend
-
-```env
-VITE_API_URL=http://localhost:8000
-```
-
-> **Важно:** `VITE_API_URL` инлайнится при сборке (Vite). При деплое задавайте ДО `npm run build`.
-
----
-
-## Устранение проблем
-
-### Backend не запускается
-
-```bash
-# ModuleNotFoundError — установить зависимости
-pip install -r requirements.txt
-
-# Port 8000 занят
-netstat -ano | findstr :8000
-taskkill /PID <PID> /F
-```
-
-### Frontend не запускается
-
-```bash
-# Установить зависимости
-npm install
-
-# Очистить кэш
-rm -rf node_modules/.vite
-npm run dev
-```
-
-### CORS ошибки
-
-Убедитесь что `BACKEND_CORS_ORIGINS` в backend .env содержит URL frontend (включая порт).
-
-### WebSocket не подключается
-
-1. Backend запущен
-2. CORS настроен
-3. Проверить DevTools -> Network -> WS
-
-### Email не отправляются
-
-На Railway порты SMTP (465/587) заблокированы. Используйте HTTP API провайдеры (Resend, Mailjet) или временно отключите верификацию: `REQUIRE_EMAIL_VERIFICATION=false`.
-
----
-
-## Лицензия
-
-ntFAST — Financial Analysis System for Transactions
-Copyright 2025-2026
+</div>

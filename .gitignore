@@ -98,3 +98,14 @@ kaspi_analysis_result.json
 !docs/subject_clean.xlsx
 !docs/subject_fraudster.xlsx
 
+# ─── University / paperwork artifacts — not part of the engineering project ───
+*.docx
+*.pptx
+scripts/create_referat*.js
+scripts/generate_referat*.js
+scripts/create_patent*.js
+scripts/generate_patent*.js
+scripts/create_pm1_application*.js
+scripts/create_presentation*.js
+scripts/create_block_diagram*.js
+
