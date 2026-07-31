@@ -98,6 +98,9 @@ kaspi_analysis_result.json
 !docs/subject_clean.xlsx
 !docs/subject_fraudster.xlsx
 
+# ─── Personal certificates / awards — kept local, not part of the codebase ───
+presentation_assets/
+
 # ─── University / paperwork artifacts — not part of the engineering project ───
 *.docx
 *.pptx
