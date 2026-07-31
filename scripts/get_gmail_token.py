@@ -3,12 +3,20 @@ Get Gmail API Refresh Token
 Run this script once to get a refresh token for Gmail API.
 """
 import http.server
+import os
+import sys
 import urllib.parse
 import webbrowser
 import httpx
 
-CLIENT_ID = "GMAIL_CLIENT_ID_REMOVED"
-CLIENT_SECRET = "GMAIL_CLIENT_SECRET_REMOVED"
+# Credentials are read from the environment — never hardcode them.
+#   setx GMAIL_CLIENT_ID "...apps.googleusercontent.com"
+#   setx GMAIL_CLIENT_SECRET "GOCSPX-..."
+CLIENT_ID = os.environ.get("GMAIL_CLIENT_ID", "")
+CLIENT_SECRET = os.environ.get("GMAIL_CLIENT_SECRET", "")
+
+if not CLIENT_ID or not CLIENT_SECRET:
+    sys.exit("Set GMAIL_CLIENT_ID and GMAIL_CLIENT_SECRET before running this script.")
 REDIRECT_URI = "http://localhost:8090"
 SCOPE = "https://www.googleapis.com/auth/gmail.send"
 
