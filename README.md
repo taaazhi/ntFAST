@@ -207,20 +207,44 @@ Detection quality tracks parser richness, not just transaction count.
 
 ## Quick Start
 
-### Option A — Docker (everything in one command)
+### Option A — Docker
+
+> **One manual step first.** `docker-compose.yml` reads `.env.docker`, and that file is
+> deliberately not in the repository. Create it before anything else or compose exits
+> immediately with *env file not found*.
 
 ```bash
 git clone https://github.com/taaazhi/ntFAST.git
 cd ntFAST
-cp backend/.env.example backend/.env        # then edit secrets
+cp .env.docker.example .env.docker      # required — compose will not start without it
 docker compose up --build
 ```
 
+Optionally set a real `SECRET_KEY` in `.env.docker` before starting
+(`python -c "import secrets; print(secrets.token_hex(32))"`). With `DEBUG=true` the app
+generates an ephemeral key instead, which logs everyone out on every restart.
+
 Compose boots **5 services** with health-checks and the correct start order:
-`postgres` → `redis` → `backend` + `celery_worker` → `frontend`.
+`postgres` → `redis` → `backend` + `celery_worker` → `frontend`. Database tables are created
+by the backend at startup, so no migration step is needed for this path.
 
 - Frontend → http://localhost
 - API + Swagger docs → http://localhost:8000/docs
+
+**Before you start:**
+
+| | |
+|---|---|
+| First build | 5–10 minutes on a warm connection — Python and Node images plus a full `npm install` and Vite build. Subsequent starts take seconds. *Estimate from the image and dependency set, not timed on a clean machine.* |
+| Disk | ~3 GB of images and volumes |
+| RAM | ~2 GB for the five containers |
+| Published ports | `80`, `8000`, `5432`, `6379` — stop any local Postgres, Redis or web server first, or change the mappings |
+
+> **Ollama is not part of compose.** The five services run without a language model. To use
+> the LLM features, run Ollama on the host (`ollama pull llama3.1`) — the containers reach it
+> through `host.docker.internal`, already configured in `.env.docker.example`. Llama 3.1 8B
+> needs about 5 GB of disk and 8 GB of free RAM **on top of** the figures above. None of this
+> affects the risk score, which is computed without the LLM.
 
 ### Option B — Manual (local dev)
 
