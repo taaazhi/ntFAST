@@ -28,6 +28,37 @@ The whole stack runs **on-premise**: parsing, scoring and the language model (Ll
 
 ---
 
+## Screenshots
+
+<div align="center">
+
+<img src="docs/screenshots/dashboard.png" width="800" alt="Analyst dashboard" />
+
+*Analyst dashboard — portfolio of analysed subjects with their current risk bands.*
+
+<table>
+<tr>
+<td width="50%"><img src="docs/screenshots/analysis-report.png" width="400" alt="Analysis report" /></td>
+<td width="50%"><img src="docs/screenshots/risk-flags.png" width="400" alt="Explained risk flags" /></td>
+</tr>
+<tr>
+<td align="center"><em>Analysis report — composite risk score with the per-module breakdown.</em></td>
+<td align="center"><em>Red flags — every signal is explained, with counter-evidence where it exists.</em></td>
+</tr>
+<tr>
+<td width="50%"><img src="docs/screenshots/charts.png" width="400" alt="Interactive charts" /></td>
+<td width="50%"><img src="docs/screenshots/upload-progress.png" width="400" alt="Live upload progress" /></td>
+</tr>
+<tr>
+<td align="center"><em>Cash-flow and category charts (Recharts), light and dark themes.</em></td>
+<td align="center"><em>Live parsing progress streamed over WebSocket from the Celery worker.</em></td>
+</tr>
+</table>
+
+</div>
+
+---
+
 ## Key Features
 
 - 📄 **Smart statement parsing** — Kaspi Bank & Halyk Bank layouts plus generic Excel / PDF / CSV, with automatic transaction normalization and de-duplication.
