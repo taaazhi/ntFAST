@@ -1,4 +1,4 @@
-<div align="center">
+﻿<div align="center">
 
 # ntFAST
 
@@ -20,7 +20,7 @@
 
 ## Overview
 
-**ntFAST** ingests bank statements (Kaspi, Halyk and generic Excel / PDF / CSV), normalizes the transactions, and runs them through a **13-module fraud-detection engine** that combines rule-based, statistical and graph analysis into a single explainable **risk score (0–100)**.
+**ntFAST** ingests bank statements (Kaspi, Halyk and generic Excel / PDF / CSV), normalizes the transactions, and runs them through a **11-module fraud-detection engine** that combines rule-based, statistical and graph analysis into a single explainable **risk score (0–100)**.
 
 The whole stack runs **on-premise**: parsing, scoring and the language model (Llama 3.1 via Ollama) all execute locally. No transaction ever leaves the machine — a hard requirement for handling financial data under Kazakhstan's Personal Data Protection Law (№94-V).
 
@@ -34,7 +34,7 @@ The whole stack runs **on-premise**: parsing, scoring and the language model (Ll
 
 <img src="docs/screenshots/dashboard.png" width="800" alt="Analyst dashboard" />
 
-*Analyst dashboard — portfolio of analysed subjects with their current risk bands.*
+*Analyst dashboard — checks run, average risk, processed volume and the monthly breakdown.*
 
 <table>
 <tr>
@@ -42,16 +42,16 @@ The whole stack runs **on-premise**: parsing, scoring and the language model (Ll
 <td width="50%"><img src="docs/screenshots/risk-flags.png" width="400" alt="Explained risk flags" /></td>
 </tr>
 <tr>
-<td align="center"><em>Analysis report — composite risk score with the per-module breakdown.</em></td>
-<td align="center"><em>Red flags — every signal is explained, with counter-evidence where it exists.</em></td>
+<td align="center"><em>Report overview — cash-flow totals, account details and the composite risk score.</em></td>
+<td align="center"><em>Antifraud section — risk gauge, per-module radar and the individual detector scores.</em></td>
 </tr>
 <tr>
 <td width="50%"><img src="docs/screenshots/charts.png" width="400" alt="Interactive charts" /></td>
 <td width="50%"><img src="docs/screenshots/upload-progress.png" width="400" alt="Live upload progress" /></td>
 </tr>
 <tr>
-<td align="center"><em>Cash-flow and category charts (Recharts), light and dark themes.</em></td>
-<td align="center"><em>Live parsing progress streamed over WebSocket from the Celery worker.</em></td>
+<td align="center"><em>Financial section — monthly income/expense dynamics and category breakdowns (Recharts).</em></td>
+<td align="center"><em>Live analysis progress, streamed to the browser over WebSocket while the file is parsed.</em></td>
 </tr>
 </table>
 
@@ -62,7 +62,7 @@ The whole stack runs **on-premise**: parsing, scoring and the language model (Ll
 ## Key Features
 
 - 📄 **Smart statement parsing** — Kaspi Bank & Halyk Bank layouts plus generic Excel / PDF / CSV, with automatic transaction normalization and de-duplication.
-- 🛡️ **13-module fraud engine** — rules + statistics (Z-score, IQR, Benford's Law) + graph analysis, aggregated into a weighted **composite risk score** with `LOW / MEDIUM / HIGH / CRITICAL` bands. Ten modules carry weight; see the [module table](#fraud-detection-engine) for exactly which.
+- 🛡️ **11-module fraud engine** — rules + statistics (Z-score, IQR, Benford's Law) + graph analysis, aggregated into a weighted **composite risk score** with `LOW / MEDIUM / HIGH / CRITICAL` bands. Ten modules carry weight; see the [module table](#fraud-detection-engine) for exactly which.
 - 🧠 **Local LLM (Llama 3.1 via Ollama)** — contextual analysis of statement text without sending data to any cloud. Used by the PDF-analysis service; it is **not** part of the composite risk score.
 - ⚡ **Async processing** — heavy parsing & scoring run in Celery workers; the UI streams live progress over WebSocket.
 - 🔐 **Auth & security** — JWT authentication, bcrypt password hashing, role-based access (admin / analyst), email verification, login history and active-session management.
@@ -81,7 +81,7 @@ flowchart LR
     API -->|enqueue| Q[("Redis<br/>broker")]
     Q --> W["Celery worker"]
     W --> P["Statement parsers<br/>Kaspi · Halyk · PDF · Excel"]
-    P --> ENG["FraudEngine<br/>13 detection modules"]
+    P --> ENG["FraudEngine<br/>11 detection modules"]
     P -.->|statement text| LLM["Ollama<br/>Llama 3.1 (local)"]
     ENG -->|risk score 0–100| DB[("PostgreSQL")]
     LLM -.-> DB
@@ -137,8 +137,8 @@ Weights come from `BASE_WEIGHTS` in `engine.py` and are then scaled per account 
 
 **One module is implemented but not wired in:** `nlp_analyzer.py` holds the LLM-driven
 contextual analysis, and `FraudEngine.full_analysis()` never calls it — the composite score
-today is rules and statistics only. It is listed here rather than quietly counted as a
-fourteenth module.
+today is rules and statistics only. It is named here rather than quietly counted among the
+modules above.
 
 ---
 
@@ -154,7 +154,7 @@ python scripts/benchmark.py --runs 5 --transactions 500
 
 ### Latency — 500-transaction statement, end to end
 
-File → bank detection → parsing → categorisation → analytics → 13-module engine → risk score.
+File → bank detection → parsing → categorisation → analytics → 11-module engine → risk score.
 
 | Input | Median | Min–max | Parsing | Engine |
 |---|---|---|---|---|
@@ -280,7 +280,7 @@ ntfast/
 │       ├── models/       # SQLAlchemy models (user, subject, transaction, …)
 │       ├── schemas/      # Pydantic schemas
 │       ├── services/
-│       │   ├── fraud/         # the 13-module detection engine
+│       │   ├── fraud/         # the 11-module detection engine
 │       │   ├── bank_analyzer/ # statement parsers (Kaspi, Halyk, …)
 │       │   └── …
 │       ├── tasks/        # Celery tasks
