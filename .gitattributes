@@ -1,0 +1,24 @@
+# Normalise line endings so Windows checkouts stop showing phantom diffs.
+# Text files are stored with LF in the repository and checked out natively.
+* text=auto
+
+# Scripts that must keep platform-specific endings
+*.bat   text eol=crlf
+*.cmd   text eol=crlf
+*.ps1   text eol=crlf
+*.sh    text eol=lf
+
+# Explicit binaries — never touch these
+*.png   binary
+*.jpg   binary
+*.jpeg  binary
+*.gif   binary
+*.webp  binary
+*.ico   binary
+*.pdf   binary
+*.xlsx  binary
+*.xls   binary
+*.pptx  binary
+*.docx  binary
+*.zip   binary
+*.rdb   binary
