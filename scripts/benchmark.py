@@ -26,6 +26,7 @@ BACKEND = REPO_ROOT / "backend"
 sys.path.insert(0, str(BACKEND))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
+import statement_formats  # noqa: E402
 from benchmark_report import environment, print_console, render  # noqa: E402
 from app.services.bank_analyzer.analyzer import BankAnalyzer  # noqa: E402
 from app.services.bank_analyzer.detector import BankDetector  # noqa: E402
@@ -48,11 +49,20 @@ HEADERS = ["Дата", "Описание", "Сумма", "Баланс"]
 
 @dataclass(frozen=True)
 class Row:
-    """One transaction as it is written into the file and expected back out."""
+    """One transaction as it is written into the file and expected back out.
+
+    `counterparty` and `operation` are carried separately from `description`
+    because some layouts put them in their own columns. That distinction is
+    what the field-completeness measurement is about: a parser can recover
+    every date and amount and still hand the fraud engine nothing to work
+    with, because the counterparty stayed in a column it did not recognise.
+    """
 
     date: datetime
     description: str
     amount: float
+    counterparty: str = ""
+    operation: str = ""
 
     @property
     def date_str(self) -> str:
@@ -85,33 +95,41 @@ def build_ground_truth(count: int, seed: int = 42) -> List[Row]:
 
         bucket = rng.random()
         if bucket < 0.08:  # salary
-            rows.append(Row(when, f"Зарплата {rng.choice(_FIRMS)}", 520_000.0))
+            firm = rng.choice(_FIRMS)
+            rows.append(Row(when, f"Зарплата {firm}", 520_000.0, firm, "Пополнение"))
         elif bucket < 0.50:  # everyday spending
-            rows.append(
-                Row(when, rng.choice(_SHOPS), -round(rng.uniform(800, 12_000), 2))
-            )
+            shop = rng.choice(_SHOPS)
+            rows.append(Row(when, shop, -round(rng.uniform(800, 12_000), 2), shop, "Покупка"))
         elif bucket < 0.65:  # services
-            rows.append(
-                Row(when, rng.choice(_SERVICES), -round(rng.uniform(1_500, 35_000), 2))
-            )
+            svc = rng.choice(_SERVICES)
+            rows.append(Row(when, svc, -round(rng.uniform(1_500, 35_000), 2), svc, "Покупка"))
         elif bucket < 0.80:  # person-to-person movement
             direction = 1 if rng.random() < 0.5 else -1
+            person = rng.choice(_PEOPLE)
             rows.append(
                 Row(
                     when,
-                    f"Перевод {rng.choice(_PEOPLE)}",
+                    f"Перевод {person}",
                     direction * round(rng.uniform(20_000, 400_000), 2),
+                    person,
+                    "Перевод",
                 )
             )
         elif bucket < 0.88:  # round amounts
+            firm = rng.choice(_FIRMS)
             rows.append(
-                Row(when, f"Перевод {rng.choice(_FIRMS)}", -float(rng.choice([100_000, 200_000, 500_000])))
+                Row(when, f"Перевод {firm}",
+                    -float(rng.choice([100_000, 200_000, 500_000])), firm, "Перевод")
             )
         elif bucket < 0.94:  # amounts parked just under the 1M reporting threshold
-            rows.append(Row(when, f"Перевод {rng.choice(_PEOPLE)}", -(950_000.0 + rng.randint(0, 40) * 1000)))
+            person = rng.choice(_PEOPLE)
+            rows.append(Row(when, f"Перевод {person}",
+                            -(950_000.0 + rng.randint(0, 40) * 1000), person, "Перевод"))
         else:  # night activity
             night = when.replace(hour=3)
-            rows.append(Row(night, f"Ночной перевод {rng.choice(_PEOPLE)}", -round(rng.uniform(50_000, 800_000), 2)))
+            person = rng.choice(_PEOPLE)
+            rows.append(Row(night, f"Ночной перевод {person}",
+                            -round(rng.uniform(50_000, 800_000), 2), person, "Перевод"))
 
     return rows[:count]
 
@@ -283,13 +301,34 @@ def _norm(text: str) -> str:
     return re.sub(r"\s+", " ", (text or "")).strip().casefold()
 
 
+def _carries(tx: Transaction, wanted: str) -> bool:
+    """Уцелел ли исходный текст в транзакции — в любом поле или в их склейке.
+
+    Склейка нужна потому, что описание «Перевод Ержан О.» в раскладке с
+    отдельными колонками «Вид операции» и «Контрагент» приезжает разложенным:
+    `description='Перевод'`, `counterparty='Ержан О.'`. Не потеряно ничего, но
+    ни одно поле по отдельности исходной строки не содержит.
+    """
+    parts = [
+        _norm(value)
+        for value in (tx.description, tx.counterparty, tx.merchant_name)
+        if value
+    ]
+    return any(wanted in part for part in parts) or wanted in " ".join(parts)
+
+
 def measure_accuracy(truth: Sequence[Row], parsed: Sequence[Transaction]) -> Dict[str, Any]:
     """
     A ground-truth row counts as *recovered* when some parsed transaction carries the
-    same date and the same amount (±0.01). It counts as *fully correct* when that
-    transaction's description also contains the original description — the text
-    fallback prepends the date and amount to the line, so containment, not equality,
-    is the fair test.
+    same date and the same amount (±0.01). It counts as *fully correct* when the
+    original description also survives somewhere in the parsed row.
+
+    Containment, not equality: the text fallback prepends the date and amount to the
+    line. And *somewhere*, not `description` specifically — a layout with separate
+    "operation type" and "counterparty" columns puts the merchant in `counterparty`
+    while `description` holds the operation. Scoring only `description` marked those
+    rows wrong even though nothing was lost; the question is whether the content came
+    off the page, not which field it landed in.
     """
     remaining: Dict[Tuple[str, float], List[Transaction]] = {}
     for tx in parsed:
@@ -309,12 +348,12 @@ def measure_accuracy(truth: Sequence[Row], parsed: Sequence[Transaction]) -> Dic
         # whose description matches, otherwise the count would penalise the parser for a
         # collision the generator created.
         wanted = _norm(row.description)
-        index = next((i for i, tx in enumerate(bucket) if wanted in _norm(tx.description)), None)
+        index = next((i for i, tx in enumerate(bucket) if _carries(tx, wanted)), None)
         tx = bucket.pop(index) if index is not None else bucket.pop()
 
         consumed += 1
         recovered += 1
-        if wanted in _norm(tx.description):
+        if _carries(tx, wanted):
             fully_correct += 1
 
     total = len(truth) or 1
@@ -326,6 +365,39 @@ def measure_accuracy(truth: Sequence[Row], parsed: Sequence[Transaction]) -> Dic
         "spurious": max(0, len(parsed) - consumed),
         "row_accuracy": 100.0 * recovered / total,
         "full_accuracy": 100.0 * fully_correct / total,
+    }
+
+
+def measure_field_completeness(parsed: Sequence[Transaction]) -> Dict[str, Any]:
+    """Какая доля извлечённых транзакций несёт поля, нужные детекторам.
+
+    Точность по датам и суммам ничего не говорит о пригодности результата:
+    структурирование, граф контрагентов, merchant risk и profile mismatch
+    работают по контрагенту, мерчанту и флагам вроде «зарплата». Строка с
+    верной суммой и пустым контрагентом для них невидима, и композитный балл
+    молча уходит в LOW. Эта метрика показывает именно тот разрыв.
+    """
+    total = len(parsed) or 1
+    with_counterparty = sum(1 for t in parsed if (t.counterparty or "").strip())
+    with_merchant = sum(1 for t in parsed if (t.merchant_name or "").strip())
+    # Осознанно НЕ считаем `t.type` (доход/расход): он выводится из знака суммы
+    # и равен 100% у любого парсера, который вообще прочитал сумму. Детекторам
+    # нужно другое — кто контрагент: мерчант, физлицо или банк. Извлечь строку
+    # «Yandex Go poezdka» и понять, что это мерчант, — разные задачи, и вторую
+    # регулярка не решает: она требует знания мира, а не раскладки колонок.
+    classified = sum(
+        1 for t in parsed if t.counterparty_type is not CounterpartyType.UNKNOWN
+    )
+    flagged = sum(
+        1 for t in parsed
+        if t.is_salary or t.is_atm or t.is_cash_operation or t.is_pension_benefit
+    )
+    return {
+        "rows": len(parsed),
+        "counterparty_pct": 100.0 * with_counterparty / total,
+        "merchant_pct": 100.0 * with_merchant / total,
+        "classified_pct": 100.0 * classified / total,
+        "flagged_pct": 100.0 * flagged / total,
     }
 
 
@@ -415,12 +487,18 @@ def main() -> int:
         pdf_table = work / "statement_table.pdf"
         pdf_pages = work / "statement_multipage.pdf"
         pdf_text = work / "statement_text.pdf"
+        unseen = {
+            key: work / f"statement_{key}.pdf" for key in statement_formats.FORMATS
+        }
 
-        print(f"Generating {len(truth)} synthetic transactions in 4 layouts…")
+        layouts = 4 + len(unseen)
+        print(f"Generating {len(truth)} synthetic transactions in {layouts} layouts…")
         write_xlsx(truth, xlsx)
         write_pdf_table(truth, pdf_table, font)
         write_pdf_multipage(truth, pdf_pages, font)
         write_pdf_text(truth, pdf_text, font)
+        for key, path in unseen.items():
+            statement_formats.write_pdf(truth, path, statement_formats.FORMATS[key], font)
 
         print("Measuring extraction accuracy…")
         accuracy = {
@@ -429,6 +507,21 @@ def main() -> int:
             "PDF — multipage + headers": measure_accuracy(truth, parse_only(pdf_pages)),
             "PDF — text, no table": measure_accuracy(truth, parse_only(pdf_text)),
         }
+        for key, path in unseen.items():
+            accuracy[statement_formats.FORMATS[key].label] = measure_accuracy(
+                truth, parse_only(path)
+            )
+
+        # Полнота полей: сколько из извлечённого пригодно детекторам.
+        # Сравниваем знакомую банку раскладку с незнакомой.
+        print("Measuring field completeness…")
+        completeness = {
+            "bank parser (Kaspi layout)": measure_field_completeness(build_enriched(truth)),
+        }
+        for key, path in unseen.items():
+            completeness[statement_formats.FORMATS[key].label] = (
+                measure_field_completeness(parse_only(path))
+            )
 
         print(f"Measuring latency ({args.runs} runs + warm-up per input)…")
         latency = {
@@ -441,14 +534,21 @@ def main() -> int:
             "parsed (generic, sparse)": measure_fraud(parse_only(xlsx), args.runs),
             "enriched (bank-parser fields)": measure_fraud(build_enriched(truth), args.runs),
         }
+        for key, path in unseen.items():
+            engine[f"unseen layout — {statement_formats.FORMATS[key].language}"] = (
+                measure_fraud(parse_only(path), args.runs)
+            )
 
         env = environment()
 
-    print_console(env, latency, accuracy, engine)
+    print_console(env, latency, accuracy, engine, completeness)
 
     out_path = REPO_ROOT / args.out
     out_path.parent.mkdir(parents=True, exist_ok=True)
-    out_path.write_text(render(env, latency, accuracy, engine, args.transactions), encoding="utf-8")
+    out_path.write_text(
+        render(env, latency, accuracy, engine, args.transactions, completeness),
+        encoding="utf-8",
+    )
     print(f"Report written to {out_path.relative_to(REPO_ROOT)}")
     return 0
 

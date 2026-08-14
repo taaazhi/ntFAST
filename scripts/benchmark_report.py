@@ -70,7 +70,8 @@ def environment() -> Dict[str, Any]:
     }
 
 
-def render(env: Dict[str, Any], latency: Section, accuracy: Section, engine: Section, count: int) -> str:
+def render(env: Dict[str, Any], latency: Section, accuracy: Section, engine: Section,
+           count: int, completeness: Section | None = None) -> str:
     """Full Markdown report written to docs/benchmarks/latest.md."""
     runs = next(iter(latency.values()))["runs"]
     lines = [
@@ -146,8 +147,17 @@ def render(env: Dict[str, Any], latency: Section, accuracy: Section, engine: Sec
         "## Extraction accuracy",
         "",
         "A row is **recovered** when a parsed transaction has the same date and the same amount"
-        " (±0.01). It is **fully correct** when that transaction's description also contains the"
-        " original description. *Spurious* counts parsed rows that match nothing in the ground truth.",
+        " (±0.01). It is **fully correct** when the original description also survives somewhere"
+        " in the parsed row — any text field, or their concatenation, since a layout with"
+        " separate *operation* and *counterparty* columns splits `Перевод Ержан О.` across two"
+        " cells. *Spurious* counts parsed rows that match nothing in the ground truth.",
+        "",
+        "The two *unseen* rows recover 100% of transactions but score 59% and 84% fully correct,"
+        " and the reason is worth stating precisely: **the missing text is not on the page.**"
+        " A salary shows up in those statements as operation `Пополнение` from counterparty"
+        " `ТОО Астана Строй` — the word *Зарплата* appears nowhere in the file. In the Kazakh"
+        " layout a further 61 rows say `Аударым`, which is `Перевод` in Kazakh. No parser"
+        " recovers either: one needs inference, the other needs translation.",
         "",
         "| Layout | Expected | Returned | Recovered | Fully correct | Spurious |",
         "|---|---|---|---|---|---|",
@@ -159,6 +169,34 @@ def render(env: Dict[str, Any], latency: Section, accuracy: Section, engine: Sec
             f"{data['fully_correct']} ({data['full_accuracy']:.1f}%) | {data['spurious']} |"
         )
 
+    if completeness:
+        lines += [
+            "",
+            "## Field completeness",
+            "",
+            "Recovering the date and the amount is not the same as producing something the"
+            " detection modules can use. Structuring, the counterparty graph, merchant risk and"
+            " profile mismatch key off *what the counterparty is* — a merchant, a private"
+            " person, a bank — and off flags such as *salary* or *ATM*. **Classified** below is"
+            " the share of rows whose counterparty type is not `unknown`; it is the column that"
+            " matters, and it is the one the generic path cannot fill.",
+            "",
+            "The *unseen* layouts are statements from a bank no parser was written for:"
+            " different headers, different column order, one of them with no amount column at"
+            " all — the value is split across debit and credit. Every field is present in the"
+            " file, and after the multilingual header aliases the generic parser now recovers"
+            " all of them.",
+            "",
+            "| Input | Rows | Counterparty | Merchant | Classified | Flags |",
+            "|---|---|---|---|---|---|",
+        ]
+        for label, data in completeness.items():
+            lines.append(
+                f"| {label} | {data['rows']} | {data['counterparty_pct']:.0f}% | "
+                f"{data['merchant_pct']:.0f}% | {data['classified_pct']:.0f}% | "
+                f"{data['flagged_pct']:.0f}% |"
+            )
+
     lines += [
         "",
         "### Where the deterministic parser stops",
@@ -169,13 +207,37 @@ def render(env: Dict[str, Any], latency: Section, accuracy: Section, engine: Sec
         " only in money format, and the table-or-text decision is made per page. The row above"
         " measures the result.",
         "",
-        "What remains is not a bug but the shape of the approach: every layout above is one this"
-        " repository generates itself, and every bank-specific parser encodes a layout someone read"
-        " by hand. A statement from a bank with no parser, or an existing bank changing its export,"
-        " falls back to the generic path and recovers only what a generic layout exposes —"
-        " date, amount and description, without the counterparty and merchant metadata the"
-        " detection modules depend on. The gap between the two engine rows above is exactly that"
-        " cost. Closing it by hand means writing another parser per bank per format.",
+        "Two column-mapping bugs are also fixed. Headers were matched against Russian words only,"
+        " so a Kazakh statement (`Күні`, `Сомасы`, `Қалдық`) fell through to the text fallback,"
+        " which then read the *balance* column as the amount and turned the period line into a"
+        " transaction. And the mapping was tested with `if not mapping.get('date')` — index `0`"
+        " is falsy, so a layout with the date in the first column, which is nearly all of them,"
+        " was treated as unmapped and overwritten by guesswork.",
+        "",
+        "What remains is not a parsing bug, and this is the point of the section. On the unseen"
+        " layouts the generic parser now recovers **200/200 rows with 100% of counterparties** —"
+        " every character is off the page. The composite score still comes out LOW (17.4) against"
+        " HIGH (63.0) for the enriched input, because the string `Yandex Go poezdka` is extracted"
+        " but not *understood*: `counterparty_type` stays `unknown` for every row, so merchant"
+        " risk, the counterparty graph and profile mismatch have nothing to key off.",
+        "",
+        "That gap is not closable with better regexes, because the three things still missing are"
+        " not text-extraction problems at all:",
+        "",
+        "1. **Classification.** `Yandex Go poezdka` is a merchant, `Ержан О.` is a private person."
+        " Today this comes from hand-maintained merchant dictionaries inside the bank-specific"
+        " parsers, which cover the banks someone wrote a parser for and no others.",
+        "2. **Inference.** A monthly `Пополнение` from the same `ТОО` on the same day of the month"
+        " is a salary. The statement never says so; `is_salary` has to be concluded.",
+        "3. **Language.** `Аударым`, `Зат сатып алу`, `Толықтыру` mean transfer, purchase, top-up."
+        " Kazakh is a state language of Kazakhstan and appears on real statements, so this is not"
+        " an edge case. Today it is handled by an alias table that someone has to extend by hand"
+        " for every bank and every wording.",
+        "",
+        "All three are exactly what a language model does without being told the layout in advance."
+        " This is the measured case for the LLM extraction step, and the numbers to beat are"
+        " **classified 0% → 100%** and **composite 17.4 → 63.0**, at a stated cost and latency"
+        " per statement.",
         "",
         "## Method and limits",
         "",
@@ -191,7 +253,8 @@ def render(env: Dict[str, Any], latency: Section, accuracy: Section, engine: Sec
     return "\n".join(lines)
 
 
-def print_console(env: Dict[str, Any], latency: Section, accuracy: Section, engine: Section) -> None:
+def print_console(env: Dict[str, Any], latency: Section, accuracy: Section, engine: Section,
+                  completeness: Section | None = None) -> None:
     print("\n=== Machine ===")
     print(f"  CPU {env['cpu']} · {env['cores']} cores · {env['ram_gb']} GB RAM")
     print(f"  Python {env['python']} · {env['os']} · Ollama {'up' if env['ollama'] else 'down'}")
@@ -212,9 +275,19 @@ def print_console(env: Dict[str, Any], latency: Section, accuracy: Section, engi
     print("\n=== Fraud engine in isolation ===")
     for label, data in engine.items():
         print(
-            f"  {label:<22} median {data['stats']['median']:.2f}s · composite {data['composite']} "
+            f"  {label:<30} median {data['stats']['median']:.2f}s · composite {data['composite']} "
             f"({data['level']}) · {data['red_flags']} red flags"
         )
+
+    if completeness:
+        print("\n=== Field completeness (what the detectors actually get) ===")
+        print(f"  {'':<30} {'rows':>6} {'cparty':>8} {'merch':>7} {'class':>7} {'flags':>7}")
+        for label, data in completeness.items():
+            print(
+                f"  {label:<30} {data['rows']:>6} {data['counterparty_pct']:>7.0f}% "
+                f"{data['merchant_pct']:>6.0f}% {data['classified_pct']:>6.0f}% "
+                f"{data['flagged_pct']:>6.0f}%"
+            )
 
     print("\n=== Extraction accuracy ===")
     for label, data in accuracy.items():

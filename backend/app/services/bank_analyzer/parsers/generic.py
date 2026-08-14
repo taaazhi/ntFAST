@@ -368,9 +368,19 @@ class GenericParser(BaseParser):
         header_row = table[0]
         column_mapping = self._detect_columns(header_row)
 
-        if not column_mapping.get('date') and not column_mapping.get('amount'):
-            # Попробуем определить по первой строке данных
-            column_mapping = self._detect_columns_by_data(table[1] if len(table) > 1 else None)
+        # `is None`, а не truthiness: индекс колонки 0 — валидный, но ложный.
+        # Дата почти всегда стоит первой, поэтому прежняя проверка считала её
+        # ненайденной и перетирала разметку заголовков угадыванием по данным.
+        has_date = column_mapping.get('date') is not None
+        has_amount = (
+            column_mapping.get('amount') is not None
+            or 'amount_split' in column_mapping
+        )
+        if not has_date or not has_amount:
+            # Заголовки не дали нужного — пробуем определить по первой строке
+            guessed = self._detect_columns_by_data(table[1] if len(table) > 1 else None)
+            # Найденное по заголовкам точнее догадок: оно и побеждает.
+            column_mapping = {**guessed, **column_mapping}
 
         if not column_mapping:
             return
@@ -381,25 +391,49 @@ class GenericParser(BaseParser):
             if tx:
                 self.transactions.append(tx)
 
+    # Заголовки колонок на трёх языках. Порядок проверки важен: «остаток»
+    # ищется раньше «суммы», иначе казахское «Шот қалдығы» (остаток по счёту)
+    # перехватывается как сумма и в транзакции попадает баланс.
+    COLUMN_ALIASES = (
+        ("balance", ('баланс', 'остаток', 'қалдық', 'қалдығы', 'balance')),
+        ("date", ('дата', 'күні', 'date', 'время', 'уақыт')),
+        ("credit", ('приход', 'кіріс', 'credit', 'зачисление')),
+        ("debit", ('расход', 'шығыс', 'debit', 'списание')),
+        ("amount", ('сумма', 'сомасы', 'amount', 'sum')),
+        ("counterparty", ('контрагент', 'қарсы агент', 'counterparty',
+                          'получатель', 'плательщик', 'payee', 'payer')),
+        ("description", ('описание', 'детали', 'сипаттама', 'description',
+                         'details', 'назначение', 'толығырақ')),
+        ("type", ('вид операции', 'операция түрі', 'тип', 'type',
+                  'операция', 'категория')),
+    )
+
     def _detect_columns(self, header_row: List) -> Dict[str, int]:
-        """Определить соответствие колонок по заголовку"""
-        mapping = {}
+        """Определить соответствие колонок по заголовку (ru/kk/en).
+
+        Раньше сравнение шло только с русскими и английскими словами, и
+        выписка любого банка на казахском проваливалась в текстовый fallback,
+        который склеивал колонки и брал сумму откуда придётся.
+        """
+        mapping: Dict[str, int] = {}
         if not header_row:
             return mapping
 
         for i, cell in enumerate(header_row):
             cell_lower = str(cell or '').lower()
+            if not cell_lower.strip():
+                continue
+            for field, aliases in self.COLUMN_ALIASES:
+                if field in mapping:
+                    continue
+                if any(w in cell_lower for w in aliases):
+                    mapping[field] = i
+                    break
 
-            if any(w in cell_lower for w in ['дата', 'date', 'время']):
-                mapping['date'] = i
-            elif any(w in cell_lower for w in ['сумма', 'amount', 'sum']):
-                mapping['amount'] = i
-            elif any(w in cell_lower for w in ['описание', 'детали', 'description', 'details', 'назначение']):
-                mapping['description'] = i
-            elif any(w in cell_lower for w in ['тип', 'type', 'операция', 'категория']):
-                mapping['type'] = i
-            elif any(w in cell_lower for w in ['баланс', 'balance', 'остаток']):
-                mapping['balance'] = i
+        # Раскладка «Приход | Расход» вместо одной колонки суммы. Знак задаётся
+        # тем, в какой из колонок стоит число, поэтому отдельной «суммы» нет.
+        if 'amount' not in mapping and 'credit' in mapping and 'debit' in mapping:
+            mapping['amount_split'] = 1
 
         return mapping
 
@@ -435,32 +469,67 @@ class GenericParser(BaseParser):
             if not date:
                 return None
 
-            # Извлечь сумму
-            amount_idx = column_mapping.get('amount', 1)
-            amount_str = str(row[amount_idx] if amount_idx < len(row) else '').strip()
-            amount = self._parse_amount_adaptive(amount_str)
+            def cell(idx: Optional[int]) -> str:
+                if idx is None or idx < 0 or idx >= len(row):
+                    return ''
+                return str(row[idx] or '').strip()
+
+            # Извлечь сумму. Раскладка «Приход | Расход» задаёт знак тем,
+            # в какой колонке стоит число, — отдельной колонки суммы там нет.
+            used = {date_idx}
+            if 'amount_split' in column_mapping:
+                credit_idx = column_mapping.get('credit')
+                debit_idx = column_mapping.get('debit')
+                credit = self._parse_amount_adaptive(cell(credit_idx))
+                debit = self._parse_amount_adaptive(cell(debit_idx))
+                amount = credit if credit else -abs(debit)
+                used.update({i for i in (credit_idx, debit_idx) if i is not None})
+            else:
+                amount_idx = column_mapping.get('amount', 1)
+                amount = self._parse_amount_adaptive(cell(amount_idx))
+                used.add(amount_idx)
+
             if amount == 0:
                 return None
 
+            # Контрагент: в размеченной таблице он в своей колонке. Именно на
+            # него опираются граф, merchant risk и structuring — без него
+            # строка для детекторов почти бесполезна.
+            counterparty_idx = column_mapping.get('counterparty')
+            counterparty = cell(counterparty_idx) or None
+            if counterparty_idx is not None:
+                used.add(counterparty_idx)
+            if counterparty in {'—', '-', ''}:
+                counterparty = None
+
+            operation = cell(column_mapping.get('type')) or ''
+
             # Извлечь описание
-            desc_idx = column_mapping.get('description', -1)
-            if desc_idx >= 0 and desc_idx < len(row):
-                description = str(row[desc_idx] or '').strip()
+            desc_idx = column_mapping.get('description')
+            if desc_idx is not None and 0 <= desc_idx < len(row):
+                description = cell(desc_idx)
             else:
-                # Собрать всё кроме даты и суммы
+                # Собрать всё, кроме уже разобранных колонок и остатка
+                balance_idx = column_mapping.get('balance')
+                skip = used | ({balance_idx} if balance_idx is not None else set())
                 description = ' '.join(
-                    str(cell or '').strip() for i, cell in enumerate(row)
-                    if i not in [date_idx, amount_idx] and cell
+                    str(c or '').strip() for i, c in enumerate(row)
+                    if i not in skip and c
                 )
+            if not description:
+                description = ' '.join(x for x in (operation, counterparty or '') if x)
 
             # Определить тип транзакции
-            tx_type = self._detect_transaction_type(description, amount)
+            tx_type = self._detect_transaction_type(
+                ' '.join(x for x in (operation, description) if x), amount
+            )
 
             return Transaction(
                 date=date,
                 amount=amount,
                 type=tx_type,
                 description=description,
+                counterparty=counterparty,
                 currency=self.detected_currency,
                 raw_data={"row": row}
             )
