@@ -214,30 +214,31 @@ async def websocket_activity_endpoint(
 
     Подключение: ws://.../ws/activity?token=JWT_TOKEN
 
-    Аутентификация:
-      - JWT передаётся через query parameter `token`
-      - Если токен валиден → user_id берётся из токена (доверенный)
-      - Если токена нет → подключение как наблюдатель (user_id=0)
+    SECURITY: токен обязателен. Раньше соединение без токена принималось как
+    «наблюдатель» (user_id=0) — и такой сокет получал initial_users со списком
+    ВСЕХ пользователей (id, ФИО, email, роль, время входов), а затем и все
+    broadcast-события, включая notification_new с содержимым чужих уведомлений.
+    Для этого достаточно было открыть ws://host/ws/activity без единого
+    заголовка. Режим наблюдателя удалён: анонимных подключений здесь нет.
     """
-    # Аутентификация через JWT
-    user_id = 0
-    if token:
-        extracted = _extract_user_id_from_token(token)
-        if extracted:
-            user_id = extracted
-            logger.info(f"WS activity: user {user_id} authenticated via JWT")
-        else:
-            logger.warning("WS activity: invalid/expired token, rejecting")
-            await websocket.close(code=4001, reason="Invalid token")
-            return
-    else:
-        logger.info("WS activity: observer connection (no token)")
+    if not token:
+        # 1008 = Policy Violation (RFC 6455); close() работает без accept()
+        await websocket.close(code=1008, reason="Missing authentication token")
+        return
+
+    user_id = _extract_user_id_from_token(token)
+    if not user_id:
+        logger.warning("WS activity: invalid/expired token, rejecting")
+        await websocket.close(code=4001, reason="Invalid token")
+        return
+
+    logger.info(f"WS activity: user {user_id} authenticated via JWT")
 
     # Accept connection
     await manager.connect(websocket, user_id)
     logger.info(f"WS activity: connected (user_id={user_id})")
 
-    # Если аутентифицированный пользователь — ставим online
+    # Ставим пользователя online
     if user_id > 0:
         try:
             db = SessionLocal()

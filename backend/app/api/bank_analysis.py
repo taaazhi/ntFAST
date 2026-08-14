@@ -520,12 +520,17 @@ async def analyze_bank_statement(
 @router.post("/detect")
 async def detect_bank_type(
     file: UploadFile = File(...),
+    current_user: User = Depends(get_current_user),
 ):
     """
     Определить тип банка без полного анализа
 
     Быстрая проверка какой банк выпустил выписку.
     Поддерживает PDF и XLSX файлы.
+
+    SECURITY: требует аутентификации. Эндпоинт принимает загруженный файл
+    и разбирает его pdfplumber/openpyxl — без авторизации это открытый приём
+    произвольных файлов и бесплатный расход CPU для любого желающего.
     """
     ext = _validate_file_extension(file.filename)
 
@@ -569,7 +574,7 @@ async def detect_bank_type(
 
 
 @router.get("/supported-banks")
-async def get_supported_banks():
+async def get_supported_banks(current_user: User = Depends(get_current_user)):
     """Получить список поддерживаемых банков"""
     return {
         "banks": [
@@ -634,12 +639,19 @@ async def get_supported_banks():
 
 
 @router.post("/export-pdf")
-async def export_analysis_pdf(request: Request):
+async def export_analysis_pdf(
+    request: Request,
+    current_user: User = Depends(get_current_user),
+):
     """
     Generate a PDF report from analysis results.
 
     Accepts the full analysis JSON (same structure as /analyze response)
     and returns a branded ntFAST PDF report.
+
+    SECURITY: требует аутентификации. Приём произвольного JSON с последующей
+    генерацией многостраничного PDF через reportlab — дорогая операция;
+    открытый доступ к ней это готовый вектор отказа в обслуживании.
     """
     try:
         data = await request.json()
@@ -677,7 +689,7 @@ async def export_analysis_pdf(request: Request):
 
 
 @router.get("/categories")
-async def get_categories():
+async def get_categories(current_user: User = Depends(get_current_user)):
     """Получить все доступные категории транзакций"""
     from app.services.kaspi_analyzer import TransactionCategorizer
 

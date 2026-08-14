@@ -17,7 +17,9 @@
  * Reconnection:
  *   Reconnects on ANY close (clean or unclean) with exponential backoff.
  *   Max delay: 30 seconds. Max attempts: unlimited (until manual disconnect).
- *   Code 4001 (invalid token): reconnects WITHOUT token (as observer).
+ *   Codes 4001 / 1008 (token rejected or missing): stops reconnecting. The
+ *   endpoint serves authenticated users only — retrying without credentials
+ *   would loop forever. The axios 401 interceptor handles the redirect.
  */
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { WS_BASE_URL } from '../services/api';
@@ -48,7 +50,6 @@ export const useActivityMonitor = (): UseActivityMonitorReturn => {
   const shouldReconnectRef = useRef<boolean>(true);
   const isConnectingRef = useRef<boolean>(false);
   const reconnectAttemptRef = useRef<number>(0);
-  const useTokenRef = useRef<boolean>(true);  // Try with token first
 
   const [userStatuses, setUserStatuses] = useState<Map<number, UserStatus>>(new Map());
   const [isConnected, setIsConnected] = useState(false);
@@ -75,6 +76,15 @@ export const useActivityMonitor = (): UseActivityMonitorReturn => {
     const currentState = wsRef.current?.readyState;
     if (currentState === WebSocket.OPEN || currentState === WebSocket.CONNECTING) return;
 
+    // The endpoint no longer accepts anonymous connections, so a missing
+    // token means there is nothing to connect with. Bail out instead of
+    // opening a socket the server will immediately close with 1008.
+    const token = localStorage.getItem('access_token');
+    if (!token) {
+      console.log('[WS] No access token — activity monitor stays offline');
+      return;
+    }
+
     isConnectingRef.current = true;
     shouldReconnectRef.current = true;
 
@@ -85,10 +95,8 @@ export const useActivityMonitor = (): UseActivityMonitorReturn => {
         wsRef.current = null;
       }
 
-      // Build WebSocket URL with optional JWT token
-      const token = useTokenRef.current ? localStorage.getItem('access_token') : null;
-      const wsUrl = `${WS_BASE_URL}/ws/activity${token ? `?token=${token}` : ''}`;
-      console.log(`[WS] Connecting to ${WS_BASE_URL}/ws/activity (token: ${token ? 'yes' : 'no'}, attempt: ${reconnectAttemptRef.current})`);
+      const wsUrl = `${WS_BASE_URL}/ws/activity?token=${encodeURIComponent(token)}`;
+      console.log(`[WS] Connecting to ${WS_BASE_URL}/ws/activity (attempt: ${reconnectAttemptRef.current})`);
 
       const ws = new WebSocket(wsUrl);
       wsRef.current = ws;
@@ -96,7 +104,6 @@ export const useActivityMonitor = (): UseActivityMonitorReturn => {
       ws.onopen = () => {
         isConnectingRef.current = false;
         reconnectAttemptRef.current = 0;  // Reset backoff on successful connection
-        useTokenRef.current = true;       // Reset token flag
         setIsConnected(true);
         console.log('[WS] Connected successfully');
 
@@ -226,11 +233,15 @@ export const useActivityMonitor = (): UseActivityMonitorReturn => {
         // CRITICAL: Reconnect on ANY close (not just unclean)
         // Unless manually disconnected via disconnect()
         if (shouldReconnectRef.current) {
-          // Handle code 4001: invalid/expired token
-          // Next reconnect attempt will be WITHOUT token (observer mode)
-          if (event.code === 4001) {
-            console.warn('[WS] Token rejected (4001). Reconnecting as observer...');
-            useTokenRef.current = false;
+          // 4001 = token rejected, 1008 = token missing. Both mean this client
+          // has no valid session, and the server no longer serves anonymous
+          // observers (it used to hand them every user's email). Retrying
+          // without a token would just loop against a closed door — stop and
+          // let the axios 401 interceptor route the user to /login.
+          if (event.code === 4001 || event.code === 1008) {
+            console.warn(`[WS] Authentication rejected (${event.code}). Not reconnecting.`);
+            shouldReconnectRef.current = false;
+            return;
           }
 
           // Exponential backoff: 1s, 2s, 4s, 8s, 16s, 30s (max)
@@ -279,7 +290,6 @@ export const useActivityMonitor = (): UseActivityMonitorReturn => {
 
     isConnectingRef.current = false;
     reconnectAttemptRef.current = 0;
-    useTokenRef.current = true;
     setIsConnected(false);
   }, []);
 
@@ -287,7 +297,6 @@ export const useActivityMonitor = (): UseActivityMonitorReturn => {
   useEffect(() => {
     shouldReconnectRef.current = true;
     reconnectAttemptRef.current = 0;
-    useTokenRef.current = true;
     connect();
 
     return () => {

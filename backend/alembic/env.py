@@ -11,13 +11,20 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from app.core.config import settings
 from app.core.database import Base
 
-# Import all models so Base.metadata has them
+# Import all models so Base.metadata has them.
+# CRITICAL: every model must be listed here. Autogenerate diffs the database
+# against Base.metadata, so a model missing from this list looks like a table
+# that exists in the database but not in the code — and alembic dutifully
+# writes a DROP TABLE for it. `notifications` was missing, which meant the
+# next `alembic revision --autogenerate` would have dropped every user's
+# notification history.
 from app.models.user import User
 from app.models.analysis import Analysis
 from app.models.transaction import Transaction
 from app.models.subject import Subject
 from app.models.login_history import LoginHistory
 from app.models.email_verification import EmailVerification
+from app.models.notification import Notification
 
 config = context.config
 
