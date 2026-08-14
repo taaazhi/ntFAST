@@ -175,12 +175,23 @@ A row counts as recovered when a parsed transaction carries the same date and am
 | Excel (.xlsx) | 500 / 500 — **100%** | 100% |
 | PDF — ruled table | 500 / 500 — **100%** | 100% |
 | PDF — multipage, running headers/footers | 500 / 500 — **100%** | 100% |
-| PDF — flat text, no table | 0 / 500 — **0%** | 0% |
+| PDF — flat text, no table | 500 / 500 — **100%** | 100% |
 
-That last row is a real limitation, not a rounding artefact: with no extractable table the
-parser falls back to line-by-line text, and its amount regex matches the leading date, so
-`06.01.2025 … -26 341.94` is read as an amount of `6.01`. Statements exported as flat text
-are not supported today.
+The last row used to read 0%, and the way it failed is worth keeping on the record: the
+amount regex matched the leading date, so `06.01.2025 … -26 341,94` was extracted as an
+amount of `6.01`. Transactions were still created, with correct dates and invented amounts —
+a statement turning over millions looked like one turning over a few hundred tenge, and the
+fraud engine scored it LOW in good faith. The amount is now read only after the date and only
+in money format, and the text fallback is decided per page instead of being switched off
+after the first five rows.
+
+### Real statements
+
+The synthetic figures above measure layouts this repository generates itself. Against the
+author's own statements — Kaspi and Halyk in Russian, Kazakh and English, plus a Binance
+export — the parsers recover **9 of 9 files**, and the three language variants of the same
+document produce identical totals (Kaspi 1320 transactions, Halyk 34). Those files contain
+personal data and are not in the repository.
 
 ### Detection output
 

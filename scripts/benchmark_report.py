@@ -161,14 +161,21 @@ def render(env: Dict[str, Any], latency: Section, accuracy: Section, engine: Sec
 
     lines += [
         "",
-        "### Known limitation — PDFs without a ruled table",
+        "### Where the deterministic parser stops",
         "",
-        "When a PDF carries no extractable table, `GenericParser` falls back to line-by-line text"
-        " parsing (`parsers/generic.py:362`), and that path currently mis-reads the row: its amount"
-        " regex matches the leading date, so `06.01.2025 … -26 341.94` is read as an amount of"
-        " `6.01`. The fallback also runs only while fewer than 5 transactions have been collected,"
-        " so it stops after the first page. Statements exported as flat text are therefore not"
-        " supported today — the row above measures that rather than hiding it.",
+        "PDFs without a ruled table used to score 0%: the amount regex matched the leading date, so"
+        " `06.01.2025 … -26 341,94` was read as an amount of `6.01`, and the text fallback stopped"
+        " after the first page. Both are fixed — the amount is now searched only after the date and"
+        " only in money format, and the table-or-text decision is made per page. The row above"
+        " measures the result.",
+        "",
+        "What remains is not a bug but the shape of the approach: every layout above is one this"
+        " repository generates itself, and every bank-specific parser encodes a layout someone read"
+        " by hand. A statement from a bank with no parser, or an existing bank changing its export,"
+        " falls back to the generic path and recovers only what a generic layout exposes —"
+        " date, amount and description, without the counterparty and merchant metadata the"
+        " detection modules depend on. The gap between the two engine rows above is exactly that"
+        " cost. Closing it by hand means writing another parser per bank per format.",
         "",
         "## Method and limits",
         "",

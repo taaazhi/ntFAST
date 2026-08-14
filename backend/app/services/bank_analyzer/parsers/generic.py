@@ -342,17 +342,22 @@ class GenericParser(BaseParser):
                 break
 
     def _parse_page_adaptive(self, page, page_num: int) -> None:
-        """Адаптивный парсинг страницы"""
-        # Сначала пробуем таблицы
-        tables = page.extract_tables()
-        for table in tables:
+        """Адаптивный парсинг страницы: сначала таблицы, иначе текст.
+
+        Решение принимается ПО КАЖДОЙ странице отдельно. Раньше условием было
+        `len(self.transactions) < 5` — общий счётчик по всему документу, из-за
+        чего текстовый разбор выключался навсегда, как только набиралось пять
+        транзакций. На PDF без таблиц это означало разбор первой страницы и
+        молчаливую потерю всех остальных.
+        """
+        before = len(self.transactions)
+
+        for table in page.extract_tables() or []:
             if table and len(table) > 1:
                 self._parse_table_adaptive(table)
 
-        # Если таблиц мало, пробуем текстовый парсинг
-        if len(self.transactions) < 5:
-            text = page.extract_text() or ""
-            self._parse_text_adaptive(text)
+        if len(self.transactions) == before:
+            self._parse_text_adaptive(page.extract_text() or "")
 
     def _parse_table_adaptive(self, table: List[List]) -> None:
         """Адаптивный парсинг таблицы"""
@@ -464,39 +469,61 @@ class GenericParser(BaseParser):
             logger.debug(f"Ошибка парсинга строки: {e}")
             return None
 
-    def _parse_text_adaptive(self, text: str) -> None:
-        """Парсинг транзакций из текста (fallback)"""
-        lines = text.split('\n')
+    # Денежная сумма: обязательно два знака после разделителя копеек.
+    # Целые числа не берём — под них подпадают номера документов, счётчики
+    # страниц и куски дат.
+    MONEY_PATTERN = re.compile(r'[+-]?\d[\d   ]*[.,]\d{2}(?!\d)')
 
-        for line in lines:
-            line = line.strip()
+    def _parse_text_adaptive(self, text: str) -> None:
+        """Парсинг транзакций из текста (fallback, когда таблиц в PDF нет).
+
+        Сумму ищем СТРОГО ПОСЛЕ даты и только в денежном формате. Прежняя
+        версия сканировала строку целиком регулярным выражением, которое
+        допускало числа без копеек, и первым совпадением оказывалась сама
+        дата: строка «06.01.2025 Yandex Go poezdka -26 341,94» давала сумму
+        6.01 вместо -26 341,94. Транзакции при этом создавались — с верной
+        датой и выдуманной суммой. Выписка с оборотом в миллионы выглядела
+        как выписка на пару сотен тенге, и антифрод честно ставил LOW.
+        """
+        for raw_line in text.split('\n'):
+            line = raw_line.strip()
             if not line:
                 continue
 
-            # Ищем строки с датой и суммой
             date = None
+            date_end = 0
             for pattern, _ in self.DATE_PATTERNS:
                 match = re.search(pattern, line)
                 if match:
                     date = self._parse_date_adaptive(match.group())
+                    date_end = match.end()
                     break
 
             if not date:
                 continue
 
-            # Ищем сумму
-            amount_match = re.search(r'([+-]?\s*[\d\s]+[,.]?\d*)\s*[₸₽$€¥£]?', line)
-            if amount_match:
-                amount = self._parse_amount_adaptive(amount_match.group())
-                if amount != 0:
-                    tx_type = self._detect_transaction_type(line, amount)
-                    self.transactions.append(Transaction(
-                        date=date,
-                        amount=amount,
-                        type=tx_type,
-                        description=line,
-                        currency=self.detected_currency
-                    ))
+            # Хвост строки после даты — там, где стоит сумма и описание
+            tail = line[date_end:]
+            amounts = self.MONEY_PATTERN.findall(tail)
+            if not amounts:
+                # Строка с датой, но без распознаваемой суммы. Молча
+                # пропускаем — это шапка, футер или строка периода.
+                continue
+
+            # Из нескольких чисел берём последнее: в выписках порядок
+            # «сумма … остаток» встречается реже, чем «описание … сумма».
+            amount = self._parse_amount_adaptive(amounts[-1])
+            if amount == 0:
+                continue
+
+            tx_type = self._detect_transaction_type(line, amount)
+            self.transactions.append(Transaction(
+                date=date,
+                amount=amount,
+                type=tx_type,
+                description=tail.strip() or line,
+                currency=self.detected_currency,
+            ))
 
     def _parse_date_adaptive(self, date_str: str) -> Optional[datetime]:
         """Адаптивный парсинг даты"""
