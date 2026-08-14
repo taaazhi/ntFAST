@@ -145,7 +145,14 @@ class BankAnalyzer:
         self._emit("enriching", 38, "Обогащение данных", "Контрагенты и источники дохода...")
         try:
             from ..enrichment import enrich_transactions
-            enrichment = enrich_transactions(transactions)
+            from ..enrichment.pipeline import build_ai_manager
+            # build_ai_manager() отдаёт None, пока обогащение через модель
+            # не включено явно, — тогда всё считается локально.
+            enrichment = enrich_transactions(
+                transactions,
+                ai_manager=build_ai_manager(),
+                owner_name=getattr(account, "owner", None),
+            )
             self.enrichment = enrichment
             if enrichment["salary_sources"]:
                 names = ", ".join(s["counterparty"] for s in enrichment["salary_sources"][:2])

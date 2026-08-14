@@ -119,3 +119,9 @@ scripts/create_pm1_application*.js
 scripts/create_presentation*.js
 scripts/create_block_diagram*.js
 
+# ─── ruflo / claude-flow: рабочее состояние оркестратора, не код проекта ───
+# .swarm/ — база памяти агентов (растёт до мегабайтов и содержит фрагменты
+# рабочих сессий); .claude-flow/ — состояние фонового демона, pid и метрики.
+.claude-flow/
+.swarm/
+

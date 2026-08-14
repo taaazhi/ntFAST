@@ -80,12 +80,30 @@ class Settings(BaseSettings):
     ALLOWED_FILE_TYPES: list[str] = ["pdf", "csv", "xlsx", "xls"]
 
     # AI Configuration
+    #
+    # Модель выбирается под задачу, а не одна на всё. Классификация
+    # контрагента — это тысячи коротких однотипных решений «магазин,
+    # человек или госорган», и платить за них ценой модели для рассуждений
+    # незачем. Разбор схемы и объяснение флага со ссылкой на НПА —
+    # наоборот, редкие и сложные вызовы.
     CLAUDE_API_KEY: str = ""
-    CLAUDE_MODEL: str = "claude-sonnet-4-20250514"
+    #: Массовая классификация: дёшево и быстро.
+    CLAUDE_EXTRACTION_MODEL: str = "claude-haiku-4-5-20251001"
+    #: Рассуждения, объяснение флагов, отчёт следователю.
+    CLAUDE_REASONING_MODEL: str = "claude-sonnet-5"
+    #: Совместимость: код, который просит «модель по умолчанию».
+    CLAUDE_MODEL: str = "claude-haiku-4-5-20251001"
     OLLAMA_HOST: str = "http://localhost:11434"
     OLLAMA_MODEL: str = "llama3:8b"
     AI_PRIMARY_PROVIDER: str = "claude"
     AI_MAX_TOKENS: int = 4096
+
+    #: Обогащение через модель. Выключено по умолчанию: без ключа и без
+    #: явного согласия ни одна строка выписки не должна уходить наружу.
+    AI_ENRICHMENT_ENABLED: bool = False
+    #: Жёсткий потолок вызовов на один анализ — защита от выписки на
+    #: 1320 транзакций, которая незаметно превратится в счёт за API.
+    AI_MAX_CALLS_PER_ANALYSIS: int = 20
 
     # Celery & Redis Configuration
     REDIS_HOST: str = "localhost"

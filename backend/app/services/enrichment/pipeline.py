@@ -22,6 +22,32 @@ from .salary_detector import mark_salary_transactions
 logger = logging.getLogger(__name__)
 
 
+def build_ai_manager() -> Optional[Any]:
+    """Собрать провайдера из настроек — или ничего, если он не разрешён.
+
+    Выключено по умолчанию (`AI_ENRICHMENT_ENABLED=False`). Отправка
+    выписки во внешний сервис — решение владельца системы, а не побочный
+    эффект обновления кода: закон РК «О персональных данных» (№94-V)
+    относит эти данные к охраняемым, и включаться такое должно осознанно.
+
+    Для извлечения берётся Haiku: классификация контрагентов — это тысячи
+    коротких однотипных решений, и модель для рассуждений здесь не нужна.
+    """
+    from app.core.config import settings
+
+    if not getattr(settings, "AI_ENRICHMENT_ENABLED", False):
+        return None
+
+    from app.services.ai.ai_manager import AIManager
+
+    return AIManager(
+        claude_api_key=settings.CLAUDE_API_KEY,
+        claude_model=settings.CLAUDE_EXTRACTION_MODEL,
+        ollama_host=settings.OLLAMA_HOST,
+        ollama_model=settings.OLLAMA_MODEL,
+    )
+
+
 def _names_of(transactions: Sequence[Any]) -> List[str]:
     return [
         (getattr(t, "counterparty", None) or getattr(t, "description", None) or "")
@@ -55,10 +81,35 @@ def _run_async(coro):
     raise RuntimeError("event loop is already running")
 
 
+def _anonymised_names(
+    transactions: Sequence[Any], owner_name: Optional[str]
+) -> tuple[List[str], Any]:
+    """Имена контрагентов в виде, пригодном для отправки наружу.
+
+    Шлюз, а не украшение. Всё, что уходит в облачную модель, проходит
+    здесь: ФИО, ИИН/ЖСН, IBAN, номера карт и телефоны заменяются на теги.
+    Названия организаций сохраняются намеренно — без них оценка риска
+    мерчанта теряет смысл, а персональными данными они не являются.
+
+    Возвращает список в том же порядке, что и транзакции, и сам
+    анонимизатор: по нему потом проверяется, что утечки не было.
+    """
+    from app.services.privacy.anonymizer import Anonymizer
+
+    anonymizer = Anonymizer(owner_name=owner_name)
+    raw = _names_of(transactions)
+    # Первый проход обязателен: одно и то же имя встречается и в поле
+    # контрагента, и внутри описания. Без него имя, вычищенное из одного
+    # места, осталось бы открытым в другом.
+    anonymizer.register(raw)
+    return [anonymizer.counterparty(name) for name in raw], anonymizer
+
+
 def enrich_transactions(
     transactions: Sequence[Any],
     ai_manager: Optional[Any] = None,
     cache: Optional[Dict[str, Classification]] = None,
+    owner_name: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Обогатить транзакции на месте. Возвращает сводку для отчёта."""
     if not transactions:
@@ -66,11 +117,21 @@ def enrich_transactions(
 
     classifier = CounterpartyClassifier(ai_manager=ai_manager, cache=cache)
     stats: Optional[Dict[str, Any]] = None
+    privacy: Optional[Dict[str, Any]] = None
 
     if ai_manager is not None:
         try:
-            mapping = _run_async(classifier.classify(_names_of(transactions)))
+            safe_names, anonymizer = _anonymised_names(transactions, owner_name)
+            safe_mapping = _run_async(classifier.classify(safe_names))
+            # Классификации получены по обезличенным именам — возвращаем их
+            # к исходным, чтобы проставить в транзакции.
+            mapping = {
+                raw.strip(): safe_mapping[safe.strip()]
+                for raw, safe in zip(_names_of(transactions), safe_names)
+                if raw.strip() and safe.strip() in safe_mapping
+            }
             stats = classifier.stats.as_dict()
+            privacy = anonymizer.report().to_dict()
         except Exception as exc:
             # Недоступная модель не должна ломать анализ — она его улучшает.
             logger.warning("Обогащение через модель не выполнено (%s), работаем по правилам", exc)
@@ -85,4 +146,7 @@ def enrich_transactions(
         "classified": classified,
         "salary_sources": [f.as_dict() for f in salary_sources],
         "classifier": stats,
+        # Что именно было замаскировано перед отправкой наружу. Пустое,
+        # когда модель не вызывалась и данные периметр не покидали.
+        "privacy": privacy,
     }

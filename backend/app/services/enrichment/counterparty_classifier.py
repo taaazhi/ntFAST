@@ -40,8 +40,16 @@ from app.utils.helpers import is_organization
 
 logger = logging.getLogger(__name__)
 
-#: Плейсхолдеры анонимизатора: «[ФИО-1]», «[CUSTOMER]», «[ИИН-2]».
-PLACEHOLDER_PATTERN = re.compile(r'^\[[A-ZА-ЯЁ_]+(?:-\d+)?\]$')
+#: Теги анонимизатора: «[PERSON_1]», «[CUSTOMER]», «[IIN_1]», «[IBAN_2]».
+#: Формат обязан совпадать с `privacy/anonymizer.py` — иначе замаскированное
+#: физлицо не опознаётся, и вместо бесплатного локального решения уходит в
+#: облако запрос про строку, которая и так уже обезличена.
+PLACEHOLDER_PATTERN = re.compile(r'^\[[A-Z]+(?:[_-]\d+)?\]$')
+
+#: Теги, обозначающие именно человека, — ровно те, что ставит
+#: `Anonymizer.counterparty()` и `CUSTOMER_TAG`. Остальные («[IBAN_1]»)
+#: человеком не являются и в поле контрагента значить его не могут.
+PERSON_PLACEHOLDER_PATTERN = re.compile(r'^\[(?:PERSON|CUSTOMER)(?:[_-]\d+)?\]$')
 
 #: Кириллица с казахскими буквами, включая латинскую schwa Ə (U+018F),
 #: которой в выписках печатают казахскую Ә.
@@ -210,12 +218,16 @@ def classify_by_rule(name: str) -> Classification:
     if not cleaned:
         return Classification()
 
-    if PLACEHOLDER_PATTERN.match(cleaned):
+    if PERSON_PLACEHOLDER_PATTERN.match(cleaned):
         return Classification(
             counterparty_type=CounterpartyType.PERSON,
             confidence=1.0,
             source="anonymizer",
         )
+    if PLACEHOLDER_PATTERN.match(cleaned):
+        # Обезличенный, но не человек: «[IBAN_1]», «[CARD_2]». Гадать по
+        # такому тегу нечего, и отправлять его модели тоже незачем.
+        return Classification(source="anonymizer")
 
     form = extract_legal_form(cleaned)
     if form or is_organization(cleaned):
@@ -341,14 +353,15 @@ class CounterpartyClassifier:
         return list(seen)
 
     def _resolve_cheaply(self, name: str) -> Optional[Classification]:
-        """Плейсхолдер или кэш — без сетевого вызова."""
+        """Плейсхолдер или кэш — без сетевого вызова.
+
+        Любой тег анонимизатора разрешается здесь и наружу не уходит. Это
+        не оптимизация, а часть гарантии приватности: обезличенная строка
+        не должна порождать запрос в облако.
+        """
         if PLACEHOLDER_PATTERN.match(name):
             self.stats.from_anonymizer += 1
-            return Classification(
-                counterparty_type=CounterpartyType.PERSON,
-                confidence=1.0,
-                source="anonymizer",
-            )
+            return classify_by_rule(name)
         cached = self._cache.get(name)
         if cached is not None:
             self.stats.from_cache += 1

@@ -49,15 +49,34 @@ def wrap(*entries):
 @pytest.mark.anyio
 async def test_placeholders_never_reach_the_model():
     """Обезличенное имя уже опознано как физлицо. Отправлять наружу нечего,
-    и спрашивать не о чем."""
+    и спрашивать не о чем.
+
+    Теги здесь ровно те, что ставит `privacy/anonymizer.py`. Это важно:
+    пока паттерн ждал выдуманный «[ФИО-1]», настоящий «[PERSON_1]» не
+    распознавался, и обезличенная строка уходила в облако — запрос без
+    смысла, зато с сетевым вызовом.
+    """
     ai = FakeAI([])  # любой вызов провайдера — падение теста
     classifier = CounterpartyClassifier(ai_manager=ai)
 
-    result = await classifier.classify(["[ФИО-1]", "[CUSTOMER]"])
+    result = await classifier.classify(["[PERSON_1]", "[CUSTOMER]"])
 
     assert ai.prompts == []
     assert all(c.counterparty_type is CounterpartyType.PERSON for c in result.values())
     assert classifier.stats.from_anonymizer == 2
+
+
+@pytest.mark.anyio
+async def test_non_person_placeholders_are_not_people():
+    """«[IBAN_1]» обезличен, но человеком от этого не стал. Наружу он тоже
+    не уходит — гадать по такому тегу нечего."""
+    ai = FakeAI([])
+    classifier = CounterpartyClassifier(ai_manager=ai)
+
+    result = await classifier.classify(["[IBAN_1]", "[CARD_2]"])
+
+    assert ai.prompts == []
+    assert all(c.counterparty_type is CounterpartyType.UNKNOWN for c in result.values())
 
 
 @pytest.mark.anyio
