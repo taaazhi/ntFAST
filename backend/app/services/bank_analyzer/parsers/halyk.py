@@ -14,6 +14,59 @@ from ..base_parser import BaseParser, Transaction, TransactionType, Counterparty
 logger = logging.getLogger(__name__)
 
 
+# ── Многоязычные метки (ru / kk / en) ─────────────────────────────
+# «Справка о наличии счета» выдаётся Halyk на трёх языках с одинаковой
+# структурой таблиц. Раньше распознавание шло по русским литералам, поэтому
+# казахская и английская справки давали 0 транзакций при parse() == True.
+
+# Заголовки транзакционной таблицы (сравниваются со снятыми пробелами)
+TX_TABLE_MARKERS = (
+    "датапроведенияоперации", "описаниеоперации",           # ru
+    "операцияжүргізілгенкүн", "операцияныңсипаттамасы",      # kk
+    "dateoftransaction", "transactiondescription",           # en
+)
+
+# Первая ячейка итоговой строки
+TOTALS_MARKERS = ("всего", "барлығы", "total")
+
+# Метки на титульной странице
+RE_CLIENT = re.compile(r'(?:Клиент|Client)\s+(.+)')
+RE_IIN = re.compile(r'(?:ИИН|ЖСН|IIN)\s+(\d{12})')
+RE_CERT_NO = re.compile(r'(?:Справка|Анықтама|Certificate)\s*№\s*(\d+)')
+
+# Заголовок таблицы счетов
+ACCOUNTS_TABLE_MARKERS = ("номер счета", "шот нөмірі", "account number")
+TOTAL_KZT_MARKERS = ("общая сумма в kzt", "жалпы сомасы kzt", "total amount kzt")
+
+# Входящий / исходящий остаток. В PDF метка и значение слипаются без пробелов
+# («Входящийостаток:62,15KZT;»), поэтому сравниваем по тексту со снятыми
+# пробелами и собираем regex сразу по всем языковым вариантам.
+OPENING_BALANCE_LABELS = ("Входящийостаток", "Кірісқалдығы", "Openingbalance")
+CLOSING_BALANCE_LABELS = ("Исходящийостаток", "Шығысқалдығы", "Closingbalance")
+
+RE_OPENING_BALANCE = re.compile(
+    r'(?:' + "|".join(OPENING_BALANCE_LABELS) + r')\s*:\s*(-?[\d\s]+[.,]\d{2})\s*KZT',
+    re.IGNORECASE,
+)
+RE_CLOSING_BALANCE = re.compile(
+    r'(?:' + "|".join(CLOSING_BALANCE_LABELS) + r')\s*:\s*(-?[\d\s]+[.,]\d{2})\s*KZT',
+    re.IGNORECASE,
+)
+
+# Kaspi/Halyk печатают казахскую шва латиницей: Ə (U+018F) / ə (U+0259).
+_SCHWA_NORMALISE = str.maketrans({"Ə": "Ә", "ə": "ә"})
+
+
+def _norm(text: str) -> str:
+    """Нормализовать графику и регистр для сравнения меток."""
+    return (text or "").translate(_SCHWA_NORMALISE).lower()
+
+
+def _matches_any(text: str, needles: tuple) -> bool:
+    low = _norm(text)
+    return any(n in low for n in needles)
+
+
 class HalykParser(BaseParser):
     """
     Парсер PDF выписок Halyk Bank
@@ -81,6 +134,13 @@ class HalykParser(BaseParser):
                     self._parse_transactions_from_page(page, page_num)
 
             logger.info(f"Успешно спарсено {len(self.transactions)} транзакций Halyk")
+            # Ноль транзакций — провал, а не успех (см. StatementParsingError).
+            if not self.transactions:
+                self.errors.append(
+                    "Ни одной транзакции не извлечено: заголовки таблицы операций "
+                    "не совпали с ожидаемыми (проверьте язык справки)"
+                )
+                return False
             return True
 
         except Exception as e:
@@ -100,20 +160,18 @@ class HalykParser(BaseParser):
         """Извлечь входящий/исходящий остаток и период из текста выписки (стр. 2)"""
         text = page.extract_text() or ""
 
-        # Входящий остаток: 61,15 KZT
-        opening_match = re.search(r'Входящийостаток:\s*([\d\s]+[.,]\d{2})\s*KZT', text.replace(" ", ""))
-        if not opening_match:
-            opening_match = re.search(r'Входящий\s*остаток:\s*([\d\s]+[.,]\d{2})\s*KZT', text)
+        # Метка и значение в PDF слипаются («Входящийостаток:62,15KZT»),
+        # поэтому ищем по варианту текста без пробелов.
+        compact = text.replace(" ", "")
+
+        opening_match = RE_OPENING_BALANCE.search(compact) or RE_OPENING_BALANCE.search(text)
         if opening_match:
             bal = self._parse_amount(opening_match.group(1))
             if bal is not None:
                 self.account.balance_start = bal
                 logger.info(f"Halyk: входящий остаток = {bal}")
 
-        # Исходящий остаток: 201,15 KZT
-        closing_match = re.search(r'Исходящийостаток:\s*([\d\s]+[.,]\d{2})\s*KZT', text.replace(" ", ""))
-        if not closing_match:
-            closing_match = re.search(r'Исходящий\s*остаток:\s*([\d\s]+[.,]\d{2})\s*KZT', text)
+        closing_match = RE_CLOSING_BALANCE.search(compact) or RE_CLOSING_BALANCE.search(text)
         if closing_match:
             bal = self._parse_amount(closing_match.group(1))
             if bal is not None:
@@ -133,13 +191,14 @@ class HalykParser(BaseParser):
         """Извлечь информацию о клиенте и счетах с первой страницы"""
         text = page.extract_text() or ""
 
-        # Клиент
-        client_match = re.search(r'Клиент\s+(.+)', text)
+        # Клиент (ru/en; в казахской справке метка тоже "Клиент")
+        client_match = RE_CLIENT.search(text)
         if client_match:
             self.account.owner = client_match.group(1).strip()
 
-        # ИИН
-        iin_match = re.search(r'ИИН\s+(\d{12})', text)
+        # ИИН / ЖСН / IIN — прямой идентификатор, обязателен к маскированию
+        # перед любой отправкой во внешнюю модель (см. anonymizer).
+        iin_match = RE_IIN.search(text)
         if iin_match:
             self.account.extra["iin"] = iin_match.group(1)
 
@@ -152,7 +211,7 @@ class HalykParser(BaseParser):
                 pass
 
         # Номер справки
-        ref_match = re.search(r'Справка\s*№\s*(\d+)', text)
+        ref_match = RE_CERT_NO.search(text)
         if ref_match:
             self.account.extra["reference_number"] = ref_match.group(1)
 
@@ -164,9 +223,10 @@ class HalykParser(BaseParser):
                 continue
 
             header = [str(c or "").strip() for c in table[0]]
+            header_text = _norm(" ".join(header))
 
             # Таблица общей суммы
-            if "Общая сумма в KZT" in header:
+            if any(m in header_text for m in TOTAL_KZT_MARKERS):
                 row = table[1]
                 if row:
                     total_str = str(row[0] or "").replace("₸", "").strip()
@@ -175,7 +235,7 @@ class HalykParser(BaseParser):
                         self.account.extra["total_kzt"] = total
 
             # Таблица счетов
-            if "Номер счета" in header:
+            if any(m in header_text for m in ACCOUNTS_TABLE_MARKERS):
                 for row in table[1:]:
                     if not row or not row[0]:
                         continue
@@ -212,9 +272,9 @@ class HalykParser(BaseParser):
                 if not row or len(row) < 9:
                     continue
 
-                # Пропускаем строку "Всего"
+                # Пропускаем итоговую строку ("Всего" / "Барлығы" / "Total")
                 first_cell = str(row[0] or "").strip()
-                if first_cell.lower().startswith("всего"):
+                if _norm(first_cell).startswith(TOTALS_MARKERS):
                     self._parse_totals_row(row)
                     continue
 
@@ -227,10 +287,9 @@ class HalykParser(BaseParser):
                     self.transactions.append(tx)
 
     def _is_transaction_table(self, header: List[str]) -> bool:
-        """Проверить что таблица содержит транзакции (по заголовку)"""
-        header_text = " ".join(header).lower()
-        return "датапроведенияоперации" in header_text.replace(" ", "") or \
-               "описаниеоперации" in header_text.replace(" ", "")
+        """Проверить что таблица содержит транзакции (по заголовку, ru/kk/en)"""
+        header_text = _norm(" ".join(header)).replace(" ", "")
+        return any(marker in header_text for marker in TX_TABLE_MARKERS)
 
     def _parse_totals_row(self, row) -> None:
         """Извлечь итоги из строки 'Всего'"""

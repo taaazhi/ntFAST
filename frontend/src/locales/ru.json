@@ -99,7 +99,6 @@
     "loading": "Загрузка...",
     "createSubject": "Создать субъект",
     "editSubject": "Изменить субъект",
-    "addSubject": "Добавить субъект",
     "enterName": "Введите имя",
     "enter12Digits": "Введите 12 цифр",
     "selectType": "Выберите тип",
@@ -141,7 +140,7 @@
     "selectedFiles": "Выбранные файлы",
     "startAnalysis": "Начать ИИ-анализ",
     "analyzing": "Анализ",
-    "uploading": "Загрузка файла...",
+    "uploading": "Загрузка",
     "analysisComplete": "Анализ завершён",
     "noFilesSelected": "Пожалуйста, выберите файлы для анализа",
     "confirmDelete": "Удалить эту запись анализа?",
@@ -227,7 +226,6 @@
     "noAnalysesDesc": "Загрузите файл банковской выписки для первого анализа",
     "noResults": "Ничего не найдено",
     "noResultsDesc": "Попробуйте изменить параметры поиска",
-    "uploading": "Загрузка",
     "exportError": "Ошибка экспорта PDF. Попробуйте ещё раз.",
     "reanalyze": "Перезапустить",
     "reanalyzeQueued": "Анализ перезапущен",
@@ -355,7 +353,8 @@
           "highRiskShare": "Высокорисковые мерчанты: {{pct}}% от расходов ({{amount}})",
           "highRisk": "Высокий риск",
           "mediumRisk": "Средний риск",
-          "noRisky": "Рисковых мерчантов не обнаружено"
+          "noRisky": "Рисковых мерчантов не обнаружено",
+          "shellCompanies": "Подставные компании"
         },
         "nightTransactions": {
           "short": "Ночные",
@@ -413,7 +412,8 @@
         "searchPlaceholder": "Поиск по описанию или категории…",
         "typeFilter": "Тип операции",
         "typeAll": "Все",
-        "noMatch": "Транзакции не найдены"
+        "noMatch": "Транзакции не найдены",
+        "sortBy": "Сортировать"
       },
       "accountProfile": {
         "title": "Профиль аккаунта (определён AI)",
@@ -439,7 +439,8 @@
           "medium": "СРЕДНИЙ",
           "low": "НИЗКИЙ"
         }
-      }
+      },
+      "balanceNotReconciled": "Баланс не сошёлся"
     }
   },
   "settings": {

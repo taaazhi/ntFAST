@@ -99,7 +99,6 @@
     "loading": "Жүктелуде...",
     "createSubject": "Субъект жасау",
     "editSubject": "Субъектіні өзгерту",
-    "addSubject": "Субъект қосу",
     "enterName": "Атын енгізіңіз",
     "enter12Digits": "12 санды енгізіңіз",
     "selectType": "Түрін таңдаңыз",
@@ -148,7 +147,7 @@
     "selectedFiles": "Таңдалған файлдар",
     "startAnalysis": "ИИ-талдауды бастау",
     "analyzing": "Талдау...",
-    "uploading": "Файл жүктелуде...",
+    "uploading": "Жүктеу",
     "analysisComplete": "Талдау аяқталды",
     "noFilesSelected": "Талдау үшін файлдарды таңдаңыз",
     "totalVolume": "Қаржы көлемі",
@@ -176,7 +175,6 @@
     "noAnalysesDesc": "Бірінші талдау үшін банк көшірмесі файлын жүктеңіз",
     "noResults": "Ештеңе табылмады",
     "noResultsDesc": "Іздеу параметрлерін өзгертіп көріңіз",
-    "uploading": "Жүктеу",
     "reanalyze": "Қайта талдау",
     "reanalyzeQueued": "Талдау қайта жіберілді",
     "cancel": "Тоқтату",
@@ -355,7 +353,8 @@
           "highRiskShare": "Жоғары тәуекелді сатушылар: шығыстардың {{pct}}% ({{amount}})",
           "highRisk": "Жоғары тәуекел",
           "mediumRisk": "Орташа тәуекел",
-          "noRisky": "Тәуекелді сатушылар табылған жоқ"
+          "noRisky": "Тәуекелді сатушылар табылған жоқ",
+          "shellCompanies": "Жалған компаниялар"
         },
         "nightTransactions": {
           "short": "Түнгі",
@@ -413,7 +412,8 @@
         "searchPlaceholder": "Сипаттама немесе санат бойынша іздеу…",
         "typeFilter": "Операция түрі",
         "typeAll": "Барлығы",
-        "noMatch": "Транзакциялар табылған жоқ"
+        "noMatch": "Транзакциялар табылған жоқ",
+        "sortBy": "Сұрыптау"
       },
       "accountProfile": {
         "title": "Аккаунт профилі (AI анықтады)",
@@ -439,7 +439,8 @@
           "medium": "ОРТА",
           "low": "ТӨМЕН"
         }
-      }
+      },
+      "balanceNotReconciled": "Баланс сәйкес келмеді"
     }
   },
   "settings": {

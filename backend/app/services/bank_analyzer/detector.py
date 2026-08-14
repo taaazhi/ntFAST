@@ -162,10 +162,18 @@ class BankDetector:
             self._extract_pdf_content()
 
     def _extract_xlsx_content(self) -> None:
-        """Извлечь текст из XLSX для анализа (первые 15 строк)"""
+        """Извлечь текст из XLSX для анализа (первые 15 строк).
+
+        CRITICAL: read_only=False. Binance exports carry their metadata in a
+        sheet whose dimensions openpyxl cannot determine lazily — in read-only
+        mode iter_rows() yields nothing at all, the detector sees an empty
+        document, scores every bank at 0 and falls back to GenericParser, which
+        then extracts 0 transactions from a file BinanceParser reads fine.
+        BinanceParser already learned this the hard way (see parsers/binance.py).
+        """
         try:
             import openpyxl
-            wb = openpyxl.load_workbook(self.pdf_path, read_only=True, data_only=True)
+            wb = openpyxl.load_workbook(self.pdf_path, read_only=False, data_only=True)
             sheet = wb.worksheets[0]
             lines = []
             for i, row in enumerate(sheet.iter_rows(values_only=True)):
@@ -175,6 +183,7 @@ class BankDetector:
                 if row_text:
                     lines.append(row_text)
             self.text_content = "\n".join(lines)
+            wb.close()
         except Exception as e:
             logger.warning(f"Error extracting XLSX content: {e}")
 

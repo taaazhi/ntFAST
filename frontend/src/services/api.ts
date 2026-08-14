@@ -557,6 +557,13 @@ export interface MerchantRiskData {
     count: number;
     category: string;
   }>;
+  /** Shell-company suspects — generic legal-entity names used to layer funds. */
+  shell_companies?: Array<{
+    name: string;
+    amount: number;
+    count: number;
+    category: string;
+  }>;
   total_high_risk_amount: number;
   total_high_risk_pct: number;
   risk_score: number;
@@ -656,7 +663,16 @@ export interface KaspiAnalysisResult {
   };
   validation: {
     total_transactions: number;
+    /** Extraction succeeded — transactions were read from the statement. */
     is_valid: boolean;
+    /**
+     * Does the document reconcile with itself (opening + flows == closing)?
+     * `null` when the format carries no balances to check against (e.g. Binance,
+     * where amounts are denominated in different coins). Deliberately separate
+     * from `is_valid`: a multi-currency Halyk statement can be extracted
+     * perfectly and still not reconcile on its KZT leg alone.
+     */
+    balance_reconciled: boolean | null;
     expected: Record<string, number>;
     actual: Record<string, number>;
     differences: Record<string, number>;

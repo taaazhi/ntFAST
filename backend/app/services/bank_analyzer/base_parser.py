@@ -9,6 +9,24 @@ from datetime import datetime
 from enum import Enum
 
 
+class StatementParsingError(Exception):
+    """Выписку не удалось разобрать — ни одной транзакции не извлечено.
+
+    Поднимается вместо молчаливого возврата пустого результата. Раньше парсер
+    возвращал success=True с нулём транзакций, анализ продолжался на пустом
+    списке, и пользователь видел «Анализ завершён» с риском LOW — то есть
+    система сообщала «чисто» там, где она просто не прочитала документ.
+    Для инструмента следственных органов это худший класс ошибки.
+    """
+
+    def __init__(self, message: str, *, bank: str = "", parser: str = "",
+                 details: Optional[List[str]] = None):
+        super().__init__(message)
+        self.bank = bank
+        self.parser = parser
+        self.details = details or []
+
+
 class TransactionType(Enum):
     """Универсальные типы транзакций"""
     INCOME = "income"           # Пополнение
@@ -203,15 +221,15 @@ class BaseParser(ABC):
         Валидация спарсенных данных
         Сравнивает фактические суммы с ожидаемыми
         """
-        # Подсчет фактических сумм
-        actual_deposits = sum(
-            t.amount for t in self.transactions
-            if t.type in [TransactionType.INCOME, TransactionType.TRANSFER_IN, TransactionType.DEPOSIT]
-        )
-        actual_expenses = sum(
-            abs(t.amount) for t in self.transactions
-            if t.type in [TransactionType.EXPENSE, TransactionType.TRANSFER_OUT, TransactionType.WITHDRAWAL, TransactionType.FEE]
-        )
+        # Подсчёт фактических сумм — ПО ЗНАКУ, а не по перечню типов.
+        # Прежняя версия перечисляла типы явно, и операции с типом OTHER
+        # (Kaspi «Разное»), REFUND, CRYPTO_* не попадали ни в доходы, ни в
+        # расходы. Баланс не сходился на корректно разобранной выписке, флаг
+        # is_valid уходил в False, и UI показывал «Есть расхождения» всегда.
+        # Знак суммы — единственный универсальный признак направления, и он
+        # не ломается при добавлении новых типов операций.
+        actual_deposits = sum(t.amount for t in self.transactions if t.amount > 0)
+        actual_expenses = sum(-t.amount for t in self.transactions if t.amount < 0)
 
         expected = {
             "deposits": self.expected_totals.deposits,
@@ -226,28 +244,60 @@ class BaseParser(ABC):
             "expenses": actual_expenses
         }
 
-        # Проверка баланса
+        # Балансы извлекаются не из каждой выписки: у Binance их нет вовсе,
+        # и складывать суммы в USDT/BTC/ETH в один «оборот» бессмысленно.
+        has_balances = bool(self.account.balance_start or self.account.balance_end)
+
+        # Проверка баланса с ОТНОСИТЕЛЬНЫМ допуском.
+        # Жёсткий порог в 1 тенге — это 0.00008% от оборота в 1.2 млн, то есть
+        # строже, чем сходятся сами банковские справки: в мультивалютных
+        # выписках Halyk остатки по KZT/USD/EUR дают копеечную невязку на
+        # стороне банка. Проверено на реальных выписках: строка «Всего»,
+        # напечатанная банком, совпадает с извлечёнными суммами до копейки,
+        # а остатки расходятся на единицы тенге. Абсолютный порог помечал
+        # такие корректно разобранные выписки как невалидные, и UI показывал
+        # «Есть расхождения» практически всегда.
+        turnover = actual_deposits + actual_expenses
+        tolerance = max(1.0, turnover * 1e-5)  # 0.001% от оборота, но не менее 1 ₸
+
         calculated_end = self.account.balance_start + actual_deposits - actual_expenses
         balance_diff = abs(calculated_end - self.account.balance_end)
-        is_valid = balance_diff < 1.0  # Допускаем погрешность в 1 тенге
 
-        if not is_valid:
-            self.errors.append(
-                f"Расхождение баланса: начальный {self.account.balance_start:,.2f} + "
+        # balance_reconciled — свойство ДОКУМЕНТА: сходится ли он сам с собой.
+        # None означает «проверить нечем» (балансы не извлекаются из этого формата).
+        balance_reconciled: Optional[bool] = None
+        if has_balances:
+            balance_reconciled = balance_diff <= tolerance
+
+        # is_valid — свойство ИЗВЛЕЧЕНИЯ: пригодны ли данные для анализа.
+        # Это разные вещи, и раньше они были смешаны: мультивалютная справка
+        # Halyk (KZT-таблица операций при остатках по KZT/USD/EUR) не сходится
+        # по построению, и выписка помечалась как невалидная, хотя строка
+        # «Всего» банка совпадает с извлечёнными суммами до копейки.
+        is_valid = len(self.transactions) > 0
+
+        if balance_reconciled is False:
+            self.warnings.append(
+                f"Баланс не сходится: начальный {self.account.balance_start:,.2f} + "
                 f"доход {actual_deposits:,.2f} - расход {actual_expenses:,.2f} = "
-                f"{calculated_end:,.2f}, ожидалось {self.account.balance_end:,.2f}"
+                f"{calculated_end:,.2f}, в выписке {self.account.balance_end:,.2f} "
+                f"(отклонение {balance_diff:,.2f} при допуске {tolerance:,.2f}). "
+                f"Возможная причина — мультивалютная выписка или комиссии вне таблицы операций."
             )
 
         return {
             "total_transactions": len(self.transactions),
             "is_valid": is_valid,
+            "balance_reconciled": balance_reconciled,
             "expected": expected,
             "actual": actual,
             "balance_check": {
                 "start": self.account.balance_start,
                 "calculated_end": calculated_end,
                 "actual_end": self.account.balance_end,
-                "difference": balance_diff
+                "difference": balance_diff,
+                "tolerance": round(tolerance, 2),
+                "checked": has_balances,
             },
             "errors": self.errors,
             "warnings": self.warnings,

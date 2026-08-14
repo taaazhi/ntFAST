@@ -8,7 +8,7 @@ import {
   Network, Layers, ArrowLeftRight, Store, Eye,
   ChevronDown, ChevronRight, Zap, Target, Fingerprint, Clock,
   PieChart as PieChartIcon, FileText, Sparkles, Download, Loader2,
-  Moon, Copy, CircleDollarSign, UserX
+  Moon, Copy, CircleDollarSign, UserX, ArrowUpDown
 } from 'lucide-react';
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
@@ -25,6 +25,7 @@ interface BankAnalysisReportProps {
 }
 
 type SectionId = 'overview' | 'financial' | 'antifraud' | 'details' | 'conclusions';
+type TxSortField = 'date' | 'details' | 'category' | 'amount';
 
 // Map i18n language code \u2192 BCP47 locale used by Intl APIs.
 function intlLocale(lang: string): string {
@@ -45,6 +46,19 @@ export function BankAnalysisReport({ result, onClose }: BankAnalysisReportProps)
   // Transaction filter state (Details section)
   const [txSearch, setTxSearch] = useState('');
   const [txTypeFilter, setTxTypeFilter] = useState<'all' | 'income' | 'expense'>('all');
+  // Sorting for the transaction table. Default: newest first — an analyst
+  // opens a statement to see the most recent activity.
+  const [txSort, setTxSort] = useState<{ field: TxSortField; dir: 'asc' | 'desc' }>(
+    { field: 'date', dir: 'desc' }
+  );
+
+  const toggleTxSort = (field: TxSortField) => {
+    setTxSort(prev =>
+      prev.field === field
+        ? { field, dir: prev.dir === 'asc' ? 'desc' : 'asc' }
+        : { field, dir: field === 'date' || field === 'amount' ? 'desc' : 'asc' }
+    );
+  };
 
   const fraud = result.fraud_report;
   const locale = intlLocale(i18n.language);
@@ -246,6 +260,10 @@ export function BankAnalysisReport({ result, onClose }: BankAnalysisReportProps)
                 <FileText className="w-4 h-4 text-blue-400" />
                 <span>{result.summary.total_transactions} {t('analyses.report.transactionsSuffix')}</span>
               </div>
+              {/* Extraction status: did we read the statement completely?
+                  Kept separate from balance reconciliation below — a
+                  multi-currency statement can be extracted perfectly and still
+                  not reconcile on the KZT leg alone. */}
               {result.validation.is_valid ? (
                 <span className="flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium" style={{ background: 'rgba(52,168,83,0.2)', color: '#34a853', borderWidth: 1, borderStyle: 'solid', borderColor: 'rgba(52,168,83,0.3)' }}>
                   <CheckCircle className="w-3.5 h-3.5" />
@@ -255,6 +273,16 @@ export function BankAnalysisReport({ result, onClose }: BankAnalysisReportProps)
                 <span className="flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium" style={{ background: 'rgba(217,119,6,0.2)', color: '#f59e0b', borderWidth: 1, borderStyle: 'solid', borderColor: 'rgba(217,119,6,0.3)' }}>
                   <AlertTriangle className="w-3.5 h-3.5" />
                   {t('analyses.report.hasDiscrepancies')}
+                </span>
+              )}
+              {result.validation.balance_reconciled === false && (
+                <span
+                  className="flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium"
+                  style={{ background: 'rgba(217,119,6,0.2)', color: '#f59e0b', borderWidth: 1, borderStyle: 'solid', borderColor: 'rgba(217,119,6,0.3)' }}
+                  title={result.validation.errors?.join(' ') || undefined}
+                >
+                  <AlertTriangle className="w-3.5 h-3.5" />
+                  {t('analyses.report.balanceNotReconciled')}
                 </span>
               )}
             </div>
@@ -1057,7 +1085,28 @@ export function BankAnalysisReport({ result, onClose }: BankAnalysisReportProps)
                                   </div>
                                 )}
                               </div>
-                              {fraud.merchant_risk.high_risk_merchants.length === 0 && fraud.merchant_risk.medium_risk_merchants.length === 0 && (
+                              {/* Shell companies — generic legal-entity names.
+                                  These already moved the score; without this
+                                  block the analyst saw the number but not why. */}
+                              {(fraud.merchant_risk.shell_companies?.length ?? 0) > 0 && (
+                                <div>
+                                  <h5 className="text-xs font-bold text-red-500 uppercase mb-2">
+                                    {t('analyses.report.modules.merchantRisk.shellCompanies')}
+                                  </h5>
+                                  <div className="space-y-2">
+                                    {fraud.merchant_risk.shell_companies!.map((m, i) => (
+                                      <div key={i} className="flex justify-between p-2 bg-red-50 dark:bg-red-900/20 rounded-lg text-xs border border-red-200/50 dark:border-red-800/30">
+                                        <span className="font-medium text-red-700 dark:text-red-300 truncate max-w-[60%]">{m.name}</span>
+                                        <div className="text-right flex-shrink-0">
+                                          <span className="font-medium">{formatCurrency(m.amount)}</span>
+                                          <span className="text-gray-400 ml-1">x{m.count}</span>
+                                        </div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+                              {fraud.merchant_risk.high_risk_merchants.length === 0 && fraud.merchant_risk.medium_risk_merchants.length === 0 && (fraud.merchant_risk.shell_companies?.length ?? 0) === 0 && (
                                 <div className="text-center py-8 text-gray-400">
                                   <CheckCircle className="w-8 h-8 mx-auto mb-2 text-green-400" />
                                   <p className="text-sm">{t('analyses.report.modules.merchantRisk.noRisky')}</p>
@@ -1339,7 +1388,28 @@ export function BankAnalysisReport({ result, onClose }: BankAnalysisReportProps)
                     const cat = String(tx.category || '').toLowerCase();
                     return desc.includes(needle) || cat.includes(needle);
                   });
-                  const visibleSlice = showAllTransactions ? filtered : filtered.slice(0, 50);
+
+                  // Sort the whole filtered set BEFORE slicing, so "sort by
+                  // amount" surfaces the largest transaction in the statement,
+                  // not merely the largest among the first 50 rows.
+                  const dir = txSort.dir === 'asc' ? 1 : -1;
+                  const sorted = [...filtered].sort((a: any, b: any) => {
+                    switch (txSort.field) {
+                      case 'amount':
+                        return ((a.amount ?? 0) - (b.amount ?? 0)) * dir;
+                      case 'details':
+                        return String(a.details || '').localeCompare(String(b.details || ''), locale) * dir;
+                      case 'category':
+                        return String(a.category || '').localeCompare(String(b.category || ''), locale) * dir;
+                      case 'date':
+                      default: {
+                        const ta = new Date(a.date).getTime() || 0;
+                        const tb = new Date(b.date).getTime() || 0;
+                        return (ta - tb) * dir;
+                      }
+                    }
+                  });
+                  const visibleSlice = showAllTransactions ? sorted : sorted.slice(0, 50);
                   return (
                 <div className="overflow-hidden rounded-2xl border border-gray-200/50 dark:border-gray-700/40">
                   {/* Result count + Show all toggle */}
@@ -1364,10 +1434,40 @@ export function BankAnalysisReport({ result, onClose }: BankAnalysisReportProps)
                       <thead className="bg-gray-50 dark:bg-gray-800/80 sticky top-0 z-10">
                         <tr>
                           <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase">#</th>
-                          <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase">{t('analyses.report.transactions.dateCol')}</th>
-                          <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase">{t('analyses.report.transactions.descriptionCol')}</th>
-                          <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase">{t('analyses.report.transactions.categoryCol')}</th>
-                          <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase">{t('analyses.report.transactions.amountCol')}</th>
+                          {([
+                            { field: 'date' as const, label: t('analyses.report.transactions.dateCol'), align: 'left' },
+                            { field: 'details' as const, label: t('analyses.report.transactions.descriptionCol'), align: 'left' },
+                            { field: 'category' as const, label: t('analyses.report.transactions.categoryCol'), align: 'left' },
+                            { field: 'amount' as const, label: t('analyses.report.transactions.amountCol'), align: 'right' },
+                          ]).map(col => {
+                            const active = txSort.field === col.field;
+                            return (
+                              <th
+                                key={col.field}
+                                scope="col"
+                                aria-sort={active ? (txSort.dir === 'asc' ? 'ascending' : 'descending') : 'none'}
+                                className={`px-4 py-3 text-${col.align} text-xs font-semibold uppercase select-none cursor-pointer transition-colors ${
+                                  active
+                                    ? 'text-blue-600 dark:text-blue-400'
+                                    : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
+                                }`}
+                                onClick={() => toggleTxSort(col.field)}
+                              >
+                                <button
+                                  type="button"
+                                  className={`inline-flex items-center gap-1 uppercase ${col.align === 'right' ? 'flex-row-reverse' : ''}`}
+                                  aria-label={`${col.label} — ${t('analyses.report.transactions.sortBy') || 'sort'}`}
+                                >
+                                  {col.label}
+                                  <ArrowUpDown
+                                    className={`w-3 h-3 transition-transform ${
+                                      active ? 'opacity-100' : 'opacity-30'
+                                    } ${active && txSort.dir === 'asc' ? 'rotate-180' : ''}`}
+                                  />
+                                </button>
+                              </th>
+                            );
+                          })}
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-gray-100 dark:divide-gray-800/50">

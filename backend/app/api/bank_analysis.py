@@ -22,6 +22,7 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.services.bank_analyzer import BankAnalyzer, BankDetector, BankType
+from app.services.bank_analyzer.base_parser import StatementParsingError
 from app.services.pdf_export import NtFastPDFReport
 from app.services.websocket_manager import analysis_progress
 from app.models.analysis import Analysis
@@ -476,6 +477,27 @@ async def analyze_bank_statement(
             except Exception:
                 pass
         raise
+    except StatementParsingError as e:
+        # The file was readable but no transactions could be extracted.
+        # This is a user-actionable outcome (wrong format / unsupported layout),
+        # not a server fault — say so instead of returning a generic 500 or,
+        # worse, an empty "completed" report.
+        logger.warning(f"Не удалось разобрать выписку '{safe_filename}': {e}")
+        if session_id:
+            try:
+                await analysis_progress.send_error(session_id, "parsing_failed")
+            except Exception:
+                pass
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "error": "statement_parsing_failed",
+                "message": str(e),
+                "bank": e.bank,
+                "parser": e.parser,
+                "details": e.details,
+            },
+        )
     except Exception as e:
         logger.error(f"Ошибка анализа: {e}", exc_info=True)
         # SECURITY: send generic error to client; full details only to logs

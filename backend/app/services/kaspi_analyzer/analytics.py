@@ -371,48 +371,90 @@ class FinancialAnalytics:
             "total_foreign_kzt": sum(r["total_kzt"] for r in result)
         }
 
+    # Названия категорий должны совпадать с TransactionCategorizer.EXPENSE_CATEGORIES.
+    # Раньше здесь стояли строки с эмодзи ('💊 Здоровье'), а категоризатор
+    # возвращает 'Здоровье' — совпадений не было никогда, и essential_ratio
+    # всегда равнялся нулю, который показывался пользователю как реальный
+    # показатель финансового здоровья.
+    ESSENTIAL_CATEGORIES = frozenset({
+        "Здоровье", "Связь и коммуналка", "Страхование", "Еда и продукты",
+    })
+    NON_ESSENTIAL_CATEGORIES = frozenset({
+        "Игры и развлечения", "Шоппинг", "Рестораны", "Подписки и сервисы",
+    })
+
+    # Порог, ниже которого изменение баланса считается шумом, а не трендом
+    TREND_THRESHOLD = 0.10
+
     def _financial_health(self) -> Dict[str, Any]:
-        """Calculate financial health indicators"""
+        """Показатели финансового здоровья.
+
+        Все *_rate / *_ratio возвращаются как ДОЛИ (0..1), а не проценты —
+        форматирование в проценты делает потребитель. Раньше здесь было
+        умножение на 100, и фронтенд умножал на 100 повторно, показывая
+        накопления 20% как 2000%.
+        """
         total_income = sum(t.amount for t in self.transactions if t.amount > 0)
         total_expense = sum(abs(t.amount) for t in self.transactions if t.amount < 0)
 
-        # Savings rate
-        savings_rate = (total_income - total_expense) / total_income * 100 if total_income > 0 else 0
+        savings_rate = (total_income - total_expense) / total_income if total_income > 0 else 0.0
 
-        # Categorize expenses as essential/non-essential
-        essential_categories = ['💊 Здоровье', '🏠 Связь и коммуналка', '🏥 Страхование', '🍕 Еда и продукты']
-        non_essential_categories = ['🎮 Игры и развлечения', '🛍️ Шоппинг', '🍽️ Рестораны', '📱 Подписки']
+        essential_expense = 0.0
+        non_essential_expense = 0.0
+        for tx in self.categorized_transactions or []:
+            if tx["amount"] >= 0:
+                continue
+            category = tx.get("category") or ""
+            if category in self.ESSENTIAL_CATEGORIES:
+                essential_expense += abs(tx["amount"])
+            elif category in self.NON_ESSENTIAL_CATEGORIES:
+                non_essential_expense += abs(tx["amount"])
 
-        essential_expense = 0
-        non_essential_expense = 0
-
-        if self.categorized_transactions:
-            for tx in self.categorized_transactions:
-                if tx["amount"] < 0:
-                    cat = tx["category"]
-                    if any(e in cat for e in essential_categories):
-                        essential_expense += abs(tx["amount"])
-                    elif any(n in cat for n in non_essential_categories):
-                        non_essential_expense += abs(tx["amount"])
-
-        # Monthly trend
+        # Тренд баланса. Значения должны совпадать с теми, что ожидает UI:
+        # growing / declining / stable. Раньше возвращалось "improving",
+        # которого фронтенд не знал, поэтому "растёт" не отображалось никогда.
         monthly = self._monthly_breakdown()
+        trend = "stable"
         if len(monthly) >= 2:
-            balances = [m["balance"] for m in monthly]
-            trend = "improving" if balances[-1] > balances[0] else "declining"
-        else:
-            trend = "stable"
+            first, last = monthly[0]["balance"], monthly[-1]["balance"]
+            scale = max(abs(first), abs(last), 1.0)
+            delta = (last - first) / scale
+            if delta > self.TREND_THRESHOLD:
+                trend = "growing"
+            elif delta < -self.TREND_THRESHOLD:
+                trend = "declining"
+
+        # Среднемесячные значения — по реальному числу месяцев в выписке.
+        # Раньше делилось на жёсткие 12, поэтому на трёхмесячной выписке
+        # средний доход занижался вчетверо.
+        months = max(len(monthly), 1)
+        days = self._period_days()
 
         return {
             "savings_rate": savings_rate,
             "essential_expenses": essential_expense,
             "non_essential_expenses": non_essential_expense,
-            "essential_ratio": essential_expense / total_expense * 100 if total_expense > 0 else 0,
+            "essential_ratio": essential_expense / total_expense if total_expense > 0 else 0.0,
             "balance_trend": trend,
-            "monthly_avg_income": total_income / 12,
-            "monthly_avg_expense": total_expense / 12,
-            "financial_buffer_days": self.account.balance_end / (total_expense / 365) if total_expense > 0 else 0
+            "months_covered": months,
+            "monthly_avg_income": total_income / months,
+            "monthly_avg_expense": total_expense / months,
+            "financial_buffer_days": (
+                self.account.balance_end / (total_expense / days)
+                if total_expense > 0 and days > 0 else 0.0
+            ),
         }
+
+    def _period_days(self) -> int:
+        """Длительность выписки в днях (по периоду счёта либо по датам транзакций)."""
+        start = getattr(self.account, "period_start", None)
+        end = getattr(self.account, "period_end", None)
+        if start and end:
+            return max((end - start).days, 1)
+        dates = [t.date for t in self.transactions if getattr(t, "date", None)]
+        if len(dates) >= 2:
+            return max((max(dates) - min(dates)).days, 1)
+        return 30
 
     def _weekday_analysis(self) -> List[Dict[str, Any]]:
         """Analyze spending by day of week"""

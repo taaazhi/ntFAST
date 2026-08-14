@@ -215,6 +215,12 @@ class CrossReferenceResult:
 class MerchantRiskResult:
     high_risk_merchants: List[Dict] = field(default_factory=list)
     medium_risk_merchants: List[Dict] = field(default_factory=list)
+    # Подставные («шелл») компании: юрлица с обезличенными названиями вроде
+    # "ТОО Global Invest Consulting". MerchantRiskScorer заполнял это поле,
+    # но в датаклассе его не было — Python молча создавал атрибут на лету,
+    # поэтому детект влиял на risk_score, но не попадал ни в to_dict(), ни в
+    # БД, ни в UI. Аналитик видел балл без объяснения, откуда он взялся.
+    shell_companies: List[Dict] = field(default_factory=list)
     total_high_risk_amount: float = 0.0
     total_high_risk_pct: float = 0.0
     risk_score: float = 0.0
@@ -223,6 +229,7 @@ class MerchantRiskResult:
         return {
             "high_risk_merchants": self.high_risk_merchants,
             "medium_risk_merchants": self.medium_risk_merchants,
+            "shell_companies": self.shell_companies,
             "total_high_risk_amount": self.total_high_risk_amount,
             "total_high_risk_pct": self.total_high_risk_pct,
             "risk_score": self.risk_score,

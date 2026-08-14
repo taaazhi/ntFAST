@@ -99,7 +99,6 @@
     "loading": "Loading...",
     "createSubject": "Create Subject",
     "editSubject": "Edit Subject",
-    "addSubject": "Add Subject",
     "enterName": "Enter name",
     "enter12Digits": "Enter 12 digits",
     "selectType": "Select type",
@@ -148,7 +147,7 @@
     "selectedFiles": "Selected Files",
     "startAnalysis": "Start AI Analysis",
     "analyzing": "Analyzing...",
-    "uploading": "Uploading file...",
+    "uploading": "Uploading",
     "analysisComplete": "Analysis complete",
     "noFilesSelected": "Please select files to analyze",
     "totalVolume": "Financial Volume",
@@ -176,7 +175,6 @@
     "noAnalysesDesc": "Upload a bank statement file to run the first analysis",
     "noResults": "Nothing found",
     "noResultsDesc": "Try changing search parameters",
-    "uploading": "Uploading",
     "transactions": "transactions",
     "totalIncome": "Total Income",
     "totalExpenses": "Total Expenses",
@@ -355,7 +353,8 @@
           "highRiskShare": "High-risk merchants: {{pct}}% of expenses ({{amount}})",
           "highRisk": "High Risk",
           "mediumRisk": "Medium Risk",
-          "noRisky": "No risky merchants detected"
+          "noRisky": "No risky merchants detected",
+          "shellCompanies": "Shell companies"
         },
         "nightTransactions": {
           "short": "Night",
@@ -413,7 +412,8 @@
         "searchPlaceholder": "Search by description or category…",
         "typeFilter": "Operation type",
         "typeAll": "All",
-        "noMatch": "No transactions found"
+        "noMatch": "No transactions found",
+        "sortBy": "Sort"
       },
       "accountProfile": {
         "title": "Account Profile (AI-detected)",
@@ -439,7 +439,8 @@
           "medium": "MEDIUM",
           "low": "LOW"
         }
-      }
+      },
+      "balanceNotReconciled": "Balance does not reconcile"
     }
   },
   "settings": {

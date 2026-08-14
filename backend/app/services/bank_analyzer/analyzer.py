@@ -7,7 +7,9 @@ from typing import Dict, Any, List, Optional, Type
 from datetime import datetime
 
 from .detector import BankDetector, BankType, BankDetectionResult
-from .base_parser import BaseParser, Transaction, TransactionType, AccountInfo
+from .base_parser import (
+    BaseParser, Transaction, TransactionType, AccountInfo, StatementParsingError
+)
 from .parsers.kaspi import KaspiParser
 from .parsers.halyk import HalykParser
 from .parsers.generic import GenericParser
@@ -102,6 +104,20 @@ class BankAnalyzer:
 
         transactions = self.parser.get_transactions()
         account = self.parser.get_account_info()
+
+        # Пустой результат — останавливаемся здесь. Продолжать анализ на нуле
+        # транзакций значит выдать пользователю отчёт с риском LOW по документу,
+        # который система вообще не прочитала.
+        if not transactions:
+            detail = "; ".join(self.parser.errors) or "структура файла не распознана"
+            self._emit("parse_failed", 100, "Не удалось разобрать выписку", detail)
+            raise StatementParsingError(
+                f"Не удалось извлечь ни одной транзакции из файла "
+                f"({self.detection_result.bank_name}): {detail}",
+                bank=self.detection_result.bank_name,
+                parser=parser_class.__name__,
+                details=self.parser.errors,
+            )
 
         logger.info(f"Спарсено транзакций: {len(transactions)}")
         self._emit("parsed", 35, "Транзакции извлечены",

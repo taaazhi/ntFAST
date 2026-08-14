@@ -13,6 +13,93 @@ from ..base_parser import BaseParser, Transaction, TransactionType, Counterparty
 logger = logging.getLogger(__name__)
 
 
+# ── Многоязычные словари (ru / kk / en) ───────────────────────────
+# Kaspi выдаёт одну и ту же выписку на трёх языках. Парсер приводит любой
+# из них к каноническому русскому ключу — вся логика ниже остаётся общей.
+# Раньше сравнение шло с русскими литералами напрямую, поэтому казахская и
+# английская выписки давали 0 транзакций при parse() == True.
+
+OPERATION_ALIASES = {
+    "Покупка": ("покупка", "покупки", "зат сатып алу", "сатып алу", "purchase", "purchases"),
+    "Перевод": ("перевод", "переводы", "аударым", "аударымдар", "transfer", "transfers"),
+    "Пополнение": ("пополнение", "пополнения", "толықтыру", "толықтырулар", "replenishment", "replenishments"),
+    "Снятие": ("снятие", "снятия", "қолма-қол ақша алу", "ақша алу", "қолма-қол ақша",
+               "withdrawal", "withdrawals", "cash withdrawal"),
+    "Разное": ("разное", "әртүрлі", "басқа", "басқалары", "өзге", "өзгелері",
+               "other", "others", "miscellaneous"),
+}
+
+# Kaspi печатает казахскую шва латиницей: Ə (U+018F) / ə (U+0259) вместо
+# кириллических Ә (U+04D8) / ә (U+04D9). Визуально одинаково, для str — разные
+# символы, поэтому сравнение по литералу молча промахивалось.
+_SCHWA_NORMALISE = str.maketrans({"Ə": "Ә", "ə": "ә"})
+
+
+def _normalise_kk(text: str) -> str:
+    """Привести казахский текст к единой графике (латинская шва → кириллическая)."""
+    return (text or "").translate(_SCHWA_NORMALISE)
+
+
+_OPERATION_LOOKUP = {
+    _normalise_kk(alias): canonical
+    for canonical, aliases in OPERATION_ALIASES.items()
+    for alias in aliases
+}
+
+# Заголовки транзакционной таблицы
+HEADER_DATE = ("дата", "күні", "date")
+HEADER_AMOUNT = ("сумма", "сомасы", "amount")
+HEADER_OPERATION = ("операция", "операциялар", "transaction", "transactions")
+HEADER_DETAILS = ("детали", "толығырақ", "details")
+
+# Метки в таблице владельца
+LABEL_CARD_NUMBER = ("номер карты", "карта нөмірі", "card number")
+LABEL_ACCOUNT_NUMBER = ("номер счета", "номер счёта", "шот нөмірі", "account number")
+
+# Метки в таблице итогов
+LABEL_AVAILABLE = ("доступно на", "қолжетімді", "card balance", "available")
+LABEL_LIMIT_SALARY = ("зарплатн", "жалақы", "salary")
+LABEL_LIMIT_OTHER_DEPOSITS = ("другие пополнения", "толықтырулар", "other deposits")
+LABEL_LIMIT_TOTAL = ("итого", "барлығы", "жиыны", "жиынтығы", "total")
+
+# Заголовки таблиц метаданных — по ним таблица опознаётся по содержимому.
+# Раньше использовалась привязка к индексам (0=владелец, 1=итоги, 2=лимиты)
+# на странице 0. В текущем формате Kaspi эти таблицы лежат на странице 1,
+# а на нулевой стоит справка об остатке — из-за чего владелец, балансы и
+# лимиты не извлекались вовсе, а financial_buffer_days всегда был 0.
+LABEL_SUMMARY_TABLE = (
+    "краткое содержание операций",
+    "операциялардың қысқаша мазмұны",
+    "transaction summary",
+)
+LABEL_LIMITS_TABLE = (
+    "лимит на снятие наличности",
+    "қолма-қол ақша алуға лимит",
+    "cash withdrawal limits",
+)
+
+# Сколько первых страниц сканировать в поисках таблиц метаданных
+METADATA_SCAN_PAGES = 3
+
+# Пометка о заблокированной сумме в continuation-строке
+BLOCKED_MARKERS = ("заблокирована", "бұғатталған", "blocked")
+
+
+def canon_operation(text: str) -> Optional[str]:
+    """Привести название операции на ru/kk/en к каноническому русскому ключу.
+
+    Возвращает None, если строка не является типом операции Kaspi —
+    вызывающий код использует это как признак «строка не транзакция».
+    """
+    return _OPERATION_LOOKUP.get(_normalise_kk(text).strip().lower())
+
+
+def _matches_any(text: str, needles: tuple) -> bool:
+    """Проверить вхождение любого из вариантов метки (регистронезависимо)."""
+    low = _normalise_kk(text).lower()
+    return any(n in low for n in needles)
+
+
 class KaspiParser(BaseParser):
     """
     Парсер PDF выписок Kaspi Bank
@@ -38,6 +125,8 @@ class KaspiParser(BaseParser):
         super().__init__(pdf_path)
         self.account.bank_name = "Kaspi Bank"
         self.account.currency = "KZT"
+        # Даты из строк «Доступно на …» — источник периода выписки
+        self._available_dates: List[datetime] = []
 
     def _is_excel(self) -> bool:
         """Проверить, является ли файл Excel"""
@@ -58,14 +147,21 @@ class KaspiParser(BaseParser):
                 total_pages = len(pdf.pages)
                 logger.info(f"PDF содержит {total_pages} страниц")
 
-                # Первая страница - информация о счете и итоги
-                self._parse_first_page_tables(pdf.pages[0])
+                # Метаданные счёта: ищем по содержимому на первых страницах
+                self._parse_metadata_tables(pdf)
 
                 # Все страницы - транзакции
                 for page_num, page in enumerate(pdf.pages):
                     self._parse_transactions_from_page(page, page_num)
 
             logger.info(f"Успешно спарсено {len(self.transactions)} транзакций")
+            # Ноль транзакций — это провал, а не успех: сигналим наверх честно.
+            if not self.transactions:
+                self.errors.append(
+                    "Ни одной транзакции не извлечено: структура PDF не совпала "
+                    "с ожидаемой (проверьте язык выписки и формат таблицы)"
+                )
+                return False
             return True
 
         except Exception as e:
@@ -243,38 +339,46 @@ class KaspiParser(BaseParser):
         """Реализовано в parse()"""
         pass
 
-    def _parse_first_page_tables(self, page) -> None:
-        """
-        Извлечь информацию о счете и итоги с первой страницы
-        Структура таблиц:
-        - Таблица 0: Информация о владельце (имя, карта, счет)
-        - Таблица 1: Итоги (балансы, суммы)
-        - Таблица 2: Лимиты (игнорируем)
-        - Таблица 3+: Транзакции
-        """
-        tables = page.extract_tables()
-        text = page.extract_text() or ""
+    def _parse_metadata_tables(self, pdf) -> None:
+        """Извлечь владельца, балансы, период и лимиты.
 
-        # Извлечь период из текста
-        period_match = re.search(
-            r'за период с (\d{2}\.\d{2}\.\d{2}) по (\d{2}\.\d{2}\.\d{2})',
-            text, re.IGNORECASE
+        Таблицы опознаются ПО СОДЕРЖИМОМУ на первых METADATA_SCAN_PAGES
+        страницах. Прежняя версия брала таблицы по индексу с нулевой страницы
+        (0=владелец, 1=итоги, 2=лимиты) — в актуальном формате Kaspi они лежат
+        на странице 1, поэтому не находились ни на одном из трёх языков.
+        """
+        for page in pdf.pages[:METADATA_SCAN_PAGES]:
+            for table in page.extract_tables() or []:
+                if not table:
+                    continue
+                kind = self._classify_metadata_table(table)
+                if kind == "owner":
+                    self._parse_owner_table(table)
+                elif kind == "summary":
+                    self._parse_summary_table(table)
+                elif kind == "limits":
+                    self._parse_limits_table(table)
+
+        # Период берём из строк «Доступно на <дата>» таблицы итогов: даты там
+        # в формате DD.MM.YY независимо от языка выписки, в отличие от
+        # текстовой формулировки периода, которая на каждом языке своя.
+        if self._available_dates:
+            self.account.period_start = min(self._available_dates)
+            self.account.period_end = max(self._available_dates)
+
+    @staticmethod
+    def _classify_metadata_table(table: List[List]) -> Optional[str]:
+        """Определить назначение таблицы метаданных по её содержимому."""
+        head = " ".join(
+            str(cell or "") for row in table[:3] for cell in row
         )
-        if period_match:
-            self.account.period_start = self._parse_date(period_match.group(1))
-            self.account.period_end = self._parse_date(period_match.group(2))
-
-        # Обработка таблиц
-        for table_idx, table in enumerate(tables):
-            if not table:
-                continue
-
-            if table_idx == 0:
-                self._parse_owner_table(table)
-            elif table_idx == 1:
-                self._parse_summary_table(table)
-            elif table_idx == 2:
-                self._parse_limits_table(table)
+        if _matches_any(head, LABEL_SUMMARY_TABLE):
+            return "summary"
+        if _matches_any(head, LABEL_LIMITS_TABLE):
+            return "limits"
+        if _matches_any(head, LABEL_CARD_NUMBER):
+            return "owner"
+        return None
 
     def _parse_owner_table(self, table: List[List]) -> None:
         """
@@ -296,13 +400,13 @@ class KaspiParser(BaseParser):
             for i, cell in enumerate(row):
                 cell_str = str(cell or "").strip()
 
-                if 'Номер карты' in cell_str or cell_str == 'Номер карты:':
+                if _matches_any(cell_str, LABEL_CARD_NUMBER):
                     if i + 1 < len(row) and row[i + 1]:
                         card = str(row[i + 1]).strip()
                         if card.startswith('*') or card.isdigit():
                             self.account.card_number = card if card.startswith('*') else '*' + card
 
-                if 'Номер счета' in cell_str or cell_str == 'Номер счета:':
+                if _matches_any(cell_str, LABEL_ACCOUNT_NUMBER):
                     if i + 1 < len(row) and row[i + 1]:
                         acc = str(row[i + 1]).strip()
                         if acc.startswith('KZ'):
@@ -345,28 +449,41 @@ class KaspiParser(BaseParser):
             if not row or len(row) < 2:
                 continue
 
-            label = str(row[0] or "").strip().lower()
+            label = str(row[0] or "").strip()
             value = str(row[1] or "").strip()
+            if not value:
+                continue
             amount = self._parse_signed_amount(value)
 
-            if 'доступно' in label and not start_balance_found:
-                self.account.balance_start = amount
-                start_balance_found = True
+            # Строка остатка: «Доступно на DD.MM.YY» / «DD.MM.YYж. қолжетімді:»
+            # / «Card balance DD.MM.YY». Первая — входящий, последняя — исходящий.
+            if _matches_any(label, LABEL_AVAILABLE):
+                date_match = re.search(r'(\d{2}\.\d{2}\.\d{2})', label)
+                if date_match:
+                    try:
+                        self._available_dates.append(self._parse_date(date_match.group(1)))
+                    except ValueError:
+                        pass
+                if not start_balance_found:
+                    self.account.balance_start = amount
+                    start_balance_found = True
+                else:
+                    self.account.balance_end = amount
                 continue
 
-            if 'доступно' in label and start_balance_found:
-                self.account.balance_end = amount
-                continue
-
-            if 'пополнен' in label:
+            # Строки итогов по типам операций. Сопоставляем метку целиком через
+            # canon_operation, а не по подстроке: иначе «Переводы со своих
+            # счетов» попадали бы в те же итоги, что и «Переводы».
+            operation = canon_operation(label)
+            if operation == 'Пополнение':
                 self.expected_totals.deposits = abs(amount)
-            elif 'перевод' in label:
+            elif operation == 'Перевод':
                 self.expected_totals.transfers = abs(amount)
-            elif 'покупк' in label:
+            elif operation == 'Покупка':
                 self.expected_totals.purchases = abs(amount)
-            elif 'снят' in label:
+            elif operation == 'Снятие':
                 self.expected_totals.withdrawals = abs(amount)
-            elif 'разно' in label:
+            elif operation == 'Разное':
                 self.expected_totals.other = abs(amount)
 
     def _parse_limits_table(self, table: List[List]) -> None:
@@ -390,11 +507,11 @@ class KaspiParser(BaseParser):
 
             amount = self._parse_numeric(value_str)
 
-            if 'зарплатн' in label:
+            if _matches_any(label, LABEL_LIMIT_SALARY):
                 self.account.salary_money_limit = amount
-            elif 'друг' in label and 'пополнен' in label:
+            elif _matches_any(label, LABEL_LIMIT_OTHER_DEPOSITS):
                 self.account.other_deposits_limit = amount
-            elif 'итого' in label:
+            elif _matches_any(label, LABEL_LIMIT_TOTAL):
                 self.account.total_cash_limit = amount
 
     def _parse_transactions_from_page(self, page, page_num: int) -> None:
@@ -420,7 +537,7 @@ class KaspiParser(BaseParser):
                 if not re.match(r'\d{2}\.\d{2}\.\d{2}', first_cell) and last_tx:
                     # Это продолжение предыдущей транзакции
                     continuation_text = " ".join(str(c or "").strip() for c in row if c).strip()
-                    if 'заблокирована' in continuation_text.lower():
+                    if _matches_any(continuation_text, BLOCKED_MARKERS):
                         last_tx.is_blocked = True
                         last_tx.raw_data["blocked_note"] = continuation_text
                     continue
@@ -442,13 +559,15 @@ class KaspiParser(BaseParser):
 
         first_row_str = ' '.join(str(cell or '').lower() for cell in first_row)
 
-        if 'дата' in first_row_str and ('операция' in first_row_str or 'сумма' in first_row_str):
+        if _matches_any(first_row_str, HEADER_DATE) and (
+            _matches_any(first_row_str, HEADER_OPERATION)
+            or _matches_any(first_row_str, HEADER_AMOUNT)
+        ):
             return True
 
         first_cell = str(first_row[0] or "").strip()
         if re.match(r'\d{2}\.\d{2}\.\d{2}', first_cell):
-            tx_type = str(first_row[2] or "").strip()
-            if tx_type in ['Покупка', 'Перевод', 'Пополнение', 'Разное', 'Снятие']:
+            if canon_operation(str(first_row[2] or "")) is not None:
                 return True
 
         return False
@@ -461,7 +580,7 @@ class KaspiParser(BaseParser):
         if not first_row:
             return False
         first_row_str = ' '.join(str(cell or '').lower() for cell in first_row)
-        return 'дата' in first_row_str
+        return _matches_any(first_row_str, HEADER_DATE)
 
     # Префиксы юридических лиц для извлечения merchant_type
     ENTITY_PREFIXES = ["ИП ", "ТОО ", "АО ", "ОО ", "TOO ", "ТОО\"", "ТОО "]
@@ -490,16 +609,18 @@ class KaspiParser(BaseParser):
             if not re.match(r'\d{2}\.\d{2}\.\d{2}', date_str):
                 return None
 
-            valid_types = ['Покупка', 'Перевод', 'Пополнение', 'Разное', 'Снятие']
-            if tx_type_str not in valid_types:
+            # Тип операции приходит на языке выписки (ru/kk/en) — нормализуем.
+            # None означает, что это не строка транзакции.
+            operation = canon_operation(tx_type_str)
+            if operation is None:
                 return None
 
             date = self._parse_date(date_str)
             amount, orig_amount, orig_currency = self._parse_amount_with_currency(amount_str)
 
             # Определить тип транзакции
-            tx_type = self.TYPE_MAPPING.get(tx_type_str, TransactionType.OTHER)
-            if tx_type_str == 'Перевод':
+            tx_type = self.TYPE_MAPPING.get(operation, TransactionType.OTHER)
+            if operation == 'Перевод':
                 tx_type = TransactionType.TRANSFER_IN if amount > 0 else TransactionType.TRANSFER_OUT
 
             # Вычислить обменный курс
@@ -549,20 +670,20 @@ class KaspiParser(BaseParser):
                 counterparty_type = CounterpartyType.BANK
                 is_bank_transfer = True
             # Перевод физлицу (имя формата "Имя Б." или "Имя Фамилия")
-            elif tx_type_str in ['Перевод', 'Пополнение'] and self._is_person_name(details):
+            elif operation in ('Перевод', 'Пополнение') and self._is_person_name(details):
                 counterparty_type = CounterpartyType.PERSON
                 counterparty = details
             # Покупка = мерчант
-            elif tx_type_str == 'Покупка':
+            elif operation == 'Покупка':
                 counterparty_type = CounterpartyType.MERCHANT
                 counterparty = details
             # Снятие = наличные
-            elif tx_type_str == 'Снятие':
+            elif operation == 'Снятие':
                 is_cash = True
                 counterparty_type = CounterpartyType.ATM
 
             # Для переводов без имени — мерчант
-            if counterparty_type == CounterpartyType.UNKNOWN and tx_type_str == 'Пополнение':
+            if counterparty_type == CounterpartyType.UNKNOWN and operation == 'Пополнение':
                 counterparty_type = CounterpartyType.MERCHANT
 
             return Transaction(
@@ -590,7 +711,12 @@ class KaspiParser(BaseParser):
             )
 
         except Exception as e:
-            logger.debug(f"Ошибка парсинга строки {row}: {e}")
+            # Сюда попадают только строки, прошедшие проверки на дату и тип
+            # операции — то есть настоящие транзакции, которые не удалось
+            # разобрать. Это заметный дефект данных, а не обычный пропуск
+            # заголовка, поэтому warning и запись в отчёт о парсинге.
+            logger.warning(f"Строка похожа на транзакцию, но не разобрана: {e}")
+            self.warnings.append(f"Пропущена строка (стр. {page_num}): {e}")
             return None
 
     def _is_person_name(self, text: str) -> bool:
@@ -667,13 +793,17 @@ class KaspiParser(BaseParser):
             return 0.0
 
     def _parse_date(self, date_str: str) -> datetime:
-        """Парсинг даты DD.MM.YY или DD.MM.YYYY"""
+        """Парсинг даты DD.MM.YY или DD.MM.YYYY.
+
+        Raises ValueError, если дата нечитаема. Раньше возвращалось
+        datetime.now(), что тихо подменяло дату операции на дату анализа —
+        транзакция «переезжала» на сегодня, ломая velocity, night-детектор
+        и любой анализ по периоду, и заметить это было невозможно.
+        """
         date_str = date_str.strip()
-        try:
-            return datetime.strptime(date_str, '%d.%m.%y')
-        except ValueError:
+        for fmt in ('%d.%m.%y', '%d.%m.%Y'):
             try:
-                return datetime.strptime(date_str, '%d.%m.%Y')
+                return datetime.strptime(date_str, fmt)
             except ValueError:
-                logger.warning(f"Не удалось распарсить дату: {date_str}")
-                return datetime.now()
+                continue
+        raise ValueError(f"Нераспознанный формат даты: {date_str!r}")
