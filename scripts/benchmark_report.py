@@ -214,30 +214,60 @@ def render(env: Dict[str, Any], latency: Section, accuracy: Section, engine: Sec
         " is falsy, so a layout with the date in the first column, which is nearly all of them,"
         " was treated as unmapped and overwritten by guesswork.",
         "",
-        "What remains is not a parsing bug, and this is the point of the section. On the unseen"
-        " layouts the generic parser now recovers **200/200 rows with 100% of counterparties** —"
-        " every character is off the page. The composite score still comes out LOW (17.4) against"
-        " HIGH (63.0) for the enriched input, because the string `Yandex Go poezdka` is extracted"
-        " but not *understood*: `counterparty_type` stays `unknown` for every row, so merchant"
-        " risk, the counterparty graph and profile mismatch have nothing to key off.",
+        "### What actually drives the score",
         "",
-        "That gap is not closable with better regexes, because the three things still missing are"
-        " not text-extraction problems at all:",
+        "The engine rows above were first read as *the parser is too poor for the detectors*."
+        " An ablation says otherwise. Starting from the parsed unseen layout and copying in one"
+        " field at a time from the enriched ground truth:",
         "",
-        "1. **Classification.** `Yandex Go poezdka` is a merchant, `Ержан О.` is a private person."
-        " Today this comes from hand-maintained merchant dictionaries inside the bank-specific"
-        " parsers, which cover the banks someone wrote a parser for and no others.",
-        "2. **Inference.** A monthly `Пополнение` from the same `ТОО` on the same day of the month"
-        " is a salary. The statement never says so; `is_salary` has to be concluded.",
-        "3. **Language.** `Аударым`, `Зат сатып алу`, `Толықтыру` mean transfer, purchase, top-up."
-        " Kazakh is a state language of Kazakhstan and appears on real statements, so this is not"
-        " an edge case. Today it is handled by an alias table that someone has to extend by hand"
-        " for every bank and every wording.",
+        "| Field copied in | Composite |",
+        "|---|---|",
+        "| nothing (as parsed) | 17.4 low |",
+        "| counterparty type + merchant name | 17.4 low |",
+        "| operation type | 17.8 low |",
+        "| **`is_salary`** | **63.0 high** |",
         "",
-        "All three are exactly what a language model does without being told the layout in advance."
-        " This is the measured case for the LLM extraction step, and the numbers to beat are"
-        " **classified 0% → 100%** and **composite 17.4 → 63.0**, at a stated cost and latency"
-        " per statement.",
+        "One boolean accounts for the entire gap. Counterparty classification — the thing this"
+        " section previously blamed — moves nothing at all. The reason is indirect:"
+        " `AccountProfiler` types an account with no salary as UNKNOWN and one with salary as"
+        " SALARY_EMPLOYEE, and the detectors carry different contextual weights per profile. A"
+        " stream of P2P transfers is unremarkable on an account of unknown purpose and anomalous"
+        " on a payroll card. That is how an investigator reads it too: the question is whether"
+        " the flows match the declared source of income.",
+        "",
+        "So the gap is closed by an enrichment step, not by a model. `is_salary` was previously"
+        " set by searching for the word *зарплата* (`account_profiler.SALARY_KEYWORDS`,"
+        " `halyk.py`), and real statements rarely contain it — a salary arrives as `Пополнение`"
+        " from a `ТОО` and nothing more. `enrichment/salary_detector.py` infers it from behaviour"
+        " instead: the same organisation, comparable amounts, roughly the same day of the month,"
+        " several months running. Wording and language stop mattering. The *+ обогащение* rows"
+        " above are that step, and they reach 63.0 HIGH with no model involved.",
+        "",
+        "### Where a model would actually earn its place",
+        "",
+        "Having measured it, the honest list is shorter and more specific than *the parser is"
+        " weak*. Each item below is a hand-maintained list that has to grow per bank, per wording"
+        " and per language:",
+        "",
+        "1. **Channel descriptions that pose as counterparties.** Kaspi writes `С карты другого"
+        " банка` in the counterparty field. Behaviourally it is indistinguishable from a salary —"
+        " regular, comparable, same day — and it was classified as an employer until a stop-list"
+        " was added. The list is in `salary_detector.GENERIC_SOURCES` and covers only the banks"
+        " whose statements someone has held.",
+        "2. **The same document in three languages disagreeing.** Kaspi exports in Russian, Kazakh"
+        " and English. `is_pension_benefit` fired 13 times on the Russian file and **zero** times"
+        " on the other two, because the keyword lists were Russian-only — so the same pensioner's"
+        " account read as a salaried employee depending on which file was uploaded. Fixed by"
+        " extending the lists; the next bank will need it again.",
+        "3. **One counterparty, three spellings.** The same employer appears as"
+        " `АО Финансовый центр`, `Қаражаттыңшотқатүсуі АОФинансовый центр` and"
+        " `ReceipttotheaccountАО Финансовый центр` — PDF extraction welds words together"
+        " differently per language. They become three separate nodes in the counterparty graph,"
+        " which is where laundering schemes are supposed to become visible.",
+        "",
+        "None of these is a layout problem, and none is solved by another regex. They are the"
+        " measured case for the LLM step — and the baseline it has to beat is now the enriched"
+        " rule-based run at 63.0, not the 17.4 it would have been flattering to quote.",
         "",
         "## Method and limits",
         "",

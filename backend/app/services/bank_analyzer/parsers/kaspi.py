@@ -586,11 +586,35 @@ class KaspiParser(BaseParser):
     ENTITY_PREFIXES = ["ИП ", "ТОО ", "АО ", "ОО ", "TOO ", "ТОО\"", "ТОО "]
 
     # Ключевые слова для определения типа контрагента
-    DEPOSIT_KEYWORDS = ["на kaspi депозит", "с kaspi депозита", "kaspi депозит"]
-    PENSION_KEYWORDS = ["пенсия", "пособие", "пенсия/пособие"]
-    SALARY_KEYWORDS = ["зарплата", "зарп.", "salary"]
-    ATM_KEYWORDS = ["банкомат", "atm"]
-    BANK_TRANSFER_KEYWORDS = ["карты другого банка", "другого банка"]
+    # Ключевые слова на трёх языках, на которых Kaspi печатает выписки.
+    # Одноязычные списки давали разный разбор одного и того же документа:
+    # в русской версии пенсия помечалась 13 раз, в казахской и английской —
+    # ни разу, и счёт пенсионера выглядел как счёт наёмного работника.
+    # Тексты сравниваются после `_normalise_kk`, поэтому казахская Ә тут
+    # записана кириллицей, а латинская Ə из PDF приводится к ней.
+    DEPOSIT_KEYWORDS = [
+        "на kaspi депозит", "с kaspi депозита", "kaspi депозит",
+        "kaspi депозитке", "kaspi депозитінен", "kaspi депозиті",
+        "to kaspi deposit", "from kaspi deposit", "kaspi deposit",
+    ]
+    PENSION_KEYWORDS = [
+        "пенсия", "пособие", "пенсия/пособие",
+        "зейнетақы", "жәрдемақы", "зейнетақы/жәрдемақы",
+        "pension", "allowance", "benefit",
+    ]
+    SALARY_KEYWORDS = [
+        "зарплата", "зарп.",
+        "жалақы", "еңбекақы",
+        "salary", "payroll", "wage",
+    ]
+    ATM_KEYWORDS = [
+        "банкомат", "atm", "банкоматында", "банкоматта",
+    ]
+    BANK_TRANSFER_KEYWORDS = [
+        "карты другого банка", "другого банка",
+        "басқа банктің картасынан", "басқа банк", "басқа банктен",
+        "card of other bank", "other banks", "another bank",
+    ]
 
     def _parse_transaction_row(self, row: List, page_num: int = 0, row_idx: int = 0) -> Optional[Transaction]:
         """
@@ -637,8 +661,10 @@ class KaspiParser(BaseParser):
                     merchant_name = details[len(prefix):].strip().strip('"')
                     break
 
-            # Определить тип контрагента и флаги
-            details_lower = details.lower()
+            # Определить тип контрагента и флаги.
+            # Через _normalise_kk: в PDF казахская Ә напечатана латинской Ə
+            # (U+018F), и без приведения «жəрдемақы» не совпадёт ни с чем.
+            details_lower = _normalise_kk(details).lower()
             counterparty_type = CounterpartyType.UNKNOWN
             is_deposit_op = False
             is_pension = False

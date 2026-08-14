@@ -15,6 +15,16 @@ from app.services.bank_analyzer.base_parser import (
 from app.services.fraud.models import AccountProfile, AccountType
 
 
+# ── Async tests ──────────────────────────────────────────────────
+# Через anyio, а не pytest-asyncio: anyio уже стоит как зависимость
+# FastAPI/starlette, так что асинхронные тесты не требуют ничего нового.
+# Тесты помечаются `@pytest.mark.anyio`.
+
+@pytest.fixture
+def anyio_backend() -> str:
+    return "asyncio"
+
+
 # ── Helper: create transactions ──────────────────────────────────
 
 def make_tx(

@@ -297,6 +297,20 @@ def parse_only(path: Path) -> List[Transaction]:
     return parser.get_transactions()
 
 
+def enrich_only(path: Path) -> List[Transaction]:
+    """Разбор плюс шаг обогащения — то же, что делает `BankAnalyzer.analyze()`.
+
+    Без языковой модели: только правила и вывод зарплаты по регулярности.
+    Отдельная строка в отчёте нужна, чтобы вклад обогащения было видно
+    самостоятельно и не приписать его потом модели.
+    """
+    from app.services.enrichment import enrich_transactions
+
+    transactions = parse_only(path)
+    enrich_transactions(transactions)
+    return transactions
+
+
 def _norm(text: str) -> str:
     return re.sub(r"\s+", " ", (text or "")).strip().casefold()
 
@@ -519,8 +533,10 @@ def main() -> int:
             "bank parser (Kaspi layout)": measure_field_completeness(build_enriched(truth)),
         }
         for key, path in unseen.items():
-            completeness[statement_formats.FORMATS[key].label] = (
-                measure_field_completeness(parse_only(path))
+            label = statement_formats.FORMATS[key].label
+            completeness[label] = measure_field_completeness(parse_only(path))
+            completeness[f"{label} + обогащение"] = measure_field_completeness(
+                enrich_only(path)
             )
 
         print(f"Measuring latency ({args.runs} runs + warm-up per input)…")
@@ -535,8 +551,12 @@ def main() -> int:
             "enriched (bank-parser fields)": measure_fraud(build_enriched(truth), args.runs),
         }
         for key, path in unseen.items():
-            engine[f"unseen layout — {statement_formats.FORMATS[key].language}"] = (
-                measure_fraud(parse_only(path), args.runs)
+            language = statement_formats.FORMATS[key].language
+            engine[f"unseen layout — {language}"] = measure_fraud(
+                parse_only(path), args.runs
+            )
+            engine[f"unseen layout — {language} + обогащение"] = measure_fraud(
+                enrich_only(path), args.runs
             )
 
         env = environment()

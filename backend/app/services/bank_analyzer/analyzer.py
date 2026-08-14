@@ -135,6 +135,26 @@ class BankAnalyzer:
         self._emit("parsed", 35, "Транзакции извлечены",
                     f"Найдено {len(transactions)} транзакций")
 
+        # 3.5. Обогащение: тип контрагента и признак зарплаты.
+        # Обязано идти до антифрода. `is_salary` определяет тип счёта в
+        # AccountProfiler, а от типа счёта зависят контекстные веса всех
+        # детекторов: на бенчмарке одно это поле двигает композитный балл
+        # с 17.4 LOW до 63.0 HIGH. Банк-специфичные парсеры проставляют его
+        # по слову «зарплата» в выписке, но в большинстве выписок этого
+        # слова нет — приходит «Пополнение» от ТОО и ничего больше.
+        self._emit("enriching", 38, "Обогащение данных", "Контрагенты и источники дохода...")
+        try:
+            from ..enrichment import enrich_transactions
+            enrichment = enrich_transactions(transactions)
+            self.enrichment = enrichment
+            if enrichment["salary_sources"]:
+                names = ", ".join(s["counterparty"] for s in enrichment["salary_sources"][:2])
+                self._emit("enriched", 39, "Обогащение завершено", f"Источник дохода: {names}")
+        except Exception as exc:
+            # Обогащение улучшает анализ, но не является его условием.
+            logger.warning(f"Обогащение не выполнено: {exc}")
+            self.enrichment = None
+
         # 4. Категоризация
         self._emit("categorizing", 40, "Категоризация", "Классификация транзакций...")
         categorized_transactions = self._categorize_transactions(transactions)
@@ -325,6 +345,10 @@ class BankAnalyzer:
             "transactions": transactions,
             "analytics": self.analytics.calculate_all() if self.analytics else {},
             "contacts": self._extract_contacts(transactions),
+            # Источник дохода с обоснованием. Он уже влияет на оценку риска
+            # через тип счёта, поэтому обязан быть виден: следователь должен
+            # понимать, на чём построен вывод, а не получать голый балл.
+            "enrichment": getattr(self, "enrichment", None),
             "fraud_report": fraud_report.to_dict() if fraud_report else None
         }
 
