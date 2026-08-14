@@ -154,12 +154,32 @@ class BankDetector:
         """Проверить, является ли файл Excel XLSX"""
         return self.pdf_path.lower().endswith(('.xlsx', '.xls'))
 
+    def _is_csv(self) -> bool:
+        return self.pdf_path.lower().endswith(('.csv', '.tsv'))
+
     def _extract_content(self) -> None:
         """Извлечь текст и таблицы из файла для анализа"""
-        if self._is_xlsx():
+        if self._is_csv():
+            self._extract_csv_content()
+        elif self._is_xlsx():
             self._extract_xlsx_content()
         else:
             self._extract_pdf_content()
+
+    def _extract_csv_content(self) -> None:
+        """Прочитать шапку CSV для определения источника."""
+        for encoding in ('utf-8-sig', 'cp1251'):
+            try:
+                with open(self.pdf_path, encoding=encoding) as fh:
+                    self.text_content = "".join(
+                        line for _, line in zip(range(15), fh)
+                    )
+                return
+            except UnicodeDecodeError:
+                continue
+            except Exception as e:
+                logger.warning(f"Error extracting CSV content: {e}")
+                return
 
     def _extract_xlsx_content(self) -> None:
         """Извлечь текст из XLSX для анализа (первые 15 строк).
@@ -206,6 +226,20 @@ class BankDetector:
         """
         Определить тип банка с указанием уверенности
         """
+        # CSV — уже нормализованная выгрузка. Названия банков в ней приходят
+        # из ДАННЫХ (колонка «Банк контрагента»), а не из шапки документа:
+        # в одном файле их может быть десяток. Определять по ним эмитента
+        # выписки некорректно — тестовый файл с четырьмя разными банками в
+        # строках уверенно опознавался как Kaspi.
+        if self._is_csv():
+            return BankDetectionResult(
+                bank_type=BankType.UNKNOWN,
+                confidence=0.0,
+                bank_name="CSV выгрузка",
+                detected_keywords=[],
+                metadata={"reason": "csv_has_no_reliable_issuer_marker", "all_scores": {}},
+            )
+
         scores: Dict[BankType, Tuple[float, List[str]]] = {}
         text_lower = self.text_content.lower()
 

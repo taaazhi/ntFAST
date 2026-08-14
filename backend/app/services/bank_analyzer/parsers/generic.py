@@ -64,11 +64,116 @@ class GenericParser(BaseParser):
         """Проверить, является ли файл Excel"""
         return self.pdf_path.lower().endswith(('.xlsx', '.xls'))
 
+    def _is_csv(self) -> bool:
+        return self.pdf_path.lower().endswith(('.csv', '.tsv'))
+
     def parse(self) -> bool:
-        """Адаптивный парсинг с автоопределением структуры (PDF или Excel)"""
+        """Адаптивный парсинг с автоопределением структуры (PDF, Excel, CSV)"""
+        if self._is_csv():
+            return self._parse_csv()
         if self._is_excel():
             return self._parse_excel()
         return self._parse_pdf()
+
+    def _parse_csv(self) -> bool:
+        """Парсинг CSV/TSV с автоопределением разделителя и кодировки.
+
+        CSV-выгрузки обычно самые структурированные из всех форматов: явные
+        заголовки колонок и отдельные поля под реквизиты контрагента. Поэтому
+        здесь, в отличие от PDF, можно забрать ИИН/БИН, счёт и банк.
+        """
+        import csv as csv_module
+
+        try:
+            logger.info(f"Адаптивный парсинг CSV: {self.pdf_path}")
+            rows = self._read_csv_rows(csv_module)
+            if not rows:
+                self.errors.append("CSV файл пустой")
+                return False
+
+            header = [str(c or '').strip() for c in rows[0]]
+            column_mapping = self._detect_columns(header)
+            extra_mapping = self._detect_csv_extra_columns(header)
+
+            if 'date' not in column_mapping or 'amount' not in column_mapping:
+                self.errors.append(
+                    f"Не найдены обязательные колонки (дата/сумма) в заголовке: {header}"
+                )
+                return False
+
+            self._detect_structure_from_text("\n".join(" ".join(r) for r in rows[:5]))
+
+            for row in rows[1:]:
+                if not row or not any(str(c or '').strip() for c in row):
+                    continue
+                tx = self._parse_row_adaptive([str(c or '').strip() for c in row], column_mapping)
+                if tx:
+                    self._attach_csv_extras(tx, row, extra_mapping)
+                    self.transactions.append(tx)
+
+            self._infer_account_info()
+            logger.info(f"Адаптивно спарсено {len(self.transactions)} транзакций из CSV")
+            if not self.transactions:
+                self.errors.append("Ни одной транзакции не извлечено из CSV")
+                return False
+            return True
+
+        except Exception as e:
+            logger.error(f"Ошибка парсинга CSV: {e}", exc_info=True)
+            self.errors.append(f"Ошибка парсинга CSV: {str(e)}")
+            return False
+
+    def _read_csv_rows(self, csv_module) -> List[List[str]]:
+        """Прочитать CSV, подобрав кодировку и разделитель.
+
+        utf-8-sig снимает BOM, который Excel добавляет при экспорте; cp1251 —
+        типичная кодировка выгрузок из русскоязычных банковских систем.
+        """
+        for encoding in ('utf-8-sig', 'cp1251'):
+            try:
+                with open(self.pdf_path, encoding=encoding, newline='') as fh:
+                    sample = fh.read(4096)
+                    fh.seek(0)
+                    try:
+                        dialect = csv_module.Sniffer().sniff(sample, delimiters=',;\t|')
+                    except csv_module.Error:
+                        dialect = csv_module.excel
+                    return [row for row in csv_module.reader(fh, dialect)]
+            except UnicodeDecodeError:
+                continue
+        raise ValueError("Не удалось определить кодировку CSV (пробовали utf-8 и cp1251)")
+
+    # Дополнительные колонки, которых нет в PDF-выписках
+    CSV_EXTRA_COLUMNS = {
+        'counterparty': ('контрагент', 'counterparty', 'получатель', 'плательщик', 'payee', 'payer'),
+        'counterparty_iin_bin': ('иин', 'бин', 'iin', 'bin', 'iin_bin', 'иин_бин'),
+        'counterparty_account': ('счет', 'счёт', 'account', 'iban'),
+        'counterparty_bank': ('банк', 'bank'),
+        'payment_purpose': ('назначение', 'purpose', 'основание'),
+    }
+
+    def _detect_csv_extra_columns(self, header: List[str]) -> Dict[str, int]:
+        mapping: Dict[str, int] = {}
+        for idx, cell in enumerate(header):
+            low = str(cell or '').strip().lower()
+            if not low:
+                continue
+            for field, aliases in self.CSV_EXTRA_COLUMNS.items():
+                if field not in mapping and any(a == low or a in low for a in aliases):
+                    mapping[field] = idx
+        return mapping
+
+    @staticmethod
+    def _attach_csv_extras(tx: Transaction, row: List, mapping: Dict[str, int]) -> None:
+        for field, idx in mapping.items():
+            if idx >= len(row):
+                continue
+            value = str(row[idx] or '').strip()
+            if value:
+                setattr(tx, field, value)
+        # Описание в CSV часто пустое, а смысл несёт назначение платежа
+        if not tx.description and tx.payment_purpose:
+            tx.description = tx.payment_purpose
 
     def _parse_pdf(self) -> bool:
         """Адаптивный парсинг PDF"""

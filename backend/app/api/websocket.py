@@ -390,6 +390,11 @@ async def websocket_analysis_progress(
 
     await analysis_progress.connect(websocket, session_id)
 
+    # Анализ выполняется в воркере Celery — отдельном процессе, который не
+    # может писать в этот сокет напрямую. Он публикует шаги в Redis, а мы их
+    # пересылаем. Подписка живёт параллельно с приёмом сообщений от клиента.
+    relay = asyncio.create_task(_relay_progress_from_redis(websocket, session_id))
+
     try:
         while True:
             try:
@@ -410,4 +415,48 @@ async def websocket_analysis_progress(
     except Exception as e:
         logger.warning(f"WS analysis connection error: {e}")
     finally:
+        relay.cancel()
         analysis_progress.disconnect(websocket, session_id)
+
+
+async def _relay_progress_from_redis(websocket: WebSocket, session_id: str) -> None:
+    """Пересылать события прогресса из Redis в открытый WebSocket.
+
+    Мост между процессами: Celery-воркер публикует, веб-процесс доставляет.
+    Недоступность Redis не должна ронять соединение — прогресс это украшение,
+    результат анализа всё равно сохранится в БД и появится в списке.
+    """
+    try:
+        import redis.asyncio as aioredis
+        from app.tasks.file_processing_tasks import PROGRESS_CHANNEL
+        from app.core.config import settings
+    except Exception as e:
+        logger.debug(f"Progress relay unavailable: {e}")
+        return
+
+    client = None
+    pubsub = None
+    try:
+        client = aioredis.from_url(settings.CELERY_BROKER_URL)
+        pubsub = client.pubsub()
+        await pubsub.subscribe(PROGRESS_CHANNEL.format(session_id=session_id))
+
+        async for message in pubsub.listen():
+            if message.get("type") != "message":
+                continue
+            data = message.get("data")
+            if isinstance(data, bytes):
+                data = data.decode("utf-8", errors="replace")
+            await websocket.send_text(data)
+    except asyncio.CancelledError:
+        raise
+    except Exception as e:
+        logger.debug(f"Progress relay stopped for {session_id}: {e}")
+    finally:
+        try:
+            if pubsub is not None:
+                await pubsub.close()
+            if client is not None:
+                await client.aclose()
+        except Exception:
+            pass

@@ -2,12 +2,14 @@
 Celery Tasks for File Processing
 Асинхронные задачи для обработки файлов
 """
-import os
 import glob
-from celery import Task
-from typing import Dict, Any
-from datetime import datetime, timedelta
+import json
 import logging
+import os
+from datetime import datetime, timedelta
+from typing import Any, Dict, Optional
+
+from celery import Task
 
 from app.core.celery_app import celery_app
 from app.core.database import SessionLocal
@@ -16,6 +18,44 @@ from app.models.transaction import Transaction as TransactionModel
 from app.services.file_processing_service import FileProcessingService
 
 logger = logging.getLogger(__name__)
+
+# Канал прогресса. Воркер Celery — отдельный процесс, у него нет доступа к
+# event loop веб-приложения, поэтому шаги анализа публикуются в Redis, а
+# websocket-эндпоинт пересылает их в браузер.
+PROGRESS_CHANNEL = "ntfast:progress:{session_id}"
+
+_redis_client = None
+
+
+def _get_redis():
+    """Ленивый общий клиент: прогресс публикуется десяток раз за анализ."""
+    global _redis_client
+    if _redis_client is None:
+        import redis
+        from app.core.config import settings
+        _redis_client = redis.Redis.from_url(settings.CELERY_BROKER_URL)
+    return _redis_client
+
+
+def _publish_progress(session_id: str, payload: Dict[str, Any]) -> None:
+    """Опубликовать событие прогресса. Сбой канала не должен ронять анализ."""
+    try:
+        payload.setdefault("timestamp", datetime.utcnow().isoformat() + "Z")
+        _get_redis().publish(
+            PROGRESS_CHANNEL.format(session_id=session_id), json.dumps(payload)
+        )
+    except Exception as e:
+        logger.debug(f"Progress publish failed (non-fatal): {e}")
+
+
+def _make_progress_publisher(session_id: str):
+    """Собрать колбэк в форме, которую ожидает BankAnalyzer."""
+    def callback(step: str, percent: int, message: str, detail: str = "") -> None:
+        _publish_progress(session_id, {
+            "type": "progress", "step": step, "percent": percent,
+            "message": message, "detail": detail,
+        })
+    return callback
 
 
 class DatabaseTask(Task):
@@ -49,13 +89,19 @@ class DatabaseTask(Task):
 
 
 @celery_app.task(bind=True, base=DatabaseTask, name="process_file_task")
-def process_file_task(self, analysis_id: int, file_path: str) -> Dict[str, Any]:
+def process_file_task(self, analysis_id: int, file_path: str,
+                      session_id: Optional[str] = None) -> Dict[str, Any]:
     """
-    Асинхронная задача для обработки загруженного файла
+    Полный анализ выписки: парсинг, категоризация, аналитика, антифрод.
+
+    Это ЕДИНСТВЕННЫЙ путь обработки файла в системе. Раньше рядом
+    существовал синхронный `/api/bank/analyze`, который делал ту же работу
+    другим кодом, и результат зависел от того, каким способом загрузили файл.
 
     Args:
         analysis_id: ID анализа
-        file_path: Путь к файлу
+        file_path: путь к файлу
+        session_id: идентификатор WebSocket-сессии для прогресса (опционально)
 
     Returns:
         Словарь с результатами обработки
@@ -63,18 +109,38 @@ def process_file_task(self, analysis_id: int, file_path: str) -> Dict[str, Any]:
     logger.info(f"Starting file processing for analysis_id={analysis_id}, file_path={file_path}")
 
     try:
-        # Create processing service
         processing_service = FileProcessingService(self.db)
 
-        # Process file
-        result = processing_service.process_file(analysis_id, file_path)
+        # Прогресс в браузер через Redis-канал: воркер живёт в отдельном
+        # процессе и до event loop веб-приложения дотянуться не может.
+        on_progress = _make_progress_publisher(session_id) if session_id else None
+
+        result = processing_service.process_file(analysis_id, file_path, on_progress=on_progress)
 
         logger.info(f"File processing completed for analysis_id={analysis_id}. Total transactions: {result.get('total_transactions', 0)}")
+
+        if session_id:
+            _publish_progress(session_id, {
+                "type": "completed", "percent": 100,
+                "analysis_id": analysis_id,
+                "risk_level": result.get("risk_level"),
+            })
 
         return result
 
     except Exception as e:
         logger.error(f"File processing failed for analysis_id={analysis_id}: {str(e)}", exc_info=True)
+
+        # Причина отказа должна дойти до открытой вкладки, а не только в лог:
+        # пользователь стоит и смотрит на прогресс-бар.
+        if session_id:
+            from app.services.bank_analyzer.base_parser import StatementParsingError
+            _publish_progress(session_id, {
+                "type": "error",
+                "message": "parsing_failed" if isinstance(e, StatementParsingError) else "analysis_failed",
+                "detail": str(e)[:300],
+                "analysis_id": analysis_id,
+            })
 
         # Update analysis status to failed
         try:
@@ -107,195 +173,6 @@ def process_file_task(self, analysis_id: int, file_path: str) -> Dict[str, Any]:
             logger.error(f"Failed to update analysis status: {str(db_error)}")
 
         # Re-raise exception for Celery retry mechanism
-        raise
-
-
-@celery_app.task(bind=True, base=DatabaseTask, name="ml_analysis_task")
-def ml_analysis_task(self, analysis_id: int) -> Dict[str, Any]:
-    """
-    Rule-Based антифрод-анализ транзакций через FraudEngine.
-
-    Workflow:
-    1. Загрузить Analysis + транзакции из БД
-    2. Конвертировать DB Transaction → fraud engine Transaction dataclass
-    3. Создать AccountInfo из данных анализа
-    4. Запустить FraudEngine.full_analysis()
-    5. Сохранить результаты в Analysis
-    """
-    logger.info(f"Starting fraud analysis for analysis_id={analysis_id}")
-
-    try:
-        # 1. Загрузить анализ
-        analysis = self.db.query(Analysis).filter(Analysis.id == analysis_id).first()
-        if not analysis:
-            raise ValueError(f"Analysis {analysis_id} not found")
-
-        # Загрузить транзакции из БД
-        db_transactions = self.db.query(TransactionModel).filter(
-            TransactionModel.analysis_id == analysis_id
-        ).order_by(TransactionModel.transaction_date).all()
-
-        if not db_transactions:
-            logger.warning(f"No transactions found for analysis_id={analysis_id}")
-            analysis.ml_processed = True
-            analysis.ml_results = {"message": "No transactions to analyze"}
-            self.db.commit()
-            return {"success": True, "analysis_id": analysis_id, "message": "No transactions"}
-
-        # Обновить статус
-        analysis.status = "analyzing"
-        self.db.commit()
-
-        # 2. Конвертировать DB транзакции → fraud engine Transaction dataclass
-        from app.services.bank_analyzer.base_parser import (
-            Transaction as FraudTransaction,
-            TransactionType,
-            CounterpartyType,
-            AccountInfo,
-        )
-
-        # Маппинг типов транзакций из БД в enum
-        TX_TYPE_MAP = {
-            "incoming": TransactionType.INCOME,
-            "outgoing": TransactionType.EXPENSE,
-            "transfer": TransactionType.TRANSFER_OUT,
-            "transfer_in": TransactionType.TRANSFER_IN,
-            "transfer_out": TransactionType.TRANSFER_OUT,
-            "income": TransactionType.INCOME,
-            "expense": TransactionType.EXPENSE,
-            "withdrawal": TransactionType.WITHDRAWAL,
-            "deposit": TransactionType.DEPOSIT,
-            "fee": TransactionType.FEE,
-            "refund": TransactionType.REFUND,
-            "crypto_buy": TransactionType.CRYPTO_BUY,
-            "crypto_sell": TransactionType.CRYPTO_SELL,
-        }
-
-        CP_TYPE_MAP = {
-            "person": CounterpartyType.PERSON,
-            "merchant": CounterpartyType.MERCHANT,
-            "bank": CounterpartyType.BANK,
-            "atm": CounterpartyType.ATM,
-            "government": CounterpartyType.GOVERNMENT,
-        }
-
-        fraud_transactions = []
-        for t in db_transactions:
-            tx_type = TX_TYPE_MAP.get(
-                (t.transaction_type or "").lower(),
-                TransactionType.OTHER
-            )
-            cp_type = CP_TYPE_MAP.get(
-                (t.counterparty_type or "").lower(),
-                CounterpartyType.UNKNOWN
-            )
-
-            fraud_transactions.append(FraudTransaction(
-                date=t.transaction_date or datetime.now(),
-                amount=float(t.amount or 0),
-                type=tx_type,
-                description=t.description or "",
-                category=t.category or "",
-                subcategory=t.subcategory or "",
-                currency=t.currency or "KZT",
-                original_amount=float(t.original_amount) if t.original_amount else None,
-                original_currency=t.original_currency,
-                exchange_rate=t.exchange_rate,
-                counterparty=t.counterparty_name,
-                counterparty_type=cp_type,
-                merchant_name=t.merchant_name,
-                merchant_type=t.merchant_type,
-                is_blocked=bool(t.is_blocked),
-                is_deposit_operation=bool(t.is_deposit_operation),
-                is_pension_benefit=bool(t.is_pension_benefit),
-                is_bank_transfer=bool(t.is_bank_transfer),
-                is_atm=bool(t.is_atm),
-                is_salary=bool(t.is_salary),
-                is_cash_operation=bool(t.is_cash_operation),
-                source_row=t.source_row,
-            ))
-
-        # 3. Создать AccountInfo
-        account_info = AccountInfo(
-            owner=analysis.account_owner or "",
-            account_number=analysis.account_number or "",
-            currency=analysis.account_currency or "KZT",
-            bank_name=analysis.bank_name or "",
-            period_start=analysis.period_start,
-            period_end=analysis.period_end,
-            balance_start=float(analysis.balance_start) if analysis.balance_start else 0.0,
-            balance_end=float(analysis.balance_end) if analysis.balance_end else 0.0,
-        )
-
-        # 4. Запустить FraudEngine
-        from app.services.fraud.engine import FraudEngine
-
-        engine = FraudEngine()
-        report = engine.full_analysis(fraud_transactions, account_info)
-
-        # 5. Сохранить результаты
-        analysis.fraud_composite_score = report.composite_score
-        analysis.fraud_risk_level = report.risk_level
-        analysis.fraud_report = report.to_dict()
-        analysis.fraud_red_flags = report.red_flags
-        analysis.fraud_recommendations = report.recommendations
-
-        # Сохранить результаты отдельных модулей
-        analysis.velocity_result = report.velocity.to_dict()
-        analysis.graph_result = report.graph.to_dict()
-        analysis.behavioral_result = report.behavioral.to_dict()
-        analysis.structuring_result = report.structuring.to_dict()
-        analysis.cross_reference_result = report.cross_reference.to_dict()
-        analysis.merchant_risk_result = report.merchant_risk.to_dict()
-
-        # Сохранить результаты новых модулей v4
-        if report.night_transactions:
-            analysis.night_transactions_result = report.night_transactions.to_dict()
-        if report.duplicate_payments:
-            analysis.duplicate_payments_result = report.duplicate_payments.to_dict()
-        if report.round_amounts:
-            analysis.round_amounts_result = report.round_amounts.to_dict()
-        if report.profile_mismatch:
-            analysis.profile_mismatch_result = report.profile_mismatch.to_dict()
-
-        # Обновить risk_score (0-10 шкала, как в bank_analysis.py)
-        analysis.risk_score = min(10, int(report.composite_score / 10))
-        analysis.ml_processed = True
-        analysis.status = "completed"
-        analysis.completed_at = datetime.utcnow()
-
-        # Обновить suspicious_count на основе результатов
-        analysis.suspicious_count = len(report.red_flags)
-
-        self.db.commit()
-
-        logger.info(
-            f"Fraud analysis completed for analysis_id={analysis_id}: "
-            f"score={report.composite_score:.1f}, level={report.risk_level}, "
-            f"flags={len(report.red_flags)}"
-        )
-
-        return {
-            "success": True,
-            "analysis_id": analysis_id,
-            "composite_score": report.composite_score,
-            "risk_level": report.risk_level,
-            "red_flags_count": len(report.red_flags),
-        }
-
-    except Exception as e:
-        logger.error(f"Fraud analysis failed for analysis_id={analysis_id}: {str(e)}", exc_info=True)
-
-        # Обновить статус на failed
-        try:
-            analysis = self.db.query(Analysis).filter(Analysis.id == analysis_id).first()
-            if analysis:
-                analysis.status = "failed"
-                analysis.ml_results = {"error": str(e)}
-                self.db.commit()
-        except Exception as db_error:
-            logger.error(f"Failed to update analysis status: {str(db_error)}")
-
         raise
 
 

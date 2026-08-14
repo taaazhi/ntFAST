@@ -68,6 +68,14 @@ class Transaction:
     exchange_rate: Optional[float] = None       # Курс: KZT / foreign (вычисляемый)
     counterparty: Optional[str] = None          # Контрагент
     counterparty_type: CounterpartyType = CounterpartyType.UNKNOWN
+    # Реквизиты контрагента. Присутствуют в структурированных выгрузках
+    # (CSV с явными колонками), в PDF-выписках обычно недоступны. Хранятся
+    # в БД, поэтому модель обязана их переносить — иначе данные теряются
+    # на пути «парсер → БД».
+    counterparty_iin_bin: Optional[str] = None
+    counterparty_account: Optional[str] = None
+    counterparty_bank: Optional[str] = None
+    payment_purpose: Optional[str] = None
     reference: Optional[str] = None             # Номер операции
     balance_after: Optional[float] = None       # Баланс после операции
 
@@ -103,6 +111,10 @@ class Transaction:
             "exchange_rate": self.exchange_rate,
             "counterparty": self.counterparty,
             "counterparty_type": self.counterparty_type.value,
+            "counterparty_iin_bin": self.counterparty_iin_bin,
+            "counterparty_account": self.counterparty_account,
+            "counterparty_bank": self.counterparty_bank,
+            "payment_purpose": self.payment_purpose,
             "reference": self.reference,
             "balance_after": self.balance_after,
             "merchant_name": self.merchant_name,

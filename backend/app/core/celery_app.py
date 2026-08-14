@@ -33,6 +33,9 @@ celery_app.conf.update(
 
 # Optional: Task routes for different queues
 celery_app.conf.task_routes = {
+    # Единственная задача анализа: разбор, категоризация, аналитика и антифрод
+    # выполняются одним конвейером. Отдельная очередь ml_analysis удалена
+    # вместе с задачей ml_analysis_task — она пересчитывала фрод по данным из
+    # БД вторым проходом, что дублировало работу и могло разойтись с первым.
     "app.tasks.file_processing_tasks.process_file_task": {"queue": "file_processing"},
-    "app.tasks.file_processing_tasks.ml_analysis_task": {"queue": "ml_analysis"},  # Rule-based fraud analysis (name kept for backward compatibility)
 }

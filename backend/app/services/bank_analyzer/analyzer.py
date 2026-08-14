@@ -50,6 +50,15 @@ class BankAnalyzer:
         # Callback: on_progress(step, percent, message, detail)
         self._on_progress = on_progress
 
+    # Форматы, которые разбираются универсальным парсером независимо от банка
+    FORMAT_AGNOSTIC_SUFFIXES = (".csv", ".tsv")
+
+    def _select_parser(self, bank_type: BankType) -> Type[BaseParser]:
+        """Подобрать парсер по банку и формату файла."""
+        if self.pdf_path.lower().endswith(self.FORMAT_AGNOSTIC_SUFFIXES):
+            return GenericParser
+        return self.PARSER_MAPPING.get(bank_type, GenericParser)
+
     def _emit(self, step: str, percent: int, message: str, detail: str = ""):
         """Отправить прогресс через callback (если задан)."""
         if self._on_progress:
@@ -87,11 +96,14 @@ class BankAnalyzer:
         self._emit("detected", 15, "Банк определён",
                     f"{self.detection_result.bank_name} ({self.detection_result.confidence:.0%})")
 
-        # 2. Выбираем парсер
-        parser_class = self.PARSER_MAPPING.get(
-            self.detection_result.bank_type,
-            GenericParser  # Универсальный парсер для неизвестных банков
-        )
+        # 2. Выбираем парсер — по банку И по формату файла.
+        # Банк-специфичные парсеры (Kaspi, Halyk) знают вёрстку PDF-выписки
+        # конкретного банка. CSV — уже нормализованная выгрузка с явными
+        # заголовками, банковская специфика в ней отсутствует, и разбирать её
+        # должен универсальный парсер. Без этой проверки CSV, где в колонке
+        # «Банк» встречается слово Kaspi, уходил в KaspiParser и падал на
+        # попытке открыть его через pdfplumber.
+        parser_class = self._select_parser(self.detection_result.bank_type)
         self.parser = parser_class(self.pdf_path)
 
         logger.info(f"Используем парсер: {parser_class.__name__}")

@@ -9,6 +9,7 @@ import {
   ChevronRight, TrendingUp, ListFilter, ShieldCheck, RotateCcw,
 } from 'lucide-react';
 import { analysesAPI, KaspiAnalysisResult } from '../services/api';
+import { buildReportFromAnalysis } from '../services/reportBuilder';
 import { BankAnalysisReport } from '../components/analysis/BankAnalysisReport';
 import { EmptyState } from '../components/ui/EmptyState';
 import ConfirmModal from '../components/ui/ConfirmModal';
@@ -357,21 +358,29 @@ export function Analyses() {
       toast.warning(t('analyses.noFilesSelected') || 'Please select files to analyze');
       return;
     }
-    const bankFile = selectedFiles.find(f => {
-      const ext = f.name.toLowerCase().split('.').pop();
-      return ext === 'pdf' || ext === 'xlsx' || ext === 'xls';
-    });
-    if (bankFile) {
-      bgAnalysis.startAnalysis(bankFile, () => { loadData(); });
-      setSelectedFiles([]);
-    } else {
+    // Один путь для любого формата. Раньше здесь стояла развилка: PDF/XLSX
+    // уходили в синхронный анализ с отчётом на экране, а CSV — в очередь без
+    // отчёта. Один и тот же файл давал разный результат в зависимости от
+    // расширения, и это было заметно только на CSV.
+    const [first, ...rest] = selectedFiles;
+    bgAnalysis.startAnalysis(first, () => { loadData(); });
+
+    if (rest.length > 0) {
+      // Остальные файлы просто ставим в очередь: показать отчёт можно только
+      // для одного, а остальные появятся в списке по мере готовности.
       (async () => {
-        for (const file of selectedFiles) await analysesAPI.uploadFile(file, () => {});
-        setSelectedFiles([]);
+        for (const file of rest) {
+          try {
+            await analysesAPI.uploadFile(file);
+          } catch (err) {
+            console.error('Upload failed:', err);
+            toast.error(`${file.name}: ${t('common.error') || 'upload failed'}`);
+          }
+        }
         await loadData();
-        toast.success('Files uploaded');
       })();
     }
+    setSelectedFiles([]);
   };
 
   /* ═══════════════════ VIEW / DELETE HANDLERS ═══════════════════ */
@@ -383,78 +392,7 @@ export function Analyses() {
     }
     setViewingLoading(analysis.id);
     try {
-      const [fullAnalysis, txData] = await Promise.all([
-        analysesAPI.getById(analysis.id) as Promise<Analysis>,
-        analysesAPI
-          .getTransactions(analysis.id)
-          .catch(() => ({ transactions: [] as any[] })) as Promise<{ transactions?: any[] }>,
-      ]);
-      const parsedAccount = fullAnalysis?.parsed_account_info || {};
-      const rawAnalytics = fullAnalysis?.analytics_result || {};
-      const fraudReport = fullAnalysis?.fraud_report || null;
-      const analyticsData = rawAnalytics.analytics || rawAnalytics;
-      const contactsData = rawAnalytics.contacts || analyticsData.contacts || {};
-      const rawTransactions: any[] = Array.isArray(txData?.transactions) ? txData!.transactions! : [];
-      const transactions = rawTransactions.map((tx: any) => ({
-        date: tx.transaction_date || tx.date || '',
-        amount: parseFloat(tx.amount) || 0,
-        type: tx.transaction_type || tx.type || '',
-        details: tx.description || tx.details || '',
-        category: tx.category || '',
-        subcategory: tx.subcategory || '',
-        currency: tx.currency || 'KZT',
-        original_amount: tx.original_amount ? parseFloat(tx.original_amount) : null,
-        original_currency: tx.original_currency || null,
-      }));
-      const reconstructed: KaspiAnalysisResult = {
-        meta: {
-          generated_at: fullAnalysis.completed_at || fullAnalysis.created_at,
-          pdf_file: fullAnalysis.file_name || '',
-          parser_version: '2.0',
-          original_filename: fullAnalysis.file_name || undefined,
-        },
-        account: {
-          owner: fullAnalysis.account_owner || parsedAccount.owner || 'N/A',
-          card: parsedAccount.card || '',
-          account_number: fullAnalysis.account_number || parsedAccount.account_number || '',
-          currency: fullAnalysis.account_currency || parsedAccount.currency || 'KZT',
-          period: parsedAccount.period || { from: null, to: null },
-          balance_start: parsedAccount.balance_start || 0,
-          balance_end: parsedAccount.balance_end || 0,
-        },
-        validation: parsedAccount.validation || rawAnalytics.validation || {
-          total_transactions: fullAnalysis.total_transactions || 0,
-          is_valid: true, expected: {}, actual: {}, differences: {}, errors: [],
-        },
-        summary: {
-          total_transactions: fullAnalysis.total_transactions || 0,
-          total_income: fullAnalysis.total_income || analyticsData.total_income || 0,
-          total_expense: fullAnalysis.total_expense || analyticsData.total_expense || 0,
-          net_flow: (fullAnalysis.total_income || 0) - Math.abs(fullAnalysis.total_expense || 0),
-          avg_daily_expense: analyticsData.avg_daily_expense || analyticsData.financial_health?.monthly_avg_expense ? (analyticsData.financial_health.monthly_avg_expense / 30) : 0,
-          median_transaction: analyticsData.median_transaction || 0,
-        },
-        transactions,
-        analytics: {
-          monthly_breakdown: analyticsData.monthly_breakdown || [],
-          category_breakdown: analyticsData.category_breakdown || { expense: [], income: [], total_expense: 0, total_income: 0 },
-          top_merchants: analyticsData.top_merchants || [],
-          top_contacts: analyticsData.top_contacts || [],
-          recurring_payments: analyticsData.recurring_payments || [],
-          anomalies: analyticsData.anomalies || [],
-          foreign_currency: analyticsData.foreign_currency || { transactions: [], total_foreign_kzt: 0 },
-          financial_health: analyticsData.financial_health || {
-            savings_rate: 0, essential_expenses: 0, non_essential_expenses: 0,
-            essential_ratio: 0, balance_trend: 'stable', monthly_avg_income: 0,
-            monthly_avg_expense: 0, financial_buffer_days: 0,
-          },
-          weekday_analysis: analyticsData.weekday_analysis || [],
-          daily_patterns: analyticsData.daily_patterns || [],
-        },
-        contacts: contactsData,
-        fraud_report: fraudReport,
-      };
-      setViewingResult(reconstructed);
+      setViewingResult(await buildReportFromAnalysis(analysis.id));
     } catch (error) {
       console.error('Failed to load analysis:', error);
       toast.error(t('common.error') || 'Failed to load analysis details');

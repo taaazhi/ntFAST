@@ -231,6 +231,16 @@ export const subjectsAPI = {
   },
 };
 
+/** Ответ на постановку файла в очередь анализа. */
+export interface AnalysisUploadResponse {
+  id: number;
+  file_name: string;
+  file_type: string;
+  file_size: number;
+  status: string;
+  message: string;
+}
+
 // Analyses API
 export const analysesAPI = {
   getAll: async (params?: {
@@ -268,11 +278,25 @@ export const analysesAPI = {
     await api.delete(`/analyses/${id}`);
   },
 
-  uploadFile: async (file: File, onProgress?: (progress: number) => void): Promise<any> => {
+  /**
+   * The single entry point for analysing a statement, whatever its format.
+   *
+   * Returns as soon as the file is queued — the response carries the created
+   * Analysis with status `pending`. Progress arrives over
+   * `/ws/analysis/{sessionId}`; the finished report is read back with
+   * `getById`. There used to be a second, synchronous route for PDF/XLSX
+   * (`POST /bank/analyze`) that produced a different result for the same file.
+   */
+  uploadFile: async (
+    file: File,
+    onProgress?: (progress: number) => void,
+    sessionId?: string,
+  ): Promise<AnalysisUploadResponse> => {
     const formData = new FormData();
     formData.append('file', file);
 
-    const response = await api.post('/analyses/upload', formData, {
+    const response = await api.post<AnalysisUploadResponse>('/analyses/upload', formData, {
+      params: sessionId ? { session_id: sessionId } : {},
       headers: {
         'Content-Type': 'multipart/form-data',
       },
@@ -689,33 +713,11 @@ export interface KaspiAnalysisResult {
   fraud_report: FraudReport | null;
 }
 
+/**
+ * Helpers around statement analysis. Uploading is NOT here — a statement is
+ * submitted through `analysesAPI.uploadFile`, which queues it for the worker.
+ */
 export const bankAnalysisAPI = {
-  analyze: async (
-    file: File,
-    onProgress?: (progress: number) => void,
-    sessionId?: string,
-  ): Promise<KaspiAnalysisResult> => {
-    const formData = new FormData();
-    formData.append('file', file);
-
-    // Добавляем session_id для WebSocket прогресса
-    const params = sessionId ? { session_id: sessionId } : {};
-
-    const response = await api.post<KaspiAnalysisResult>('/bank/analyze', formData, {
-      params,
-      headers: {
-        'Content-Type': 'multipart/form-data',
-      },
-      onUploadProgress: (progressEvent) => {
-        if (progressEvent.total && onProgress) {
-          const progress = Math.round((progressEvent.loaded * 100) / progressEvent.total);
-          onProgress(progress);
-        }
-      },
-    });
-    return response.data;
-  },
-
   detect: async (file: File): Promise<{
     bank_type: string;
     bank_name: string;

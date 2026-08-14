@@ -7,8 +7,40 @@
  */
 import React, { createContext, useContext, useState, useCallback, useRef } from 'react';
 import { toast } from 'sonner';
-import { bankAnalysisAPI, KaspiAnalysisResult } from '../services/api';
+import { analysesAPI, KaspiAnalysisResult } from '../services/api';
+import { buildReportFromAnalysis } from '../services/reportBuilder';
 import { useAnalysisProgress, AnalysisProgressState } from '../hooks/useAnalysisProgress';
+
+/** Как часто спрашивать статус, если сокет прогресса молчит. */
+const POLL_INTERVAL_MS = 2000;
+/** Предохранитель: воркер мог умереть, не сообщив об этом. */
+const MAX_WAIT_MS = 15 * 60 * 1000;
+
+const TERMINAL_OK = 'completed';
+const TERMINAL_BAD = new Set(['failed', 'cancelled']);
+
+/**
+ * Дождаться, пока воркер закончит анализ.
+ *
+ * Опрос статуса, а не только сокет: WebSocket может отвалиться, вкладка —
+ * заснуть, а Redis-канал прогресса вообще необязателен для работы системы.
+ * Источником истины остаётся поле `status` в БД.
+ */
+async function waitForAnalysis(analysisId: number): Promise<number> {
+  const deadline = Date.now() + MAX_WAIT_MS;
+
+  while (Date.now() < deadline) {
+    const analysis: any = await analysesAPI.getById(analysisId);
+
+    if (analysis?.status === TERMINAL_OK) return analysisId;
+    if (TERMINAL_BAD.has(analysis?.status)) {
+      throw new Error(analysis?.conclusion || `Analysis ${analysis?.status}`);
+    }
+
+    await new Promise(resolve => setTimeout(resolve, POLL_INTERVAL_MS));
+  }
+  throw new Error('Analysis timed out');
+}
 
 export interface BackgroundAnalysisState {
   /** Is an analysis currently running? */
@@ -66,30 +98,35 @@ export function BackgroundAnalysisProvider({ children }: { children: React.React
     const sessionId = analysisProgress.generateSessionId();
     analysisProgress.connect(sessionId);
 
-    // Run analysis in background (non-blocking)
-    bankAnalysisAPI
-      .analyze(file, setUploadProgress, sessionId)
-      .then((analysisResult) => {
-        setResult(analysisResult);
-        setIsAnalyzing(false);
-        setTimeout(() => analysisProgress.disconnect(), 2000);
+    const finish = () => {
+      setIsAnalyzing(false);
+      if (onCompleteRef.current) {
+        onCompleteRef.current();
+        onCompleteRef.current = null;
+      }
+    };
 
-        // Callback to reload data on the Analyses page
-        if (onCompleteRef.current) {
-          onCompleteRef.current();
-          onCompleteRef.current = null;
-        }
+    // Queue the file and wait for the worker. The HTTP call returns as soon
+    // as the analysis row is created; the report itself is read back by id
+    // once the worker signals completion over the progress socket.
+    analysesAPI
+      .uploadFile(file, setUploadProgress, sessionId)
+      .then(({ id }) => waitForAnalysis(id))
+      .then(async (analysisId) => {
+        setResult(await buildReportFromAnalysis(analysisId));
+        finish();
+        setTimeout(() => analysisProgress.disconnect(), 2000);
       })
       .catch((err) => {
         console.error('Background analysis failed:', err);
-        setError(err?.response?.data?.detail || err?.message || 'Analysis failed');
-        setIsAnalyzing(false);
+        const detail = err?.response?.data?.detail;
+        setError(
+          (typeof detail === 'object' ? detail?.message : detail)
+            || err?.message
+            || 'Analysis failed'
+        );
+        finish();
         analysisProgress.disconnect();
-
-        if (onCompleteRef.current) {
-          onCompleteRef.current();
-          onCompleteRef.current = null;
-        }
       });
     // `analysisProgress` is a stable object from useAnalysisProgress; safe to
     // include without identity churn. `isAnalyzing` is intentionally read via

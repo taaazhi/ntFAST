@@ -34,12 +34,16 @@ def _sanitize_filename(name: str) -> str:
 @router.post("/upload", response_model=AnalysisFileUploadResponse, status_code=status.HTTP_201_CREATED)
 async def upload_file_for_analysis(
     file: UploadFile = File(...),
+    session_id: Optional[str] = Query(None, description="WebSocket session ID для прогресса"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
     """
-    Upload a bank statement file (PDF, CSV, XLSX, XLS) for ML analysis
-    Creates a new Analysis and triggers file parsing
+    Загрузить выписку (PDF, CSV, XLSX, XLS) и поставить её в очередь анализа.
+
+    ЕДИНСТВЕННАЯ точка входа для анализа выписок. Возвращает созданную запись
+    Analysis со статусом pending — сам разбор идёт в Celery, а прогресс
+    транслируется в `/ws/analysis/{session_id}`, если передан `session_id`.
     """
     # SECURITY: sanitize uploaded filename FIRST to defeat path traversal attempts
     original_name = _sanitize_filename(file.filename or "")
@@ -111,7 +115,7 @@ async def upload_file_for_analysis(
 
     try:
         # Submit task to Celery queue
-        task = process_file_task.delay(db_analysis.id, str(file_path))
+        task = process_file_task.delay(db_analysis.id, str(file_path), session_id)
 
         return AnalysisFileUploadResponse(
             id=db_analysis.id,

@@ -77,7 +77,7 @@ services:
       - CELERY_BROKER_URL=redis://redis:6379/0
       - CELERY_RESULT_BACKEND=redis://redis:6379/0
       - REDIS_HOST=redis
-    command: celery -A app.core.celery_app:celery_app worker --loglevel=info -Q file_processing,ml_analysis --concurrency=2 -n backend_worker@%h
+    command: celery -A app.core.celery_app:celery_app worker --loglevel=info -Q file_processing --concurrency=2 -n backend_worker@%h
     volumes:
       - backend_uploads:/app/uploads
     depends_on:
