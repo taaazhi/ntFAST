@@ -104,14 +104,65 @@ export function ExplainedFlags({ explainedFlags, flaggedPatterns, appliedWeights
 
                 <p className="text-sm text-gray-700 dark:text-gray-300 mb-3">{pattern.reason}</p>
 
-                {pattern.regulatory_reference && (
+                {/* Разобранные нормы: каждая ведёт на официальный текст.
+                    Если корпус НПА не собран, список пуст — тогда показываем
+                    исходную строку, как было. */}
+                {pattern.legal_articles && pattern.legal_articles.length > 0 ? (
+                  <ul className="mb-3 space-y-1.5">
+                    {pattern.legal_articles.map((article) => (
+                      <li key={article.citation} className="flex items-start gap-2 text-sm">
+                        <Scale className="w-4 h-4 mt-0.5 text-purple-500 shrink-0" />
+                        <span>
+                          {/* Ссылка только когда есть куда вести. У выдуманной
+                              статьи URL пуст, и href="" отправил бы следователя
+                              на перезагрузку страницы вместо текста закона. */}
+                          {article.url ? (
+                            <a
+                              href={article.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="font-medium text-purple-800 dark:text-purple-200 underline decoration-purple-300 underline-offset-2 hover:decoration-purple-600"
+                            >
+                              {article.citation}
+                            </a>
+                          ) : (
+                            <span className="font-medium text-gray-700 dark:text-gray-300">
+                              {article.citation}
+                            </span>
+                          )}
+                          {article.title && (
+                            <span className="text-gray-600 dark:text-gray-400">
+                              {' — '}{article.title}
+                            </span>
+                          )}
+                          {article.verified ? (
+                            <span
+                              className="ml-2 inline-flex items-center gap-1 text-xs text-green-700 dark:text-green-400"
+                              title={t('analyses.report.explained.verifiedHint')}
+                            >
+                              <ShieldCheck className="w-3.5 h-3.5" />
+                              {t('analyses.report.explained.verified')}
+                            </span>
+                          ) : (
+                            <span
+                              className="ml-2 text-xs text-amber-700 dark:text-amber-400"
+                              title={article.detail}
+                            >
+                              {t('analyses.report.explained.unverified')}
+                            </span>
+                          )}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                ) : pattern.regulatory_reference ? (
                   <div className="flex items-start gap-2 mb-3 text-sm">
                     <Scale className="w-4 h-4 mt-0.5 text-purple-500 shrink-0" />
                     <span className="text-purple-800 dark:text-purple-200 font-medium">
                       {pattern.regulatory_reference}
                     </span>
                   </div>
-                )}
+                ) : null}
 
                 {pattern.counter_evidence && (
                   <div className="flex items-start gap-2 p-3 rounded-lg bg-white/70 dark:bg-gray-800/40 text-sm">

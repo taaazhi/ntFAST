@@ -457,7 +457,10 @@
         "counterEvidence": "May be legitimate",
         "confidence": "Confidence",
         "points": "points",
-        "none": "No factors affected the score."
+        "none": "No factors affected the score.",
+        "verified": "checked against the statute",
+        "unverified": "not checked",
+        "verifiedHint": "Article number and title match the official text on adilet.zan.kz"
       },
       "income": {
         "title": "Regular income source",

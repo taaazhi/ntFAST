@@ -193,3 +193,49 @@ def test_search_ranks_title_matches_above_body_matches(fake_corpus):
     results = corpus.search("финансовому мониторингу", corpus_dir=fake_corpus)
 
     assert results[0][0].number == "4"
+
+
+# ── Аннотация схем ──────────────────────────────────────────────
+
+class _Pattern:
+    """Минимальный двойник FlaggedPattern."""
+
+    def __init__(self, reference):
+        self.regulatory_reference = reference
+        self.legal_articles = []
+
+
+def test_annotate_fills_articles_with_links(fake_corpus):
+    from app.services.legal import annotate_patterns
+
+    pattern = _Pattern("УК РК ст. 218 (легализация); ЗРК О ПОД/ФТ ст. 4")
+    summary = annotate_patterns([pattern], corpus_dir=fake_corpus)
+
+    assert summary["articles"] == 2
+    assert summary["verified"] == 2
+    assert all(a["url"].startswith("https://adilet.zan.kz/") for a in pattern.legal_articles)
+
+
+def test_annotate_marks_invented_article_instead_of_dropping_it(fake_corpus):
+    """Выдуманную ссылку нельзя ни скрыть, ни выдать за подтверждённую:
+    скрыв её, мы сделаем вид, что детектор ни на что не ссылался."""
+    from app.services.legal import annotate_patterns
+
+    pattern = _Pattern("УК РК ст. 9999 (выдумка)")
+    annotate_patterns([pattern], corpus_dir=fake_corpus)
+
+    assert len(pattern.legal_articles) == 1
+    assert pattern.legal_articles[0]["verified"] is False
+    assert pattern.legal_articles[0]["detail"]
+
+
+def test_annotate_without_corpus_keeps_analysis_running(empty_corpus):
+    """Нет корпуса — нет цитат, но отчёт строится: анализ транзакций от
+    текстов законов не зависит."""
+    from app.services.legal import annotate_patterns
+
+    pattern = _Pattern("УК РК ст. 218 (легализация)")
+    summary = annotate_patterns([pattern], corpus_dir=empty_corpus)
+
+    assert summary["unavailable"] == 1
+    assert pattern.legal_articles[0]["verified"] is False

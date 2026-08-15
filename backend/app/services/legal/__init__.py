@@ -1,4 +1,5 @@
 """Работа с нормативными актами РК: корпус, поиск, проверка ссылок."""
+from .annotate import annotate_patterns, parse_reference
 from .corpus import Article, get_article, is_available, search
 from .verifier import (
     CitationCheck,
@@ -10,6 +11,8 @@ from .verifier import (
 )
 
 __all__ = [
+    "annotate_patterns",
+    "parse_reference",
     "Article",
     "get_article",
     "is_available",

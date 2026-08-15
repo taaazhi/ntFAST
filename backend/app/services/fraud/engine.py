@@ -311,6 +311,17 @@ class FraudEngine:
         except Exception as e:
             logger.error(f"Pattern detection failed: {e}")
 
+        # ── Фаза 4.5: Сверка ссылок на нормы права ───────────────
+        # Отдельным шагом и после детектирования: отсутствие корпуса НПА не
+        # может быть причиной не найти схему в транзакциях. Здесь ссылки
+        # разбираются, сверяются с официальным текстом и получают URL на
+        # первоисточник — следователь открывает норму и читает сам.
+        try:
+            from ..legal import annotate_patterns
+            annotate_patterns(report.flagged_patterns)
+        except Exception as e:
+            logger.warning(f"Не удалось сверить ссылки на НПА: {e}")
+
         # ── Фаза 5: Контекстные веса ─────────────────────────────
         weights = self._get_contextual_weights(profile)
         report.applied_weights = {k: round(v, 4) for k, v in weights.items()}

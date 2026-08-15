@@ -70,6 +70,11 @@ class FlaggedPattern:
     reason: str = ""                    # текст для следователя
     counter_evidence: str = ""          # почему может быть легально
     regulatory_reference: str = ""      # ссылка на нормативный акт РК
+    # Разобранные ссылки: название статьи, URL на первоисточник и признак
+    # того, что норма сверена с официальным текстом. Заполняется
+    # `services/legal` уже после детектирования — детектор про корпус НПА
+    # ничего не знает и работает без него.
+    legal_articles: List[Dict] = field(default_factory=list)
 
     def to_dict(self) -> Dict:
         return {
@@ -81,6 +86,7 @@ class FlaggedPattern:
             "reason": self.reason,
             "counter_evidence": self.counter_evidence,
             "regulatory_reference": self.regulatory_reference,
+            "legal_articles": self.legal_articles,
         }
 
 

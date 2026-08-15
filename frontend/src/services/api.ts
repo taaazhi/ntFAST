@@ -577,6 +577,23 @@ export interface ExplainedFlag {
   score_contribution: number;
 }
 
+/**
+ * Норма права, сверенная с официальным текстом на adilet.zan.kz.
+ *
+ * `verified` не косметика: ссылки на статьи писались людьми по памяти, и
+ * пять из шести указывали не на ту норму. Модель ошибается так же, только
+ * увереннее. Показывать непроверенную ссылку как подтверждённую в документе
+ * для следствия нельзя, скрывать — тоже: остаётся честно её пометить.
+ */
+export interface LegalArticle {
+  citation: string;
+  title: string;
+  url: string;
+  verified: boolean;
+  verdict: string;
+  detail?: string;
+}
+
 /** Распознанная схема — с нормой права, по которой она квалифицируется. */
 export interface FlaggedPattern {
   pattern_name: string;
@@ -587,6 +604,7 @@ export interface FlaggedPattern {
   reason: string;
   counter_evidence?: string;
   regulatory_reference?: string;
+  legal_articles?: LegalArticle[];
 }
 
 /** Найденный источник регулярного дохода — с обоснованием, а не флагом. */
