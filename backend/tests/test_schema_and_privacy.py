@@ -114,6 +114,37 @@ class TestAnonymizerBlocksPII:
         assert "КОНДРАТОВА" not in out
         assert "ИП" in out
 
+    @pytest.mark.parametrize("name,secret", [
+        ("ИП КОНРАТБАЕВА МАДИНА БАГДАДОВНА", "КОНРАТБАЕВА"),
+        ("ИП АБИШЕВ Р А", "АБИШЕВ"),
+        ("ИП БЕРДИБАЕВА", "БЕРДИБАЕВА"),
+        ("ИП КАРИМБЕКОВ", "КАРИМБЕКОВ"),
+        ("ИП АЛИХАН", "АЛИХАН"),
+        ("ЖК Нұрсұлтан Ә.", "Нұрсұлтан"),
+    ])
+    def test_sole_trader_names_in_every_written_form(self, name, secret):
+        """Регресс, найденный на реальных выписках.
+
+        Маскировался единственный формат — «ИП "ФАМИЛИЯ И.О."», с инициалами
+        и точками. Полное ФИО, инициалы без точек и одиночная фамилия уходили
+        наружу открытым текстом. ИП — физическое лицо, его ФИО защищено
+        законом РК №94-V, и CLAUDE.md обещает это маскировать.
+        """
+        anon = Anonymizer(self.OWNER)
+        out = anon.counterparty(name)
+
+        assert secret not in out, out
+        assert out.split()[0] in ("ИП", "ЖК"), out
+
+    @pytest.mark.parametrize("brand", ["ИП BEREKET", "ИП SAVA BRANDS", "ИП FAMILY"])
+    def test_latin_sole_trader_brands_are_kept(self, brand):
+        """Обратная сторона: замаскировать всё подряд тоже неверно.
+
+        «ИП BEREKET» — торговая марка, а не имя. Скрыв её, мы потеряли бы
+        мерчанта в оценке риска, ничего не защитив.
+        """
+        assert Anonymizer(self.OWNER).counterparty(brand) == brand
+
     def test_person_name_ending_in_period_is_caught(self):
         """Регресс: `\\b` не срабатывает после точки, и «Ержан О.» утекал."""
         anon = Anonymizer(self.OWNER)

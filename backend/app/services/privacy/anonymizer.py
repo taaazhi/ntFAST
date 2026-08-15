@@ -57,6 +57,31 @@ PERSON_IN_TEXT_PATTERN = re.compile(
     rf'[{_CYR}][{_CYR}]+\s+[{_CYR}]\.\s*(?:[{_CYR}]\.)?'
 )
 
+# Правовая форма индивидуального предпринимателя: русская, казахская и
+# английская записи. Сохраняется в открытом виде — сама по себе она никого
+# не идентифицирует, а для оценки риска знать «это ИП» полезно.
+SOLE_TRADER_PREFIX = re.compile(
+    r'^(ИП|ЖК|И\.П\.|IP)\s*[.\-—:]?\s*(.+)$', re.IGNORECASE
+)
+
+# Что стоит после «ИП» и должно быть скрыто.
+#
+# Проверка на реальных выписках показала, что маскировался лишь один формат —
+# «ИП "КОНДРАТОВА А.Н."», с инициалами и точками. Остальные уходили наружу
+# открытым текстом: «ИП КОНРАТБАЕВА МАДИНА БАГДАДОВНА», «ИП АБИШЕВ Р А»,
+# «ИП КАРИМБЕКОВ». Индивидуальный предприниматель — физическое лицо, его ФИО
+# защищено законом РК №94-V, и CLAUDE.md обещает его маскировать.
+#
+# Кириллическое слово после «ИП» скрывается даже одиночное: в Казахстане это
+# практически всегда фамилия («КАРИМБЕКОВ») или имя («АЛИХАН», «ДИНАРА»).
+# Ошибка в эту сторону стоит части аналитики по мерчанту, ошибка в обратную —
+# нарушение закона в документе для следствия. Латиница остаётся: «ИП BEREKET»,
+# «ИП SAVA BRANDS» — торговые марки, а не имена.
+SOLE_TRADER_NAME = re.compile(rf'^["«\']?\s*[{_CYR}]')
+
+#: Кавычки и пробелы, обрамляющие название: «ИП "КОНДРАТОВА А.Н."».
+QUOTES_AND_SPACE = '"«»\'“” '
+
 
 def _boundary(literal: str) -> re.Pattern:
     """Регистронезависимый поиск литерала с границами по НЕ-словным символам.
@@ -217,14 +242,44 @@ class Anonymizer:
             self._customer_hit = True
             return self.CUSTOMER_TAG
 
+        # ИП проверяется до is_person(): формально это название бизнеса, и
+        # is_organization() относит его к организациям, из-за чего ФИО
+        # предпринимателя уходило наружу открытым текстом.
+        sole_trader = self._mask_sole_trader(raw)
+        if sole_trader is not None:
+            return sole_trader
+
         if not self.is_person(raw):
             # Организация: имя сохраняем, но чистим вкрапления ПД
             return self.text(raw)
 
-        key = raw.upper()
+        return self._tag_for(raw)
+
+    def _tag_for(self, name: str) -> str:
+        """Стабильная метка для одного человека: одно имя — один номер."""
+        key = name.strip().upper()
         if key not in self._counterparties:
             self._counterparties[key] = f"[PERSON_{len(self._counterparties) + 1}]"
         return self._counterparties[key]
+
+    def _mask_sole_trader(self, name: str) -> Optional[str]:
+        """«ИП КАРИМБЕКОВ» → «ИП [PERSON_1]». Не ИП — вернуть None.
+
+        Правовая форма сохраняется намеренно: она не идентифицирует человека,
+        а для оценки риска отличать ИП от ТОО полезно.
+        """
+        match = SOLE_TRADER_PREFIX.match(name)
+        if not match:
+            return None
+
+        form, remainder = match.group(1).upper(), match.group(2).strip()
+        if not SOLE_TRADER_NAME.match(remainder):
+            # Латинское название — торговая марка, а не ФИО.
+            return None
+
+        form = {"И.П.": "ИП", "IP": "ИП"}.get(form, form)
+        bare_name = remainder.strip(QUOTES_AND_SPACE)
+        return f"{form} {self._tag_for(bare_name)}"
 
     @staticmethod
     def is_person(name: str) -> bool:

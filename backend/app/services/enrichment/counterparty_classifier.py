@@ -64,6 +64,19 @@ FULL_NAME_PATTERN = re.compile(
 )
 
 
+def _is_sole_trader_person(value: str) -> bool:
+    """«ИП КАРИМБЕКОВ» — да, «ИП BEREKET» — нет.
+
+    Правила распознавания живут в анонимизаторе; здесь они только читаются.
+    Дублировать их значило бы завести второе мнение о том, что считать ФИО, —
+    и рано или поздно эти мнения разойдутся.
+    """
+    from app.services.privacy.anonymizer import SOLE_TRADER_NAME, SOLE_TRADER_PREFIX
+
+    match = SOLE_TRADER_PREFIX.match(value)
+    return bool(match and SOLE_TRADER_NAME.match(match.group(2).strip()))
+
+
 def _looks_like_full_name(value: str) -> bool:
     """Похоже ли на ФИО целиком.
 
@@ -228,6 +241,18 @@ def classify_by_rule(name: str) -> Classification:
         # Обезличенный, но не человек: «[IBAN_1]», «[CARD_2]». Гадать по
         # такому тегу нечего, и отправлять его модели тоже незачем.
         return Classification(source="anonymizer")
+
+    # ИП с кириллическим ФИО — физическое лицо, а не торговая точка.
+    # Источник истины один — `privacy.anonymizer`: если он маскирует это имя
+    # как персональные данные, классификатор обязан считать его человеком,
+    # иначе два модуля утверждают о контрагенте разное.
+    if _is_sole_trader_person(cleaned):
+        return Classification(
+            counterparty_type=CounterpartyType.PERSON,
+            confidence=0.6,
+            merchant_type="ИП",
+            source="rule",
+        )
 
     form = extract_legal_form(cleaned)
     if form or is_organization(cleaned):

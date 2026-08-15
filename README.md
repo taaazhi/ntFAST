@@ -201,6 +201,76 @@ Kaspi and Halyk parsers produce), the engine scored the synthetic fraud profile 
 parser, which recovers only date/amount/description, the same engine returns **1.6 → LOW**.
 Detection quality tracks parser richness, not just transaction count.
 
+### What actually moves the score
+
+The obvious reading of that gap — *the generic parser is too poor for the detectors* — is
+wrong, and the ablation says so. Starting from a parsed statement in a layout no parser was
+written for, and copying in one field at a time from the ground truth:
+
+| Field supplied | Composite |
+|---|---|
+| nothing (as parsed) | 17.4 LOW |
+| counterparty type + merchant name | 17.4 LOW |
+| operation type | 17.8 LOW |
+| **`is_salary`** | **63.0 HIGH** |
+
+One boolean accounts for the entire difference; counterparty classification moves nothing at
+all. The path is indirect: `AccountProfiler` types an account without salary as UNKNOWN and
+one with salary as SALARY_EMPLOYEE, and every detector carries different contextual weights
+per profile. A stream of P2P transfers is unremarkable on an account of unknown purpose and
+anomalous on a payroll card — which is how an investigator reads it too.
+
+So the gap closes without a model. `is_salary` used to be set by searching for the word
+*зарплата*, which real statements rarely contain — a salary arrives as `Пополнение` from a
+`ТОО` and nothing else. [`enrichment/salary_detector.py`](backend/app/services/enrichment/salary_detector.py)
+infers it from behaviour instead: same organisation, comparable amounts, same day of month,
+several months running. Both unseen layouts go from 17.4/14.9 LOW to **63.0 HIGH**, matching
+the bank-specific parser, with no LLM involved.
+
+### Counterparty classification — the measured baseline
+
+Extraction accuracy says nothing about whether a field is *right*. Telling a bank from a shop,
+or a brand from a sole trader whose name is a person's, needs a labelled set:
+
+```bash
+python scripts/eval_counterparty.py
+```
+
+82 counterparty strings taken from real statements — including glued-together PDF text, the
+same operation in three languages, and top-up channels sitting in the counterparty field.
+No personal data: names inside sole-trader titles are replaced with invented ones, keeping the
+written form, which is where the difficulty lies.
+
+| Rules only (no network) | Result |
+|---|---|
+| Overall accuracy | **58.5%** (48/82) |
+| Macro-F1 | **0.34** |
+
+Broken down, the result is unusually clean — the rules are perfect at one thing and useless at
+another:
+
+| Group | Correct |
+|---|---|
+| Brands (`YANDEX.GO`, `Magnum`) | 13/13 |
+| Legal entities (`ТОО "…"`, `ЖШС "…"`) | 10/10 |
+| Sole traders with a brand (`ИП BEREKET`) | 6/6 |
+| Private persons | 7/7 |
+| Sole traders named after a person | 5/5 |
+| Short names | 7/8 |
+| **Banks** (`Halyk Bank`, `Kaspi Gold`) | **0/7** |
+| **Government** (`ГЦВП`, `Зейнетақы/жəрдемақы`) | **0/8** |
+| **Channels, not counterparties** (`С карты другого банка`) | **0/16** |
+| **Glued PDF text** (`ReceipttotheaccountАО Финансовый центр`) | **0/2** |
+
+`is_organization()` answers one question — organisation or person — and answers it well. Every
+one of the 33 failures asks a different question: *what kind* of organisation. All 33 errors
+fall the same way, into `merchant`, so a tax payment, a bank transfer and a shop purchase are
+indistinguishable to the detectors that weigh them differently.
+
+That is the number the LLM step has to beat, and it is deliberately the honest one: **58.5%
+against rules**, not the 0% it would have been flattering to quote before the rules were
+wired in at all.
+
 ### Method and limits
 
 - **Sample:** 500 synthetic transactions from a seeded generator (`seed=42`) — salary,
@@ -212,7 +282,32 @@ Detection quality tracks parser richness, not just transaction count.
   itself. Accuracy on genuine Kaspi/Halyk exports is **not measured** — no real statement is
   used anywhere in this project's tests, by design.
 - **No LLM in these numbers.** `FraudEngine.full_analysis()` does not call Ollama, so the
-  timings are identical whether or not a local model is running.
+  timings are identical whether or not a local model is running. Cloud enrichment is off by
+  default (`AI_ENRICHMENT_ENABLED=false`); everything above runs on rules alone.
+- **The classification set is real, the statements are not.** Its 82 strings come from genuine
+  exports, which is the point — synthetic data does not produce glued-together Kazakh text or
+  a channel description sitting where the counterparty belongs. The statements themselves stay
+  out of the repository.
+
+### Privacy
+
+Anything sent to a cloud model passes through
+[`privacy/anonymizer.py`](backend/app/services/privacy/anonymizer.py) first: names, IIN/ЖСН,
+IBAN, card and phone numbers become stable tags. Organisation names are deliberately kept —
+they are not personal data, and without them merchant risk means nothing.
+
+The guarantee is asserted on the seam, not on the anonymiser: a recording provider captures
+what was actually transmitted, and the test fails if an identifier appears in it
+([`test_enrichment_privacy.py`](backend/tests/test_enrichment_privacy.py)).
+
+Building the classification set found a real leak. Only one written form of a sole trader was
+masked — `ИП "ФАМИЛИЯ И.О."`, with initials and periods. A full name, initials without periods
+and a bare surname all went out in the clear: `ИП КОНРАТБАЕВА МАДИНА БАГДАДОВНА`,
+`ИП АБИШЕВ Р А`, `ИП КАРИМБЕКОВ`. A sole trader is a natural person under Kazakhstani law and
+that name is protected data. Now masked in every form while the legal form is kept
+(`ИП [PERSON_1]`), verified across 1252 unique counterparties from the author's own statements
+with zero remaining leaks — and Latin trade names like `ИП BEREKET` are left intact, since
+hiding those would cost merchant analysis and protect nobody.
 
 ---
 
