@@ -735,3 +735,66 @@ async def cancel_analysis(
         pass
 
     return {"id": db_analysis.id, "status": db_analysis.status, "message": "Analysis cancelled"}
+
+
+@router.post("/{analysis_id}/ask")
+def ask_investigator_agent(
+    analysis_id: int,
+    payload: dict,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Вопрос следственного агента по конкретному анализу.
+
+    Обработчик синхронный намеренно: петля агента последовательна — каждый
+    следующий запрос к модели зависит от результата предыдущего инструмента,
+    — и FastAPI выполнит её в пуле потоков, не блокируя цикл событий.
+
+    Данные уходят в модель только обезличенными: контекст строится вместе с
+    анонимизатором, и инструменты возвращают уже замаскированные имена.
+    """
+    question = (payload or {}).get("question", "").strip()
+    if not question:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Не задан вопрос"
+        )
+
+    analysis = db.query(Analysis).filter(Analysis.id == analysis_id).first()
+    if not analysis:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Analysis not found"
+        )
+
+    if current_user.role == "analyst" and analysis.analyst_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not authorized to view this analysis"
+        )
+
+    from app.services.agent import (
+        InvestigatorAgent, build_agent_provider, from_analysis,
+    )
+
+    provider = build_agent_provider()
+    if provider is None:
+        # Не ошибка сервера: агент выключен настройкой или нет ключа.
+        # Отчёт и анализ работают без него, и сказать об этом надо прямо.
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=(
+                "Агент недоступен: включите AI_ENRICHMENT_ENABLED и задайте "
+                "CLAUDE_API_KEY"
+            )
+        )
+
+    from app.models.transaction import Transaction as DBTransaction
+
+    rows = db.query(DBTransaction).filter(
+        DBTransaction.analysis_id == analysis_id
+    ).all()
+
+    context = from_analysis(analysis, rows)
+    answer = InvestigatorAgent(provider).ask(question, context)
+    return answer.to_dict()
