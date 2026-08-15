@@ -77,16 +77,23 @@ class ClaudeAgentProvider:
         }
 
 
-def build_agent_provider(settings: Any = None) -> Optional[ClaudeAgentProvider]:
-    """Собрать провайдера из настроек — или ничего, если он не разрешён.
+def build_agent_provider(settings: Any = None) -> Optional[Any]:
+    """Собрать провайдера из настроек — или ничего, если его нет.
 
-    Возвращает None, когда агент выключен или нет ключа. Это рабочее
-    состояние, а не сбой: анализ выписки не зависит от языковой модели, и
-    отсутствие ключа не должно ронять сервис.
+    Порядок выбора задаётся `AGENT_PROVIDER`:
 
-    Для рассуждений берётся модель посильнее, чем для классификации:
-    связать факты из шести инструментов и не выдумать при этом норму права —
-    задача другого класса, чем «магазин это или человек».
+    * `local` — только Ollama. Данные не покидают машину, и для работы с
+      настоящими выписками это предпочтительный режим: закон РК №94-V
+      ограничивает передачу персональных данных третьим лицам, а здесь
+      передачи нет вовсе.
+    * `cloud` — только Claude. Качество выше, но выписка уходит наружу,
+      поэтому включается осознанно и с обязательной анонимизацией.
+    * `auto` (по умолчанию) — сначала локальная модель, при её отсутствии
+      облачная. Так система сама предпочитает вариант, при котором данные
+      остаются внутри периметра.
+
+    None означает «модели нет» — рабочее состояние, а не сбой: анализ
+    выписки от языковой модели не зависит.
     """
     if settings is None:
         from app.core.config import settings as default_settings
@@ -97,14 +104,30 @@ def build_agent_provider(settings: Any = None) -> Optional[ClaudeAgentProvider]:
         logger.info("Агент выключен: AI_ENRICHMENT_ENABLED=false")
         return None
 
+    preference = str(getattr(settings, "AGENT_PROVIDER", "auto")).lower()
+
+    if preference in ("auto", "local"):
+        from .ollama_provider import build_ollama_provider
+
+        local = build_ollama_provider(settings)
+        if local is not None:
+            logger.info("Агент работает локально: %s", local.name)
+            return local
+        if preference == "local":
+            logger.info("Локальная модель недоступна, а облако не разрешено")
+            return None
+
     api_key = getattr(settings, "CLAUDE_API_KEY", "")
     if not api_key:
-        logger.info("Агент недоступен: не задан CLAUDE_API_KEY")
+        logger.info("Агент недоступен: нет локальной модели и не задан CLAUDE_API_KEY")
         return None
 
     try:
         return ClaudeAgentProvider(
             api_key=api_key,
+            # Для рассуждений модель сильнее, чем для классификации: связать
+            # факты из шести инструментов и не выдумать норму права — задача
+            # другого класса, чем «магазин это или человек».
             model=getattr(settings, "CLAUDE_REASONING_MODEL", "claude-sonnet-5"),
             max_tokens=getattr(settings, "AI_MAX_TOKENS", 4096),
         )
