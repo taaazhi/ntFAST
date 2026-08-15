@@ -601,10 +601,18 @@ export interface FlaggedPattern {
   confidence: number;
   risk_contribution: number;
   evidence?: Record<string, unknown>[];
+  /** Русская формулировка с бэкенда — запасной вариант, если перевода нет. */
   reason: string;
   counter_evidence?: string;
   regulatory_reference?: string;
   legal_articles?: LegalArticle[];
+  /**
+   * Числа для локализованной формулировки. Движок не знает языка читателя,
+   * поэтому отдаёт `pattern_name` и параметры, а текст собирает интерфейс.
+   */
+  reason_params?: Record<string, number | string>;
+  /** Какой контраргумент применим: у счёта ИП и личного они разные. */
+  counter_evidence_variant?: string;
 }
 
 /** Найденный источник регулярного дохода — с обоснованием, а не флагом. */

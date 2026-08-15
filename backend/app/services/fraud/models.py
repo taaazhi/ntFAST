@@ -70,6 +70,14 @@ class FlaggedPattern:
     reason: str = ""                    # текст для следователя
     counter_evidence: str = ""          # почему может быть легально
     regulatory_reference: str = ""      # ссылка на нормативный акт РК
+    # Числа для локализованной формулировки. `reason` остаётся русским —
+    # он нужен PDF-экспорту и записям, сделанным до появления переводов, —
+    # но интерфейс собирает текст сам: язык отчёта знает фронтенд, а не
+    # движок. Ключ перевода выводится из `pattern_name`.
+    reason_params: Dict = field(default_factory=dict)
+    # Какой из вариантов контраргумента применим: у одной и той же схемы он
+    # разный для счёта предпринимателя и для личного счёта.
+    counter_evidence_variant: str = ""
     # Разобранные ссылки: название статьи, URL на первоисточник и признак
     # того, что норма сверена с официальным текстом. Заполняется
     # `services/legal` уже после детектирования — детектор про корпус НПА
@@ -85,8 +93,10 @@ class FlaggedPattern:
             "evidence": self.evidence,
             "reason": self.reason,
             "counter_evidence": self.counter_evidence,
+            "counter_evidence_variant": self.counter_evidence_variant,
             "regulatory_reference": self.regulatory_reference,
             "legal_articles": self.legal_articles,
+            "reason_params": self.reason_params,
         }
 
 

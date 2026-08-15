@@ -128,6 +128,18 @@ class PatternDetector:
                     f"({coverage * 100:.0f}% суммы). "
                     f"Всего исходящих транзакций: {len(out_window)}."
                 ),
+                reason_params={
+                    "amount": round(self._amount(inc)),
+                    "destinations": len(unique_dests),
+                    "hours": 72,
+                    "pct": round(coverage * 100),
+                    "outflows": len(out_window),
+                },
+                counter_evidence_variant=(
+                    "business" if profile.account_type in (
+                        AccountType.BUSINESS_OWNER, AccountType.FREELANCER
+                    ) else "personal"
+                ),
                 counter_evidence=(
                     "выплата зарплат сотрудникам, "
                     "расчёты с подрядчиками, возврат займов нескольким кредиторам, "
@@ -199,6 +211,12 @@ class PatternDetector:
                 f"{low:,.0f}–{high:,.0f} ₸ "
                 f"(90–100% от порога отчётности {effective_threshold:,.0f} ₸)."
             ),
+            reason_params={
+                "count": len(just_under),
+                "low": round(low),
+                "high": round(high),
+                "threshold": round(effective_threshold),
+            },
             counter_evidence=(
                 "Суммы могут случайно приближаться к порогу: "
                 "ипотечный платёж, оплата крупной покупки, аренда."
@@ -277,6 +295,11 @@ class PatternDetector:
                     f"{len(burst)} мелких покупок в иностранной валюте "
                     f"у {len(unique_merchants)} мерчантов за 2 часа."
                 ),
+                reason_params={
+                    "count": len(burst),
+                    "merchants": len(unique_merchants),
+                    "hours": 2,
+                },
                 counter_evidence=(
                     "туристические мелкие покупки, "
                     "тестирование нескольких сервисов, подписки в разных сервисах."
@@ -345,6 +368,11 @@ class PatternDetector:
                 f"затем крупный перевод "
                 f"{abs(self._amount(large_outflows[0])):,.0f} ₸ одному получателю."
             ),
+            reason_params={
+                "payers": len(unique_payers),
+                "total": round(total_in),
+                "outflow": round(abs(self._amount(large_outflows[0]))),
+            },
             counter_evidence=(
                 "краудфандинг, групповой сбор на подарок/лечение, "
                 "возврат займа организатору поездки."
@@ -408,6 +436,11 @@ class PatternDetector:
                 f"Регулярные выплаты {len(unique_persons)} разным физическим лицам, "
                 f"итого {len(person_transfers)} переводов на {total_amount:,.0f} ₸."
             ),
+            reason_params={
+                "persons": len(unique_persons),
+                "transfers": len(person_transfers),
+                "total": round(total_amount),
+            },
             counter_evidence=(
                 "выплата фрилансерам, погашение нескольких "
                 "личных займов, субаренда жилья."
@@ -476,6 +509,11 @@ class PatternDetector:
                 f"{unexplained_ratio * 100:.0f}% от прослеживаемого "
                 f"электронного дохода {known_electronic_income:,.0f} ₸."
             ),
+            reason_params={
+                "cash": round(total_cash_in),
+                "pct": round(unexplained_ratio * 100),
+                "electronic": round(known_electronic_income),
+            },
             counter_evidence=(
                 "продажа личного имущества (авто, недвижимость), "
                 "займ от родственников, ранее накопленные наличные сбережения."

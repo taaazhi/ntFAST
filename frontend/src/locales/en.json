@@ -467,6 +467,39 @@
         "desc": "Inferred from payment regularity rather than the payment description: statements rarely contain the word \"salary\". This determines the account type and drives the module weights above.",
         "privacyLocal": "Computed locally — no statement data left the system.",
         "privacyMasked": "Names, national IDs, IBANs and card numbers were replaced with anonymous tags before contacting the external model."
+      },
+      "patterns": {
+        "money_laundering_layering": {
+          "displayName": "Suspected money laundering — layering stage",
+          "reason": "An inflow of {{amount}} ₸ was redistributed to {{destinations}} recipients within {{hours}} hours ({{pct}}% of the sum). Outgoing transactions in total: {{outflows}}.",
+          "counterEvidence_business": "salary payments to employees, settlements with contractors, repaying loans to several creditors, a group purchase or investment.",
+          "counterEvidence_personal": "a group collection (wedding, medical treatment), repaying debts to several people."
+        },
+        "structuring": {
+          "displayName": "Amounts split just below the reporting threshold",
+          "reason": "{{count}} transactions in the {{low}}–{{high}} ₸ range (90–100% of the {{threshold}} ₸ reporting threshold).",
+          "counterEvidence": "amounts may approach the threshold by chance: a mortgage payment, a large purchase, rent."
+        },
+        "carding": {
+          "displayName": "Signs of carding — card testing",
+          "reason": "{{count}} small foreign-currency purchases at {{merchants}} merchants within {{hours}} hours.",
+          "counterEvidence": "small purchases while travelling, trying out several services, subscriptions across different services."
+        },
+        "pyramid_scheme": {
+          "displayName": "Signs of a financial pyramid",
+          "reason": "Inflows from {{payers}} private individuals totalling {{total}} ₸, followed by a large transfer of {{outflow}} ₸ to a single recipient.",
+          "counterEvidence": "crowdfunding, a group collection for a gift or medical treatment, repaying a loan to a trip organiser."
+        },
+        "human_trafficking_payments": {
+          "displayName": "Payment pattern associated with human trafficking",
+          "reason": "Regular payments to {{persons}} different private individuals — {{transfers}} transfers totalling {{total}} ₸.",
+          "counterEvidence": "paying freelancers, repaying several personal loans, subletting accommodation."
+        },
+        "tax_evasion_cash": {
+          "displayName": "Cash turnover unsupported by declared income",
+          "reason": "Cash inflows of {{cash}} ₸ amount to {{pct}}% of the traceable electronic income of {{electronic}} ₸.",
+          "counterEvidence": "sale of personal property (a car, real estate), a loan from relatives, previously accumulated cash savings."
+        }
       }
     }
   },

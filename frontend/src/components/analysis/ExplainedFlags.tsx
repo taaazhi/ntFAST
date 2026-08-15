@@ -15,6 +15,7 @@
 import { motion } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 import { AlertTriangle, Scale, ShieldCheck, Info } from 'lucide-react';
+import type { TFunction } from 'i18next';
 import { ExplainedFlag, FlaggedPattern } from '../../services/api';
 
 interface Props {
@@ -42,6 +43,46 @@ const MODULE_KEYS: Record<string, string> = {
 };
 
 const moduleKey = (module: string): string => MODULE_KEYS[module] ?? module;
+
+/**
+ * Формулировки схем движок собирает по-русски: он не знает языка читателя и
+ * знать не должен. Поэтому наружу отдаются `pattern_name` и числа, а текст
+ * собирается здесь.
+ *
+ * Запасной вариант — русская строка с бэкенда. Она нужна для схем, перевода
+ * которым ещё не написали, и для анализов, сохранённых до появления
+ * переводов: показать текст на чужом языке лучше, чем пустое место в
+ * документе для следствия.
+ */
+function patternText(
+  t: TFunction,
+  pattern: FlaggedPattern,
+  field: 'reason' | 'counterEvidence' | 'displayName',
+  fallback: string,
+): string {
+  const variant =
+    field === 'counterEvidence' && pattern.counter_evidence_variant
+      ? `_${pattern.counter_evidence_variant}`
+      : '';
+  const key = `analyses.report.patterns.${pattern.pattern_name}.${field}${variant}`;
+
+  const translated = t(key, {
+    ...(field === 'reason' ? formatParams(pattern.reason_params) : {}),
+    defaultValue: '',
+  });
+  return translated || fallback;
+}
+
+/** Числа в отчёте читаются лучше с разделителями разрядов. */
+function formatParams(params?: Record<string, number | string>) {
+  if (!params) return {};
+  return Object.fromEntries(
+    Object.entries(params).map(([key, value]) => [
+      key,
+      typeof value === 'number' ? value.toLocaleString('ru-RU') : value,
+    ]),
+  );
+}
 
 const severityStyles: Record<string, string> = {
   critical: 'border-red-300 bg-red-50 dark:border-red-800/50 dark:bg-red-900/20',
@@ -90,7 +131,8 @@ export function ExplainedFlags({ explainedFlags, flaggedPatterns, appliedWeights
               >
                 <div className="flex flex-wrap items-start justify-between gap-3 mb-2">
                   <h4 className="font-semibold text-gray-900 dark:text-white">
-                    {pattern.display_name || pattern.pattern_name}
+                    {patternText(t, pattern, 'displayName',
+                      pattern.display_name || pattern.pattern_name)}
                   </h4>
                   <div className="flex items-center gap-2 text-xs">
                     <span className="px-2 py-1 rounded-md bg-purple-100 text-purple-700 dark:bg-purple-800/40 dark:text-purple-200">
@@ -102,7 +144,9 @@ export function ExplainedFlags({ explainedFlags, flaggedPatterns, appliedWeights
                   </div>
                 </div>
 
-                <p className="text-sm text-gray-700 dark:text-gray-300 mb-3">{pattern.reason}</p>
+                <p className="text-sm text-gray-700 dark:text-gray-300 mb-3">
+                  {patternText(t, pattern, 'reason', pattern.reason)}
+                </p>
 
                 {/* Разобранные нормы: каждая ведёт на официальный текст.
                     Если корпус НПА не собран, список пуст — тогда показываем
@@ -171,7 +215,9 @@ export function ExplainedFlags({ explainedFlags, flaggedPatterns, appliedWeights
                       <span className="font-medium text-gray-800 dark:text-gray-200">
                         {t('analyses.report.explained.counterEvidence')}:{' '}
                       </span>
-                      <span className="text-gray-600 dark:text-gray-400">{pattern.counter_evidence}</span>
+                      <span className="text-gray-600 dark:text-gray-400">
+                        {patternText(t, pattern, 'counterEvidence', pattern.counter_evidence || '')}
+                      </span>
                     </div>
                   </div>
                 )}
