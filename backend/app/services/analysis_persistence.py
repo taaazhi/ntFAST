@@ -173,10 +173,19 @@ def save_analysis_to_db(
             "round_amounts_result": fraud.get("round_amounts"),
             "profile_mismatch_result": fraud.get("profile_mismatch"),
 
-            # Полные результаты аналитики (exclude raw data keys)
+            # Полные результаты аналитики. Исключается только то, что уже
+            # лежит в собственных колонках или занимает много места.
+            #
+            # `summary` раньше тоже исключался — и это молча ломало отчёт при
+            # повторном открытии: средний расход за день и медиана транзакции
+            # хранятся только здесь, своих колонок у них нет, поэтому фронтенд
+            # показывал по нулю. Ошибка не проявлялась сразу после анализа,
+            # когда отчёт строится из ответа в памяти, а всплывала позже — при
+            # открытии сохранённого дела.
             "analytics_result": {
                 k: v for k, v in result.items()
-                if k not in ("transactions", "fraud_analysis", "fraud_report", "meta", "account_info", "account", "summary")
+                if k not in ("transactions", "fraud_analysis", "fraud_report",
+                             "meta", "account_info", "account")
             },
 
             # Risk score (0-100 → 0-10)

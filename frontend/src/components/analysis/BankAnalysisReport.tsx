@@ -334,7 +334,11 @@ export function BankAnalysisReport({ result, onClose }: BankAnalysisReportProps)
                   {[
                     { label: t('analyses.report.kpi.totalIncome'), value: result.summary.total_income, icon: ArrowUpRight, color: 'green', prefix: '+' },
                     { label: t('analyses.report.kpi.totalExpense'), value: result.summary.total_expense, icon: ArrowDownRight, color: 'red', prefix: '-' },
-                    { label: t('analyses.report.kpi.netFlow'), value: result.summary.net_flow, icon: TrendingUp, color: result.summary.net_flow >= 0 ? 'blue' : 'red', prefix: result.summary.net_flow >= 0 ? '+' : '' },
+                    // Знак ставится префиксом, потому что значение ниже
+                    // печатается по модулю. Для отрицательного потока префикс
+                    // был пустым, и расход, превысивший доход, выглядел как
+                    // прибыль: −18 530 ₸ показывалось как «18 530 ₸».
+                    { label: t('analyses.report.kpi.netFlow'), value: result.summary.net_flow, icon: TrendingUp, color: result.summary.net_flow >= 0 ? 'blue' : 'red', prefix: result.summary.net_flow >= 0 ? '+' : '−' },
                     { label: t('analyses.report.kpi.avgDailyExpense'), value: result.summary.avg_daily_expense, icon: Activity, color: 'slate', prefix: '' },
                   ].map((kpi) => {
                     const Icon = kpi.icon;
@@ -464,10 +468,12 @@ export function BankAnalysisReport({ result, onClose }: BankAnalysisReportProps)
                 {/* Financial summary KPIs (always shown) */}
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                   {[
-                    { label: t('analyses.report.kpi.totalIncome'), value: result.summary?.total_income || 0, color: 'green' },
-                    { label: t('analyses.report.kpi.totalExpense'), value: result.summary?.total_expense || 0, color: 'red' },
-                    { label: t('analyses.report.kpi.netFlow'), value: result.summary?.net_flow || 0, color: (result.summary?.net_flow || 0) >= 0 ? 'blue' : 'red' },
-                    { label: t('analyses.report.kpi.avgDailyExpenseShort'), value: result.summary?.avg_daily_expense || 0, color: 'slate' },
+                    { label: t('analyses.report.kpi.totalIncome'), value: result.summary?.total_income || 0, color: 'green', prefix: '+' },
+                    { label: t('analyses.report.kpi.totalExpense'), value: result.summary?.total_expense || 0, color: 'red', prefix: '-' },
+                    // Знак обязателен: значение печатается по модулю, и без
+                    // префикса отрицательный поток читался как положительный.
+                    { label: t('analyses.report.kpi.netFlow'), value: result.summary?.net_flow || 0, color: (result.summary?.net_flow || 0) >= 0 ? 'blue' : 'red', prefix: (result.summary?.net_flow || 0) >= 0 ? '+' : '−' },
+                    { label: t('analyses.report.kpi.avgDailyExpenseShort'), value: result.summary?.avg_daily_expense || 0, color: 'slate', prefix: '' },
                   ].map((kpi) => {
                     const colors: Record<string, string> = {
                       green: 'bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300 border-green-200/50 dark:border-green-800/40',
@@ -478,7 +484,7 @@ export function BankAnalysisReport({ result, onClose }: BankAnalysisReportProps)
                     return (
                       <div key={kpi.label} className={`p-4 rounded-xl border ${colors[kpi.color]}`}>
                         <p className="text-xs font-medium opacity-70 mb-1">{kpi.label}</p>
-                        <p className="text-xl font-bold">{formatCurrency(Math.abs(kpi.value))}</p>
+                        <p className="text-xl font-bold">{kpi.prefix}{formatCurrency(Math.abs(kpi.value))}</p>
                       </div>
                     );
                   })}

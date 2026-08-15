@@ -784,8 +784,10 @@ def ask_investigator_agent(
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail=(
-                "Агент недоступен: включите AI_ENRICHMENT_ENABLED и задайте "
-                "CLAUDE_API_KEY"
+                "Агент недоступен. Включите AI_ENRICHMENT_ENABLED=true и либо "
+                "запустите локальную модель (ollama pull qwen2.5:3b) — тогда "
+                "данные не покидают машину, — либо задайте CLAUDE_API_KEY для "
+                "облачного режима."
             )
         )
 
