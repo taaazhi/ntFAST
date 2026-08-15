@@ -396,6 +396,14 @@
           "unexpected": "Unexpected",
           "incomeAnomalies": "Income anomalies",
           "noMismatches": "Client profile matches operations"
+        },
+        "behavioral": {
+          "short": "Behaviour",
+          "name": "Behavioural analysis"
+        },
+        "patternDetector": {
+          "short": "Schemes",
+          "name": "Scheme detector"
         }
       },
       "transactions": {
@@ -440,7 +448,23 @@
           "low": "LOW"
         }
       },
-      "balanceNotReconciled": "Balance does not reconcile"
+      "balanceNotReconciled": "Balance does not reconcile",
+      "explained": {
+        "patternsTitle": "Detected schemes",
+        "flagsTitle": "How the score was reached",
+        "weightsTitle": "Module weights",
+        "weightsDesc": "Weights depend on the account type: the same behaviour means something different on a payroll card than on an account of unknown purpose.",
+        "counterEvidence": "May be legitimate",
+        "confidence": "Confidence",
+        "points": "points",
+        "none": "No factors affected the score."
+      },
+      "income": {
+        "title": "Regular income source",
+        "desc": "Inferred from payment regularity rather than the payment description: statements rarely contain the word \"salary\". This determines the account type and drives the module weights above.",
+        "privacyLocal": "Computed locally — no statement data left the system.",
+        "privacyMasked": "Names, national IDs, IBANs and card numbers were replaced with anonymous tags before contacting the external model."
+      }
     }
   },
   "settings": {

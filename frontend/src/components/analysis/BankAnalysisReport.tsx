@@ -18,6 +18,8 @@ import {
 import { KaspiAnalysisResult, bankAnalysisAPI } from '../../services/api';
 import { RiskScoreGauge } from './RiskScoreGauge';
 import { ModuleScoreCard } from './ModuleScoreCard';
+import { ExplainedFlags } from './ExplainedFlags';
+import { IncomeSources } from './IncomeSources';
 
 interface BankAnalysisReportProps {
   result: KaspiAnalysisResult;
@@ -759,6 +761,21 @@ export function BankAnalysisReport({ result, onClose }: BankAnalysisReportProps)
                         ))}
                       </div>
                     </div>
+
+                    {/* Обоснование балла: чем он набран и что говорит против.
+                        Движок считал это и раньше, но наружу не отдавал. */}
+                    <ExplainedFlags
+                      explainedFlags={fraud.explained_flags}
+                      flaggedPatterns={fraud.flagged_patterns}
+                      appliedWeights={fraud.applied_weights}
+                    />
+
+                    {/* Источник дохода задаёт тип счёта, а тип счёта — веса
+                        модулей выше. Скрывать такой вход нельзя. */}
+                    <IncomeSources
+                      enrichment={result.enrichment}
+                      formatCurrency={formatCurrency}
+                    />
 
                     {/* Expanded Module Details */}
                     <AnimatePresence>

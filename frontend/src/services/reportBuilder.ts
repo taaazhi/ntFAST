@@ -27,6 +27,16 @@ interface StoredAnalysis {
   parsed_account_info?: any;
 }
 
+/**
+ * Результат шага обогащения лежит внутри `analytics_result`: собственной
+ * колонки у него нет, а BankAnalyzer кладёт его рядом с аналитикой. У записей,
+ * сделанных до появления этого шага, ключа просто нет — тогда секция источника
+ * дохода не отрисуется, и это правильнее, чем показать пустую заглушку.
+ */
+function extractEnrichment(stored: any) {
+  return stored?.enrichment ?? null;
+}
+
 const EMPTY_ANALYTICS: KaspiAnalysisResult['analytics'] = {
   monthly_breakdown: [],
   category_breakdown: { expense: [], income: [], total_expense: 0, total_income: 0 },
@@ -127,6 +137,7 @@ export async function buildReportFromAnalysis(analysisId: number): Promise<Kaspi
     // Контакты BankAnalyzer кладёт рядом с analytics, но у старых записей
     // они могли оказаться внутри неё — принимаем оба варианта.
     contacts: storedAnalytics.contacts || (analytics as any).contacts || {},
+    enrichment: extractEnrichment(storedAnalytics),
     fraud_report: analysis.fraud_report || null,
   } as KaspiAnalysisResult;
 }

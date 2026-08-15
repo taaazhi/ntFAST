@@ -554,9 +554,57 @@ export interface FraudReport {
   red_flags: string[];
   recommendations: string[];
   account_profile?: AccountProfileData;
-  flagged_patterns?: any[];
-  explained_flags?: any[];
+  flagged_patterns?: FlaggedPattern[];
+  explained_flags?: ExplainedFlag[];
   applied_weights?: Record<string, number>;
+}
+
+/**
+ * Обоснование одного сработавшего признака.
+ *
+ * `counter_evidence` — не украшение. Отчёт попадает в материалы дела, и
+ * следователь обязан видеть не только довод «за», но и законное объяснение,
+ * при котором тот же признак ничего не значит. Балл без контраргумента —
+ * это обвинение без защиты.
+ */
+export interface ExplainedFlag {
+  module: string;
+  severity: string;
+  reason: string;
+  evidence?: Record<string, unknown>[];
+  confidence: number;
+  counter_evidence?: string;
+  score_contribution: number;
+}
+
+/** Распознанная схема — с нормой права, по которой она квалифицируется. */
+export interface FlaggedPattern {
+  pattern_name: string;
+  display_name: string;
+  confidence: number;
+  risk_contribution: number;
+  evidence?: Record<string, unknown>[];
+  reason: string;
+  counter_evidence?: string;
+  regulatory_reference?: string;
+}
+
+/** Найденный источник регулярного дохода — с обоснованием, а не флагом. */
+export interface SalarySource {
+  counterparty: string;
+  payments: number;
+  months: number;
+  median_amount: number;
+  day_of_month: number;
+  reason: string;
+}
+
+/** Результат шага обогащения: см. backend/app/services/enrichment/. */
+export interface EnrichmentInfo {
+  classified: number;
+  salary_sources: SalarySource[];
+  classifier?: Record<string, unknown> | null;
+  privacy?: Record<string, number | boolean> | null;
 }
 
 // Kaspi Bank Analysis API
@@ -711,6 +759,7 @@ export interface KaspiAnalysisResult {
     is_frequent: boolean;
   }>;
   fraud_report: FraudReport | null;
+  enrichment?: EnrichmentInfo | null;
 }
 
 /**
