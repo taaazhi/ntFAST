@@ -239,3 +239,76 @@ def test_annotate_without_corpus_keeps_analysis_running(empty_corpus):
 
     assert summary["unavailable"] == 1
     assert pattern.legal_articles[0]["verified"] is False
+
+
+# ── Морфология запроса ──────────────────────────────────────────
+
+@pytest.mark.parametrize("query", [
+    "легализация денег",
+    "легализации денег",
+    "легализацию денег",
+    "отмывание денег",
+])
+def test_search_survives_russian_cases(fake_corpus, query):
+    """Регресс, найденный на живой модели.
+
+    Закон формулирует норму в одном падеже, следователь спрашивает в другом:
+    статья 217 называется «…финансовой пирамидой», а вопрос звучит как
+    «финансовая пирамида». Поиск по точному совпадению слов её не находил, и
+    провал был тихим — модель оставалась без нормы и либо молчала, либо
+    называла статью по памяти.
+    """
+    results = corpus.search(query, corpus_dir=fake_corpus)
+
+    assert results, query
+    assert results[0][0].number == "218"
+
+
+def test_kazakh_suffixes_do_not_mangle_russian_words():
+    """«да» — казахский местный падеж и одновременно конец слова «пирамида».
+
+    Пока аффиксы обоих языков лежали в одном списке, «пирамида» давала основу
+    «пирами», а «пирамидой» — «пирамид», и формы одного слова переставали
+    совпадать между собой.
+    """
+    from app.services.legal.corpus import stem
+
+    assert stem("пирамида") == stem("пирамидой") == stem("пирамиды")
+    assert stem("документа") == stem("документов")
+
+
+def test_kazakh_words_are_still_stemmed():
+    """Разделение списков не должно отключить казахский: аффиксы отсекаются
+    у слов с казахскими буквами."""
+    from app.services.legal.corpus import stem
+
+    assert stem("қаражаттың") != "қаражаттың"
+
+
+def test_yo_and_ye_are_the_same_letter(fake_corpus):
+    """Официальные тексты печатают «платежных», человек пишет «платёжные»."""
+    from app.services.legal.corpus import tokenize
+
+    assert tokenize("платёжные") == tokenize("платежные")
+
+
+def test_main_article_outranks_the_derived_one(fake_corpus):
+    """При равной оценке впереди основной состав, а не производный: у статьи
+    «217-1 Реклама пирамиды» название короче, поэтому доля совпавших слов
+    выше, и она вытесняла «217 Создание пирамиды»."""
+    from app.services.legal.corpus import Article
+
+    articles = (
+        Article("УК РК", "217", "Создание и руководство финансовой пирамидой",
+                "текст про пирамиды", "u1"),
+        Article("УК РК", "217-1", "Реклама финансовой пирамиды",
+                "текст про пирамиды", "u2"),
+    )
+    monkey = corpus.load_articles
+    corpus.load_articles = lambda *a, **k: articles
+    try:
+        results = corpus.search("финансовая пирамида")
+    finally:
+        corpus.load_articles = monkey
+
+    assert results[0][0].number == "217"

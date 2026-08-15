@@ -122,10 +122,21 @@ def test_null_columns_do_not_break_the_context():
 # ── Провайдер модели ─────────────────────────────────────────────
 
 class _Settings:
-    def __init__(self, enabled=True, key="sk-test", model="claude-sonnet-5"):
+    """Настройки с явным выбором провайдера.
+
+    `AGENT_PROVIDER="cloud"` здесь обязателен: в режиме `auto` результат
+    зависел бы от того, установлена ли на машине Ollama, и тест проходил бы
+    на CI и падал у разработчика с локальной моделью — или наоборот.
+    """
+
+    def __init__(self, enabled=True, key="sk-test", model="claude-sonnet-5",
+                 preference="cloud"):
         self.AI_ENRICHMENT_ENABLED = enabled
+        self.AGENT_PROVIDER = preference
         self.CLAUDE_API_KEY = key
         self.CLAUDE_REASONING_MODEL = model
+        self.OLLAMA_MODEL = "qwen2.5:3b"
+        self.OLLAMA_HOST = "http://localhost:11434"
         self.AI_MAX_TOKENS = 1024
 
 
