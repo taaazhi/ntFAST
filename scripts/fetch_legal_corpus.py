@@ -29,7 +29,7 @@ import json
 import re
 import subprocess
 import sys
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, Iterator, List, Optional
@@ -49,11 +49,13 @@ DOCUMENTS = {
     "УК РК": {
         "slug": "uk_rk",
         "url": UK_URL,
+        "url_kk": UK_URL.replace("/rus/", "/kaz/"),
         "title": "Уголовный кодекс Республики Казахстан от 3 июля 2014 года № 226-V",
     },
     "ЗРК О ПОД/ФТ": {
         "slug": "zrk_pod_ft",
         "url": ZRK_URL,
+        "url_kk": ZRK_URL.replace("/rus/", "/kaz/"),
         "title": (
             "Закон РК от 28 августа 2009 года № 191-IV «О противодействии "
             "легализации (отмыванию) доходов, полученных преступным путем, "
@@ -63,6 +65,7 @@ DOCUMENTS = {
     "НК РК": {
         "slug": "nk_rk",
         "url": NK_URL,
+        "url_kk": NK_URL.replace("/rus/", "/kaz/"),
         "title": (
             "Кодекс РК от 25 декабря 2017 года № 120-VI «О налогах и других "
             "обязательных платежах в бюджет (Налоговый кодекс)»"
@@ -74,6 +77,22 @@ DOCUMENTS = {
 HEADING_H3 = re.compile(
     r'<h3[^>]*id="(?P<anchor>z\d+)"[^>]*>\s*Статья\s+(?P<number>\d+(?:-\d+)?)\.\s*'
     r'(?P<title>[^<]{1,300}?)\s*</h3>',
+    re.IGNORECASE,
+)
+
+#: Казахская версия нумерует иначе: «218-бап. Название», где «бап» —
+#: «статья», и номер стоит перед словом. И повторяет то же расхождение
+#: разметки, что и русская: УК размечен через `<h3>`, а закон о ПОД/ФТ и
+#: Налоговый кодекс — через `<a name>`.
+HEADING_KK_H3 = re.compile(
+    r'<h3[^>]*id="(?P<anchor>z\d+)"[^>]*>\s*(?P<number>\d+(?:-\d+)?)-бап\.\s*'
+    r'(?P<title>[^<]{1,300}?)\s*</h3>',
+    re.IGNORECASE,
+)
+
+HEADING_KK_BOLD = re.compile(
+    r'<a\s+name="(?P<anchor>z\d+)"[^>]*>\s*</a>\s*(?P<number>\d+(?:-\d+)?)-бап\.\s*'
+    r'(?P<title>[^<]{1,300}?)\s*</b>',
     re.IGNORECASE,
 )
 
@@ -98,6 +117,11 @@ class Article:
     text: str
     url: str
     fetched_at: str
+    #: Название статьи по-казахски и ссылка на казахскую редакцию. Пустые,
+    #: если казахская версия недоступна: отсутствие перевода не повод
+    #: терять статью целиком.
+    title_kk: str = ""
+    url_kk: str = ""
 
     @property
     def key(self) -> str:
@@ -183,6 +207,38 @@ def split_articles(html: str, code: str, url: str) -> List[Article]:
     return articles
 
 
+def fetch_kazakh_titles(url_kk: str) -> Dict[str, tuple]:
+    """Номер статьи → (казахское название, ссылка на казахскую редакцию).
+
+    Отдельным проходом, а не вместе с русским текстом: казахская версия —
+    самостоятельный документ со своей нумерацией якорей, и сопоставлять их
+    можно только по номеру статьи.
+
+    Ошибка не прерывает сборку. Русский корпус — основа проверки ссылок;
+    отсутствие перевода ухудшает отчёт, но не должно оставлять систему без
+    норм вообще.
+    """
+    try:
+        html = fetch(url_kk)
+    except Exception as exc:
+        print(f"  казахская версия недоступна ({exc}) — названия только на русском")
+        return {}
+
+    titles: Dict[str, tuple] = {}
+    matches = sorted(
+        (m for pattern in (HEADING_KK_H3, HEADING_KK_BOLD) for m in pattern.finditer(html)),
+        key=lambda m: m.start(),
+    )
+    for match in matches:
+        number = match.group("number")
+        if number not in titles:
+            titles[number] = (
+                clean(match.group("title")),
+                f"{url_kk}#{match.group('anchor')}",
+            )
+    return titles
+
+
 def build_corpus(out_dir: Path = CORPUS_DIR) -> Dict[str, int]:
     out_dir.mkdir(parents=True, exist_ok=True)
     counts: Dict[str, int] = {}
@@ -191,6 +247,15 @@ def build_corpus(out_dir: Path = CORPUS_DIR) -> Dict[str, int]:
         print(f"Скачиваю {code}…", flush=True)
         html = fetch(meta["url"])
         articles = split_articles(html, code, meta["url"])
+
+        kk = fetch_kazakh_titles(meta["url_kk"]) if meta.get("url_kk") else {}
+        if kk:
+            articles = [
+                replace(a, title_kk=kk[a.number][0], url_kk=kk[a.number][1])
+                if a.number in kk else a
+                for a in articles
+            ]
+            print(f"  казахских названий: {sum(1 for a in articles if a.title_kk)}")
 
         path = out_dir / f"{meta['slug']}.jsonl"
         with path.open("w", encoding="utf-8") as handle:

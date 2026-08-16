@@ -27,14 +27,22 @@ def parse_reference(reference: str, corpus_dir: Optional[str] = None) -> List[Di
     сделать вид, что детектор ни на что не ссылался; показать как достоверные —
     выдать непроверенное за подтверждённое. Верно третье: показать с оговоркой.
     """
+    from . import corpus as corpus_module
+
     report = verify_reference_line(reference, corpus_dir=corpus_dir)
     articles: List[Dict[str, Any]] = []
 
     for check in report.checks:
+        # Казахское название берётся из казахской редакции того же акта, а
+        # не переводится на ходу: название нормы — часть официального
+        # текста, и сочинять его в документе для следствия нельзя.
+        article = corpus_module.get_article(check.code, check.number, corpus_dir)
         articles.append({
             "citation": check.citation,
             "title": check.title or "",
+            "title_kk": getattr(article, "title_kk", "") if article else "",
             "url": check.url or "",
+            "url_kk": getattr(article, "url_kk", "") if article else "",
             "verified": check.is_trustworthy,
             "verdict": check.verdict.value,
             # Пояснение нужно только когда что-то не так: у подтверждённой

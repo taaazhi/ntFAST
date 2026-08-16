@@ -106,6 +106,28 @@ class Article:
     text: str
     url: str
     fetched_at: str = ""
+    #: Название и ссылка на казахскую редакцию. Пустые, если перевода нет:
+    #: отсутствие казахского названия не повод скрывать норму целиком.
+    title_kk: str = ""
+    url_kk: str = ""
+
+    def localised_title(self, language: str) -> str:
+        """Название на языке отчёта, с откатом на русский.
+
+        Официальные названия не переводятся на ходу — они берутся из
+        казахской редакции того же акта на adilet.zan.kz. Там, где перевод
+        не найден, показывается русское название: увидеть норму на чужом
+        языке лучше, чем не увидеть её вовсе.
+        """
+        if language == "kk" and self.title_kk:
+            return self.title_kk
+        return self.title
+
+    def localised_url(self, language: str) -> str:
+        """Ссылка на ту редакцию, название которой показано."""
+        if language == "kk" and self.url_kk:
+            return self.url_kk
+        return self.url
 
     @property
     def citation(self) -> str:
@@ -156,6 +178,8 @@ def load_articles(corpus_dir: Optional[str] = None) -> Tuple[Article, ...]:
                         text=payload["text"],
                         url=payload["url"],
                         fetched_at=payload.get("fetched_at", ""),
+                        title_kk=payload.get("title_kk", ""),
+                        url_kk=payload.get("url_kk", ""),
                     ))
                 except (ValueError, KeyError) as exc:
                     logger.warning("Пропущена строка корпуса в %s: %s", path.name, exc)

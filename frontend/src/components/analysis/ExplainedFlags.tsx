@@ -16,7 +16,7 @@ import { motion } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 import { AlertTriangle, Scale, ShieldCheck, Info } from 'lucide-react';
 import type { TFunction } from 'i18next';
-import { ExplainedFlag, FlaggedPattern } from '../../services/api';
+import { ExplainedFlag, FlaggedPattern, LegalArticle } from '../../services/api';
 
 interface Props {
   explainedFlags?: ExplainedFlag[];
@@ -84,6 +84,46 @@ function formatParams(params?: Record<string, number | string>) {
   );
 }
 
+/**
+ * Обозначение кодекса по-казахски. Это устоявшиеся сокращения, а не перевод
+ * на ходу: ҚР ҚК — Қазақстан Республикасының Қылмыстық кодексі.
+ */
+const CODE_KK: Record<string, string> = {
+  'УК РК': 'ҚР ҚК',
+  'НК РК': 'ҚР СК',
+  'ЗРК О ПОД/ФТ': 'КЖ/ТҚҚ туралы ҚР Заңы',
+};
+
+/**
+ * Ссылка на статью в принятой для языка форме. По-русски «УК РК ст. 232»,
+ * по-казахски «ҚР ҚК 232-бап»: там номер стоит перед словом «бап» (статья),
+ * и запись через «ст.» выглядела бы калькой.
+ */
+function articleCitation(article: LegalArticle, language: string): string {
+  if (language !== 'kk') return article.citation;
+
+  const match = article.citation.match(/^(.+?)\s+ст\.\s*([\d-]+)$/);
+  if (!match) return article.citation;
+
+  const [, code, number] = match;
+  return `${CODE_KK[code] ?? code} ${number}-бап`;
+}
+
+/**
+ * Название статьи на языке отчёта. Казахское берётся из казахской редакции
+ * акта, а не переводится: формулировка нормы — часть официального текста.
+ * Где перевода нет, показывается русское название — увидеть норму на чужом
+ * языке лучше, чем не увидеть вовсе.
+ */
+function articleTitle(article: LegalArticle, language: string): string {
+  return language === 'kk' && article.title_kk ? article.title_kk : article.title;
+}
+
+/** Ссылка ведёт на ту редакцию, название которой показано. */
+function articleUrl(article: LegalArticle, language: string): string {
+  return language === 'kk' && article.url_kk ? article.url_kk : article.url;
+}
+
 const severityStyles: Record<string, string> = {
   critical: 'border-red-300 bg-red-50 dark:border-red-800/50 dark:bg-red-900/20',
   warning: 'border-amber-300 bg-amber-50 dark:border-amber-800/50 dark:bg-amber-900/20',
@@ -91,7 +131,7 @@ const severityStyles: Record<string, string> = {
 };
 
 export function ExplainedFlags({ explainedFlags, flaggedPatterns, appliedWeights }: Props) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
 
   const flags = explainedFlags ?? [];
   const patterns = flaggedPatterns ?? [];
@@ -160,23 +200,23 @@ export function ExplainedFlags({ explainedFlags, flaggedPatterns, appliedWeights
                           {/* Ссылка только когда есть куда вести. У выдуманной
                               статьи URL пуст, и href="" отправил бы следователя
                               на перезагрузку страницы вместо текста закона. */}
-                          {article.url ? (
+                          {articleUrl(article, i18n.language) ? (
                             <a
-                              href={article.url}
+                              href={articleUrl(article, i18n.language)}
                               target="_blank"
                               rel="noopener noreferrer"
                               className="font-medium text-purple-800 dark:text-purple-200 underline decoration-purple-300 underline-offset-2 hover:decoration-purple-600"
                             >
-                              {article.citation}
+                              {articleCitation(article, i18n.language)}
                             </a>
                           ) : (
                             <span className="font-medium text-gray-700 dark:text-gray-300">
-                              {article.citation}
+                              {articleCitation(article, i18n.language)}
                             </span>
                           )}
-                          {article.title && (
+                          {articleTitle(article, i18n.language) && (
                             <span className="text-gray-600 dark:text-gray-400">
-                              {' — '}{article.title}
+                              {' — '}{articleTitle(article, i18n.language)}
                             </span>
                           )}
                           {article.verified ? (
