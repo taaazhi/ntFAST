@@ -72,8 +72,17 @@ def classify_all(cases: Sequence[Dict[str, str]], use_llm: bool) -> List[str]:
     )
     batch_size = 12 if is_local else 40
 
-    classifier = CounterpartyClassifier(ai_manager=ai_manager, batch_size=batch_size)
-    print(f"  размер батча: {batch_size}")
+    # Порог уверенности одинаков для любой модели, и это проверено заменой.
+    # Локальная 3B ставит 0.1 там, где не знает ответа — на «YANDEX.GO» она
+    # отвечает unknown с уверенностью 0.1, — и порог 0.4 такие ответы
+    # отбрасывает, отдавая имя правилу, которое бренды знает на 13/13.
+    # Снятие порога подняло покрытие модели с 43% до 65%, а точность
+    # уронило с 89.0% до 76.8%: без фильтра модель перебивает правило там,
+    # где сама сомневается.
+    classifier = CounterpartyClassifier(
+        ai_manager=ai_manager, batch_size=batch_size, min_confidence=0.4,
+    )
+    print(f"  размер батча: {batch_size}, порог уверенности: 0.4")
     mapping = asyncio.run(classifier.classify(names))
     print(f"  источники: {json.dumps(classifier.stats.as_dict(), ensure_ascii=False)}\n")
     return [

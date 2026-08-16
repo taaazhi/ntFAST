@@ -36,6 +36,7 @@ from dataclasses import dataclass, field
 from typing import Any, Dict, Iterable, List, Optional, Sequence
 
 from app.services.bank_analyzer.base_parser import CounterpartyType
+from app.services.enrichment.operation_words import is_operation_description
 from app.utils.helpers import is_organization
 
 logger = logging.getLogger(__name__)
@@ -200,6 +201,8 @@ class ClassificationStats:
     from_rule: int = 0
     llm_batches: int = 0
     llm_failures: int = 0
+    #: Сколько батчей удалось получить только со второй попытки.
+    llm_retries: int = 0
     provider: Optional[str] = None
 
     def as_dict(self) -> Dict[str, Any]:
@@ -211,6 +214,7 @@ class ClassificationStats:
             "from_rule": self.from_rule,
             "llm_batches": self.llm_batches,
             "llm_failures": self.llm_failures,
+            "llm_retries": self.llm_retries,
             "provider": self.provider,
             "llm_coverage_pct": (
                 100.0 * self.from_llm / self.total if self.total else 0.0
@@ -398,6 +402,15 @@ class CounterpartyClassifier:
         физлицами все ИП подряд — 1/6. Спрашивать модель там, где ответ уже
         известен точно, значит менять верный ответ на правдоподобный.
         """
+        # Описание операции — не контрагент. «Комиссия за перевод» и
+        # «Transaction Fee» иначе становятся узлами в графе связей, и
+        # система показывает следователю, что человек 60 раз переводил
+        # деньги «Комиссии». Признак формальный, модель тут не нужна:
+        # правило даёт 16 из 16, локальная модель давала 5.
+        if is_operation_description(name):
+            self.stats.from_rule += 1
+            return Classification(source="rule")
+
         if _is_sole_trader(name):
             result = classify_by_rule(name)
             if result.counterparty_type is not CounterpartyType.UNKNOWN:
@@ -418,19 +431,7 @@ class CounterpartyClassifier:
         for start in range(0, len(names), self._batch_size):
             batch = list(names[start:start + self._batch_size])
             self.stats.llm_batches += 1
-            try:
-                payload, provider = await self._ai.generate_structured(
-                    self._build_prompt(batch), CLASSIFICATION_SCHEMA, SYSTEM_PROMPT
-                )
-            except Exception as exc:
-                # Падение провайдера не должно ронять анализ: остаток уйдёт
-                # в правило, и это будет видно в статистике.
-                logger.warning("Не удалось классифицировать батч контрагентов: %s", exc)
-                self.stats.llm_failures += 1
-                continue
-
-            self.stats.provider = self.stats.provider or provider
-            batch_result = self._parse_response(payload, batch)
+            batch_result = await self._classify_batch(batch)
             if not batch_result:
                 self.stats.llm_failures += 1
                 continue
@@ -443,6 +444,38 @@ class CounterpartyClassifier:
                 if result.counterparty_type is not CounterpartyType.PERSON:
                     self._cache[name] = result
         return resolved
+
+    async def _classify_batch(self, batch: Sequence[str]) -> Dict[str, Classification]:
+        """Классифицировать один батч, с одной повторной попыткой.
+
+        Повтор помогает, когда провайдер отвалился по сети. От ошибки самой
+        модели он не спасает: при нулевой температуре она повторит тот же
+        ответ, что и подтвердилось на замере — два батча отбраковывались во
+        всех трёх прогонах одинаково.
+
+        Повтор ровно один. Если ответ отбракован дважды, дело не в
+        случайности, и дальнейшие попытки только тратят время — остаток
+        уйдёт в правило, что видно в статистике.
+        """
+        for attempt in (1, 2):
+            try:
+                payload, provider = await self._ai.generate_structured(
+                    self._build_prompt(batch), CLASSIFICATION_SCHEMA, SYSTEM_PROMPT
+                )
+            except Exception as exc:
+                # Падение провайдера не должно ронять анализ.
+                logger.warning("Батч контрагентов не классифицирован: %s", exc)
+                continue
+
+            self.stats.provider = self.stats.provider or provider
+            result = self._parse_response(payload, batch)
+            if result:
+                if attempt > 1:
+                    self.stats.llm_retries += 1
+                return result
+
+            logger.info("Ответ модели отбракован целиком, попытка %d из 2", attempt)
+        return {}
 
     @staticmethod
     def _build_prompt(batch: Sequence[str]) -> str:
@@ -491,6 +524,13 @@ class CounterpartyClassifier:
                 confidence = float(item.get("confidence", 0.0))
             except (TypeError, ValueError):
                 continue
+            # Порог — не формальность, а то, что удерживает модель от
+            # порчи уже верных ответов. Локальная 3B ставит 0.1 именно там,
+            # где не знает: на «YANDEX.GO» она отвечает unknown с
+            # уверенностью 0.1. Такой ответ отбрасывается, и имя достаётся
+            # правилу, которое бренды знает на 13/13. Снятие порога подняло
+            # покрытие модели с 43% до 65%, а точность уронило с 89.0% до
+            # 76.8% — модель перебивала правило ровно там, где сомневалась.
             if confidence < self._min_confidence:
                 continue
 

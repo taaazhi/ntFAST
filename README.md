@@ -247,11 +247,14 @@ python scripts/eval_counterparty.py --llm    # same set, through the model
 
 | | Rules only | + local model |
 |---|---|---|
-| Overall accuracy | 58.5% (48/82) | **76.8%** (63/82) |
-| Macro-F1 | 0.34 | **0.61** |
+| Overall accuracy | 58.5% (48/82) | **89.0%** (73/82) |
+| Macro-F1 | 0.34 | **0.86** |
 | Government bodies | 0/8 | **7/8** |
-| Glued-together PDF text | 0/2 | **2/2** |
-| Channels mistaken for counterparties | 0/16 | 5/16 |
+| Channels mistaken for counterparties | 0/16 | **16/16** |
+| Sole traders (brand vs person) | 11/11 | 11/11 |
+
+Three runs produce the same numbers — the model runs at temperature 0, so the
+result is reproducible rather than a lucky draw.
 
 The local model is `qwen2.5:3b` through Ollama on a GTX 1050 Ti — free, and
 nothing leaves the machine, which for statements belonging to real people is the
@@ -259,13 +262,24 @@ point rather than a compromise. Cloud numbers are not filled in yet: no API key
 has been used in this repository, and a column of guesses would be worse than an
 empty one.
 
-Two findings from running it, both of which changed the code:
+Four findings from running it, each of which changed the code:
 
 - **Sole traders are decided by rule, and the model is not asked.** The rule
   tells `ИП КАРИМБЕКОВ` from `ИП BEREKET` by alphabet and scores 5/5 and 6/6.
   The 3B model, given the same names, called every ИП a private person — 1 of 6.
   Asking a model where the answer is already known exactly trades a correct
-  answer for a plausible one, so that path now short-circuits before any call.
+  answer for a plausible one, so that path short-circuits before any call.
+- **Operation descriptions are not counterparties.** Banks put
+  `Комиссия за перевод`, `Transaction Fee` and `Басқакартағааударым` in the
+  counterparty field. Left alone they become nodes in the counterparty graph —
+  the report then tells an investigator that the subject transferred money to
+  "Commission" sixty times, and laundering schemes are supposed to be found in
+  that graph. A formal rule handles all 16; the model managed 5.
+- **The confidence threshold protects the rules from the model.** Removing it
+  lifted model coverage from 43% to 65% and dropped accuracy from 89.0% to
+  76.8%: the 3B model answers `unknown` with confidence 0.1 on `YANDEX.GO`, and
+  without the filter that overrode a rule that gets brands 13/13. Low confidence
+  was signal, not noise.
 - **Batch size is per provider.** At 40 names the local model dropped whole
   batches; at 12 it holds. Ollama's native JSON mode was also needed — without
   it a 3B model adds prose around the object and the parse fails silently.
