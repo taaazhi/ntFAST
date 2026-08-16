@@ -17,6 +17,7 @@
 import React, { createContext, useContext, useEffect, useState, useCallback, useRef } from 'react';
 import { notificationsAPI, NotificationItem, WS_BASE_URL } from '../services/api';
 import { useAuth } from './AuthContext';
+import { closeSocket } from '../utils/websocket';
 
 interface NotificationsContextValue {
   items: NotificationItem[];
@@ -128,7 +129,7 @@ export function NotificationsProvider({ children }: { children: React.ReactNode 
       const ws = wsRef.current;
       if (ws) {
         ws.onclose = null;  // suppress reconnect on cleanup
-        try { ws.close(); } catch { /* ignore */ }
+        closeSocket(ws);
         wsRef.current = null;
       }
     };

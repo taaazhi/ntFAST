@@ -21,6 +21,7 @@
  *   endpoint serves authenticated users only — retrying without credentials
  *   would loop forever. The axios 401 interceptor handles the redirect.
  */
+import { closeSocket } from '../utils/websocket';
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { WS_BASE_URL } from '../services/api';
 
@@ -283,10 +284,8 @@ export const useActivityMonitor = (): UseActivityMonitorReturn => {
     }
 
     // Close WebSocket connection
-    if (wsRef.current && wsRef.current.readyState !== WebSocket.CLOSED) {
-      wsRef.current.close(1000, 'Client disconnecting');
-      wsRef.current = null;
-    }
+    closeSocket(wsRef.current, 1000, 'Client disconnecting');
+    wsRef.current = null;
 
     isConnectingRef.current = false;
     reconnectAttemptRef.current = 0;

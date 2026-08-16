@@ -6,6 +6,7 @@
  *   { type: "completed", percent: 100 }
  *   { type: "error", message }
  */
+import { closeSocket } from '../utils/websocket';
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { WS_BASE_URL } from '../services/api';
 
@@ -73,9 +74,8 @@ export function useAnalysisProgress() {
     sessionIdRef.current = sessionId;
 
     // Закрыть предыдущее соединение
-    if (wsRef.current) {
-      wsRef.current.close();
-    }
+    closeSocket(wsRef.current);
+    wsRef.current = null;
 
     let retryCount = 0;
     const maxRetries = 5;
@@ -172,10 +172,8 @@ export function useAnalysisProgress() {
       clearTimeout(retryTimerRef.current);
       retryTimerRef.current = null;
     }
-    if (wsRef.current) {
-      wsRef.current.close();
-      wsRef.current = null;
-    }
+    closeSocket(wsRef.current);
+    wsRef.current = null;
     if (pingIntervalRef.current) {
       clearInterval(pingIntervalRef.current);
       pingIntervalRef.current = null;
