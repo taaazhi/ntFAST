@@ -138,6 +138,12 @@ export function Analyses() {
 
   /* ── view analysis state ── */
   const [viewingResult, setViewingResult] = useState<KaspiAnalysisResult | null>(null);
+  /** Какой анализ открыт — держим отдельно от самого отчёта: URL пишется
+   *  сразу, а отчёт собирается из базы несколько секунд. */
+  const [viewingId, setViewingId] = useState<number | null>(() => {
+    const raw = _initialParams?.get('view');
+    return raw && /^\d+$/.test(raw) ? Number(raw) : null;
+  });
   const [viewingLoading, setViewingLoading] = useState<number | null>(null);
 
   /* ── select options ── */
@@ -248,10 +254,13 @@ export function Analyses() {
     if (dateTo) params.set('to', dateTo);
     if (sortBy !== 'created_at') params.set('sort', sortBy);
     if (sortOrder !== 'desc') params.set('order', sortOrder);
+    // Открытый отчёт — тоже часть вида: без этого ссылку на конкретное дело
+    // переслать нельзя, и после обновления страницы отчёт закрывался.
+    if (viewingId !== null) params.set('view', String(viewingId));
     const qs = params.toString();
     const newUrl = qs ? `${window.location.pathname}?${qs}` : window.location.pathname;
     window.history.replaceState(null, '', newUrl);
-  }, [searchQuery, filterStatus, filterRiskLevel, dateFrom, dateTo, sortBy, sortOrder]);
+  }, [searchQuery, filterStatus, filterRiskLevel, dateFrom, dateTo, sortBy, sortOrder, viewingId]);
 
   /* ═══════════════════ SORT HANDLER ═══════════════════ */
 
@@ -385,17 +394,55 @@ export function Analyses() {
 
   /* ═══════════════════ VIEW / DELETE HANDLERS ═══════════════════ */
 
+  // Открыть отчёт по ссылке вида /analyses?view=35. Срабатывает один раз при
+  // заходе: дальше отчёт открывается кнопкой, а id уже стоит в состоянии.
+  // Без этого ссылку на дело нельзя было ни переслать коллеге, ни сохранить —
+  // после обновления страницы отчёт закрывался.
+  const openedFromUrl = useRef(false);
+  useEffect(() => {
+    if (openedFromUrl.current || viewingId === null || viewingResult) return;
+    openedFromUrl.current = true;
+
+    let cancelled = false;
+    setViewingLoading(viewingId);
+    buildReportFromAnalysis(viewingId)
+      .then((report) => {
+        if (!cancelled) setViewingResult(report);
+      })
+      .catch(() => {
+        // Ссылка на удалённый или чужой анализ — не ошибка приложения:
+        // показываем список, а не пустой экран с сообщением.
+        if (!cancelled) setViewingId(null);
+      })
+      .finally(() => {
+        if (!cancelled) setViewingLoading(null);
+      });
+
+    return () => {
+      cancelled = true;
+      // Флаг снимается вместе с отменой. В режиме разработки React монтирует
+      // эффект дважды: первый проход успевал поставить флаг и отменить свою
+      // же загрузку, второй упирался в флаг — и отчёт не открывался никогда,
+      // хотя запрос к серверу проходил успешно.
+      openedFromUrl.current = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+
   const handleViewAnalysis = async (analysis: Analysis) => {
     if (analysis.status !== 'completed') {
       toast.info(t('analyses.notCompleted') || 'Analysis is not completed yet');
       return;
     }
     setViewingLoading(analysis.id);
+    setViewingId(analysis.id);
     try {
       setViewingResult(await buildReportFromAnalysis(analysis.id));
     } catch (error) {
       console.error('Failed to load analysis:', error);
       toast.error(t('common.error') || 'Failed to load analysis details');
+      setViewingId(null);
     } finally {
       setViewingLoading(null);
     }
@@ -645,7 +692,15 @@ export function Analyses() {
 
       {/* Background analysis result */}
       {bgAnalysis.result && <BankAnalysisReport result={bgAnalysis.result} onClose={() => bgAnalysis.dismissResult()} />}
-      {viewingResult && <BankAnalysisReport result={viewingResult} onClose={() => setViewingResult(null)} />}
+      {viewingResult && (
+        <BankAnalysisReport
+          result={viewingResult}
+          onClose={() => {
+            setViewingResult(null);
+            setViewingId(null);
+          }}
+        />
+      )}
 
       {/* ═══ Filters Bar ═══ */}
       <div className="flex flex-wrap gap-3 mb-6 items-stretch" style={{ position: 'relative', zIndex: 20 }}>
