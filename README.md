@@ -181,6 +181,50 @@ so an investigator reads the norm rather than taking the system's word for it.
 
 ---
 
+## Reading an Unfamiliar Bank
+
+Three banks have parsers: Kaspi, Halyk, Binance. Everything else goes through
+a generic path that recognises columns from a dictionary of header names — a
+dictionary covering the wordings somebody has actually seen. Kazakhstan has
+rather more than three banks.
+
+What happens to the rest was measured. A statement headed `Күні/Дата`, `Мәні`,
+`Кредит теңге`, `Сальдо` produced:
+
+| | dictionary only | with the model |
+|---|---|---|
+| Rows recovered | **0 / 200** | **200 / 200** |
+| Spurious rows | 201 | 0 |
+| Counterparties | 0 | 200 |
+| Time | instant | 9 s |
+
+The failure mode matters more than the number. The parser did not stop — it
+returned 201 transactions whose amounts were the running account balance, with
+the reporting period as the first "transaction", and reported success. In an
+investigative tool a silent substitution of amounts is worse than a crash.
+
+The model does one thing here: it reads the header and four rows and says what
+each column means. It never sees the transactions and never extracts a value —
+the code still does that. Its answer is then checked against the data itself: a
+column declared to hold dates must contain dates, a column declared numeric must
+contain numbers. An answer that fails the check is discarded and the file falls
+back to the dictionary, so a missing model degrades an unfamiliar format rather
+than breaking a familiar one.
+
+The layout is cached per header. Without that the model was queried once per
+page — four times for the same table — and on one of those pages it answered
+differently, which cost 52 rows and four times the latency. One file, one
+question.
+
+Cost control is the same principle applied to enrichment: a 1320-transaction
+statement has 329 unique counterparties, which would be 28 model calls and about
+twelve minutes. Only the 60 largest by turnover go to the model; the tail is
+handled by rules. That is not merely cheaper — an investigator cares who
+received the large sums, not how three hundred small shop purchases are
+labelled. Enrichment now takes ~66 s.
+
+---
+
 ## The Conclusion
 
 This is where the language model does work nothing else can do, and it sits on

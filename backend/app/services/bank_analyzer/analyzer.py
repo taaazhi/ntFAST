@@ -144,13 +144,20 @@ class BankAnalyzer:
         # слова нет — приходит «Пополнение» от ТОО и ничего больше.
         self._emit("enriching", 38, "Обогащение данных", "Контрагенты и источники дохода...")
         try:
+            from app.core.config import settings
+
             from ..enrichment import enrich_transactions
             from ..enrichment.pipeline import build_ai_manager
-            # build_ai_manager() отдаёт None, пока обогащение через модель
-            # не включено явно, — тогда всё считается локально.
+
+            # Классификация моделью прямо в разборе выключена по умолчанию:
+            # на выписке с 252 контрагентами она занимала 535 секунд против
+            # 3 секунд разбора. Правила дают ответ мгновенно и покрывают
+            # бренды, юрлица, ИП и каналы; модель включается отдельно, когда
+            # её прирост нужнее скорости.
+            use_model = getattr(settings, "AI_ENRICHMENT_IN_ANALYSIS", False)
             enrichment = enrich_transactions(
                 transactions,
-                ai_manager=build_ai_manager(),
+                ai_manager=build_ai_manager() if use_model else None,
                 owner_name=getattr(account, "owner", None),
             )
             self.enrichment = enrichment

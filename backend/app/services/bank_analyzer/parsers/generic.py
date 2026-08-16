@@ -59,6 +59,8 @@ class GenericParser(BaseParser):
         self.account.bank_name = "Неизвестный банк"
         self.detected_date_format = None
         self.detected_currency = "KZT"
+        #: Разметка колонок от модели, по заголовку таблицы. Одна на файл.
+        self._llm_layout_cache: Dict[str, Dict[str, int]] = {}
 
     def _is_excel(self) -> bool:
         """Проверить, является ли файл Excel"""
@@ -359,6 +361,45 @@ class GenericParser(BaseParser):
         if len(self.transactions) == before:
             self._parse_text_adaptive(page.extract_text() or "")
 
+    def _detect_columns_via_llm(self, table: List[List]) -> Optional[Dict[str, int]]:
+        """Разметка колонок от языковой модели, если она доступна.
+
+        Один вызов на файл: разметка одна на таблицу, поэтому стоимость не
+        зависит от числа транзакций. Данные модель не читает — она смотрит
+        заголовок и четыре строки, а извлекает значения по-прежнему код.
+
+        Результат проверяется на самих данных: колонка, объявленная датой,
+        обязана содержать даты. Не прошедшая проверку разметка отбрасывается.
+        """
+        try:
+            from app.services.enrichment.pipeline import build_ai_manager
+            from ..llm_layout import detect_layout
+        except Exception:
+            return None
+
+        header = [str(c or "") for c in table[0]]
+
+        # Разметка одна на файл. Выписка разбита на страницы, заголовок на
+        # каждой повторяется, и без кэша модель опрашивалась бы заново для
+        # каждой — вчетверо дольше и вчетверо больше шансов, что на одной
+        # из страниц она ответит иначе. Ровно это и произошло на замере:
+        # 148 строк из 200, потому что одну страницу разметило по-другому.
+        cache_key = " | ".join(header)
+        cached = self._llm_layout_cache.get(cache_key)
+        if cached is not None:
+            return cached or None
+
+        ai_manager = build_ai_manager()
+        if ai_manager is None:
+            return None
+
+        rows = [[str(c or "") for c in row] for row in table[1:6]]
+        layout = detect_layout(header, rows, ai_manager)
+        # Пустой результат тоже запоминаем: повторять неудачу на каждой
+        # странице — только тратить время.
+        self._llm_layout_cache[cache_key] = layout or {}
+        return layout
+
     def _parse_table_adaptive(self, table: List[List]) -> None:
         """Адаптивный парсинг таблицы"""
         if not table or len(table) < 2:
@@ -377,10 +418,20 @@ class GenericParser(BaseParser):
             or 'amount_split' in column_mapping
         )
         if not has_date or not has_amount:
-            # Заголовки не дали нужного — пробуем определить по первой строке
-            guessed = self._detect_columns_by_data(table[1] if len(table) > 1 else None)
-            # Найденное по заголовкам точнее догадок: оно и побеждает.
-            column_mapping = {**guessed, **column_mapping}
+            # Словарь заголовков не справился — спрашиваем модель. Это тот
+            # случай, ради которого она здесь: выписка банка, для которого
+            # никто не писал ни парсера, ни алиасов. Без неё такой файл давал
+            # 0 верных строк из 200 и 201 лишнюю, причём суммой становился
+            # остаток по счёту — молча, с видом успешного разбора.
+            llm_mapping = self._detect_columns_via_llm(table)
+            if llm_mapping:
+                column_mapping = llm_mapping
+            else:
+                # Модели нет или её разметка не подтвердилась данными —
+                # прежний путь: догадка по первой строке.
+                guessed = self._detect_columns_by_data(table[1] if len(table) > 1 else None)
+                # Найденное по заголовкам точнее догадок: оно и побеждает.
+                column_mapping = {**guessed, **column_mapping}
 
         if not column_mapping:
             return

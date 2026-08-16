@@ -39,7 +39,9 @@ BankAnalyzer.analyze()                         services/bank_analyzer/analyzer.p
         ├─ parsers/{kaspi,halyk,binance,generic}
         ├─ TransactionCategorizer                services/kaspi_analyzer/categorizer.py
         ├─ FinancialAnalytics                    services/kaspi_analyzer/analytics.py
+        ├─ enrich_transactions()                 services/enrichment/pipeline.py
         └─ FraudEngine.full_analysis()           services/fraud/engine.py
+             └─ annotate_patterns()              services/legal/annotate.py
         ▼
 save_analysis_to_db()                          services/analysis_persistence.py
         ▼
@@ -70,7 +72,10 @@ Analysis(status=completed) + Transaction[] + Subject[]
 | `services/fraud/` | engine + 11 детекторов + account_profiler + whitelist |
 | `services/kaspi_analyzer/` | categorizer, analytics. **Парсинга здесь нет**, несмотря на имя |
 | `services/privacy/` | anonymizer — маскирование ПД перед выходом за периметр |
-| `services/ai/` | AIManager, Claude/Ollama провайдеры, prompts. **Пока не подключён** — фундамент фазы 1 |
+| `services/ai/` | AIManager, Claude/Ollama провайдеры. Используется обогащением и разметкой колонок |
+| `services/enrichment/` | тип контрагента, зарплата по регулярности, слова-операции. Работает и без модели |
+| `services/legal/` | корпус НПА, поиск, проверка цитат. Корпус собирается локально, в репозиторий не кладётся |
+| `services/agent/` | инструменты следователя, петля, заключение по делу, провайдеры Ollama/Claude |
 | `services/pdf_export/` | генерация PDF-отчёта (reportlab) |
 | `tasks/` | Celery: `process_file_task`, `cleanup_old_files_task` |
 | `utils/` | helpers (нормализация имён, `is_organization`), security_info |
@@ -153,5 +158,19 @@ python scripts/benchmark.py --runs 3 --transactions 200
 4. **Ф3** — агент-следователь поверх Ф1 и Ф2.
 5. **Ф4** — публичный стенд.
 
-Известное ограничение: `services/fraud/nlp_analyzer.py` реализован, но в
-скоринг не подключён. Композитный балл сегодня — правила и статистика.
+**Где стоит языковая модель.** Она не считает балл риска — это правила и
+статистика, и `nlp_analyzer.py` по-прежнему не подключён к скорингу. Модель
+делает три вещи, каждая замерена:
+
+1. **Заключение по делу** (`agent/conclusion.py`) — связный вывод из фактов
+   одиннадцати модулей, графа и норм. Единственное, что нельзя написать
+   правилами. Числа в готовом тексте сверяются с фактами, ссылки — с корпусом.
+2. **Разметка незнакомой выписки** (`bank_analyzer/llm_layout.py`) — понимает,
+   что означают колонки, когда словарь заголовков не знает банка. На таком
+   файле было 0 верных строк из 200, стало 200 из 200.
+3. **Классификация контрагентов** (`enrichment/`) — 58.5% правилами против
+   89.0% с моделью на эталонном наборе.
+
+Правило, выведенное замером: где детерминированный код отвечает точно, модель
+не спрашивают. ИП, каналы поступлений и бренды решаются правилами именно
+потому, что на них модель ошибалась чаще.

@@ -48,11 +48,40 @@ def build_ai_manager() -> Optional[Any]:
     )
 
 
+#: Сколько имён отдавать модели. Остальные разбираются правилом.
+#:
+#: Не произвольное число, а следствие замера. На выписке Kaspi 1320
+#: транзакций дают 329 уникальных контрагентов — это 28 батчей, около
+#: двенадцати минут на локальной модели. Ждать столько ради разбора одной
+#: выписки нельзя.
+#:
+#: Отбор идёт по обороту, и это осмысленно, а не просто дёшево: следователю
+#: важно, кому ушли крупные суммы, а не как классифицированы триста мелких
+#: покупок в разных магазинах. Крупные контрагенты уходят модели, хвост —
+#: правилу, которое и так узнаёт бренды на 13 из 13.
+MAX_LLM_NAMES = 60
+
+
 def _names_of(transactions: Sequence[Any]) -> List[str]:
     return [
         (getattr(t, "counterparty", None) or getattr(t, "description", None) or "")
         for t in transactions
     ]
+
+
+def _names_by_turnover(transactions: Sequence[Any], limit: int) -> List[str]:
+    """Имена контрагентов, отсортированные по обороту, не длиннее limit."""
+    turnover: Dict[str, float] = {}
+    for tx in transactions:
+        name = (
+            getattr(tx, "counterparty", None) or getattr(tx, "description", None) or ""
+        ).strip()
+        if not name:
+            continue
+        turnover[name] = turnover.get(name, 0.0) + abs(float(getattr(tx, "amount", 0) or 0))
+
+    ranked = sorted(turnover, key=lambda n: turnover[n], reverse=True)
+    return ranked[:limit]
 
 
 def _classify_offline(transactions: Sequence[Any]) -> Dict[str, Classification]:
@@ -122,15 +151,29 @@ def enrich_transactions(
     if ai_manager is not None:
         try:
             safe_names, anonymizer = _anonymised_names(transactions, owner_name)
-            safe_mapping = _run_async(classifier.classify(safe_names))
+            raw_names = _names_of(transactions)
+
+            # Модели достаются только значимые по обороту имена. Остальные
+            # разбираются правилом — сразу, чтобы у каждого контрагента был
+            # хоть какой-то тип, а не пустота.
+            significant = set(_names_by_turnover(transactions, MAX_LLM_NAMES))
+            for_model = [
+                safe for raw, safe in zip(raw_names, safe_names)
+                if raw.strip() in significant
+            ]
+
+            safe_mapping = _run_async(classifier.classify(for_model))
             # Классификации получены по обезличенным именам — возвращаем их
             # к исходным, чтобы проставить в транзакции.
-            mapping = {
+            mapping = _classify_offline(transactions)
+            mapping.update({
                 raw.strip(): safe_mapping[safe.strip()]
-                for raw, safe in zip(_names_of(transactions), safe_names)
+                for raw, safe in zip(raw_names, safe_names)
                 if raw.strip() and safe.strip() in safe_mapping
-            }
+            })
             stats = classifier.stats.as_dict()
+            stats["names_total"] = len({n.strip() for n in raw_names if n.strip()})
+            stats["names_to_model"] = len(significant)
             privacy = anonymizer.report().to_dict()
         except Exception as exc:
             # Недоступная модель не должна ломать анализ — она его улучшает.
