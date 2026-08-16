@@ -511,7 +511,8 @@
         "unverified": "This conclusion failed verification — read with care",
         "unknownNumbers": "figures absent from the facts",
         "failed": "Could not write the conclusion",
-        "truncated": "the text is cut off: the model hit its length limit"
+        "truncated": "the text is cut off: the model hit its length limit",
+        "checkingAfter": "The text appears as it is written. Figures and citations are checked once it is finished."
       },
       "agent": {
         "title": "Ask about this statement",

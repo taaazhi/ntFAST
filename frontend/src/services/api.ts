@@ -285,6 +285,68 @@ export const analysesAPI = {
    * Составить заключение. Занимает около полуминуты на локальной модели,
    * поэтому запускается по решению следователя, а не при открытии отчёта.
    */
+  /**
+   * Заключение потоком: текст приходит по мере написания.
+   *
+   * Не через axios — он отдаёт ответ целиком, а здесь нужен ровно обратный
+   * порядок. `onChunk` вызывается на каждый кусок; возвращается тот же
+   * проверенный итог, что и у обычного метода, потому что и проверяет его
+   * тот же код на сервере.
+   */
+  streamConclusion: async (
+    analysisId: number,
+    onChunk: (text: string) => void,
+  ): Promise<AnalysisConclusion> => {
+    const response = await fetch(
+      `${API_BASE_URL}/analyses/${analysisId}/conclusion/stream`,
+      {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${localStorage.getItem('access_token') || ''}` },
+      },
+    );
+
+    if (!response.ok || !response.body) {
+      // Тело ошибки приходит обычным JSON — сообщение с сервера объясняет,
+      // что включить, и терять его нельзя.
+      let detail = `HTTP ${response.status}`;
+      try {
+        detail = (await response.json())?.detail || detail;
+      } catch {
+        /* не JSON — оставляем код состояния */
+      }
+      throw new Error(detail);
+    }
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+    let final: AnalysisConclusion | null = null;
+
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      // Кадр SSE заканчивается пустой строкой; последний кусок буфера может
+      // быть неполным, поэтому он остаётся ждать следующего чтения.
+      const frames = buffer.split('\n\n');
+      buffer = frames.pop() || '';
+
+      for (const frame of frames) {
+        const line = frame.split('\n').find((l) => l.startsWith('data: '));
+        if (!line) continue;
+
+        const event = JSON.parse(line.slice(6));
+        if (event.type === 'chunk') onChunk(event.text);
+        else if (event.type === 'done') final = event as AnalysisConclusion;
+        else if (event.type === 'error') throw new Error(event.detail);
+      }
+    }
+
+    if (!final) throw new Error('Поток завершился без результата');
+    return final;
+  },
+
   buildConclusion: async (analysisId: number): Promise<AnalysisConclusion> => {
     const response = await api.post<AnalysisConclusion>(
       `/analyses/${analysisId}/conclusion`, {}, { timeout: 300000 },

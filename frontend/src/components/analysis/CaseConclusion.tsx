@@ -29,6 +29,9 @@ export function CaseConclusion({ analysisId }: Props) {
   const { t } = useTranslation();
   const [conclusion, setConclusion] = useState<AnalysisConclusion | null>(null);
   const [loading, setLoading] = useState(false);
+  /** Текст, пока он пишется. Отдельно от conclusion: черновик показывают,
+   *  но выдавать его за проверенное заключение нельзя. */
+  const [draft, setDraft] = useState('');
   const [error, setError] = useState<string | null>(null);
 
   // Показываем уже составленное, если оно есть. Модель при этом не трогаем.
@@ -54,12 +57,34 @@ export function CaseConclusion({ analysisId }: Props) {
     if (!analysisId) return;
     setLoading(true);
     setError(null);
+    setConclusion(null);
+    setDraft('');
+
     try {
-      setConclusion(await analysesAPI.buildConclusion(analysisId));
-    } catch (e: any) {
-      // Отсутствие модели — не сбой системы, а её состояние: сообщение с
-      // бэкенда объясняет, что включить.
-      setError(e?.response?.data?.detail || t('analyses.report.conclusion.failed'));
+      // Текст показывается по мере написания, но заключением он станет
+      // только в конце: до этого числа не сверены с фактами, а ссылки — с
+      // корпусом, и сказать о нём нечего.
+      const finished = await analysesAPI.streamConclusion(analysisId, (piece) =>
+        setDraft((prev) => prev + piece),
+      );
+      setConclusion(finished);
+      setDraft('');
+    } catch (streamFailed: any) {
+      // Поток может быть недоступен — например, на облачном провайдере.
+      // Это не повод отказывать в заключении: обычный путь работает всегда.
+      try {
+        setConclusion(await analysesAPI.buildConclusion(analysisId));
+        setDraft('');
+      } catch (e: any) {
+        // Отсутствие модели — не сбой системы, а её состояние: сообщение с
+        // бэкенда объясняет, что включить.
+        setError(
+          e?.response?.data?.detail
+            || streamFailed?.message
+            || t('analyses.report.conclusion.failed'),
+        );
+        setDraft('');
+      }
     } finally {
       setLoading(false);
     }
@@ -103,6 +128,19 @@ export function CaseConclusion({ analysisId }: Props) {
       {error && (
         <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-sm text-amber-800 dark:bg-amber-900/20 dark:border-amber-800/40 dark:text-amber-200">
           {error}
+        </div>
+      )}
+
+      {loading && draft && (
+        <div>
+          <p className="mb-3 text-xs text-gray-500 dark:text-gray-400">
+            {t('analyses.report.conclusion.checkingAfter')}
+          </p>
+          <div className="whitespace-pre-wrap text-sm leading-relaxed text-gray-700 dark:text-gray-300">
+            {draft}
+            {/* Курсор: показывает, что текст ещё идёт, а не оборвался. */}
+            <span className="inline-block w-2 h-4 ml-0.5 align-text-bottom bg-indigo-400 animate-pulse" />
+          </div>
         </div>
       )}
 

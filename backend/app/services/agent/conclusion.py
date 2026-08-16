@@ -346,58 +346,67 @@ def allowed_numbers(facts: Dict[str, Any]) -> List[str]:
     return seen
 
 
-def build_conclusion(
-    analysis_result: Dict[str, Any],
-    provider: Any,
-    anonymizer: Any = None,
-    corpus_dir: Optional[str] = None,
-) -> Conclusion:
-    """Собрать заключение по готовому анализу.
+def split_ready_text(pending: str) -> tuple:
+    """Разделить накопленный текст на готовый к показу и придержанный хвост.
 
-    `provider` — объект с `run(system, messages, tools)`. Инструменты не
-    передаются: здесь модель не запрашивает данные, а излагает уже собранные.
+    Метка приходит от модели по частям: «[PERSON» одним куском, «_1]» —
+    следующим. Показать первую половину нельзя: подстановка настоящего имени
+    работает по целой метке, и следователь увидел бы обрывок «[PERSON»,
+    который через мгновение сменился бы именем.
+
+    Поэтому всё от последней незакрытой скобки придерживается до следующего
+    куска. Если скобка закрыта — отдаём целиком.
     """
-    if provider is None:
-        return Conclusion(error="языковая модель недоступна — заключение не составлено")
+    cut = pending.rfind("[")
+    if cut != -1 and "]" not in pending[cut:]:
+        return pending[:cut], pending[cut:]
+    return pending, ""
 
-    facts = collect_facts(analysis_result, anonymizer=anonymizer)
+
+def build_prompt(facts: Dict[str, Any]) -> str:
+    """Задание для модели по собранным фактам.
+
+    Вынесено отдельно, потому что путей два — обычный и потоковый, — а
+    задание обязано быть одним. Разойдись они, заключение из потока стало бы
+    другим текстом, и замеры перестали бы что-либо значить.
+    """
     import json
 
-    numbers = allowed_numbers(facts)
-    message = (
+    return (
         "Составь заключение по этим фактам.\n\n"
         + json.dumps(facts, ensure_ascii=False, indent=2)
         # Напоминание идёт после фактов, а не до: последняя инструкция
         # удерживается моделью лучше всего, а здесь она важнее прочих.
         + "\n\nВ тексте разрешено употреблять только эти числа, дословно:\n"
-        + "; ".join(numbers)
+        + "; ".join(allowed_numbers(facts))
         + "\n\nЛюбое другое число делает заключение непригодным. Не переводи "
           "суммы в миллионы, не округляй, не считай проценты и разности. "
           "Пиши только кириллицей."
     )
 
-    try:
-        response = provider.run(
-            system=SYSTEM_PROMPT,
-            messages=[{"role": "user", "content": message}],
-            tools=None,
-        )
-    except Exception as exc:
-        logger.warning("Заключение не составлено: %s", exc)
-        return Conclusion(error=f"модель недоступна: {exc}")
 
-    blocks = response.get("content") or []
-    text = "".join(b.get("text", "") for b in blocks if b.get("type") == "text").strip()
+def finalise_conclusion(
+    text: str,
+    facts: Dict[str, Any],
+    provider_name: Optional[str] = None,
+    stop_reason: Optional[str] = None,
+    corpus_dir: Optional[str] = None,
+) -> Conclusion:
+    """Проверить готовый текст и собрать из него заключение.
+
+    Вторая половина работы, общая для обоих путей: числа сверяются с фактами,
+    ссылки — с корпусом, обрыв по длине отмечается. Потоковый путь показывает
+    текст по мере появления, но проверяется он здесь же и ровно так же —
+    иначе «достоверно» значило бы разное в зависимости от способа доставки.
+    """
+    text = (text or "").strip()
     if not text:
-        return Conclusion(
-            provider=response.get("provider"),
-            error="модель вернула пустой ответ",
-        )
+        return Conclusion(provider=provider_name, error="модель вернула пустой ответ")
 
     conclusion = Conclusion(
         text=text,
-        provider=response.get("provider"),
-        truncated=response.get("stop_reason") == "length",
+        provider=provider_name,
+        truncated=stop_reason == "length",
     )
     conclusion.invented_numbers = find_invented_numbers(text, facts)
 
@@ -417,3 +426,40 @@ def build_conclusion(
             ", ".join(conclusion.invented_numbers[:5]),
         )
     return conclusion
+
+
+def build_conclusion(
+    analysis_result: Dict[str, Any],
+    provider: Any,
+    anonymizer: Any = None,
+    corpus_dir: Optional[str] = None,
+) -> Conclusion:
+    """Собрать заключение по готовому анализу.
+
+    `provider` — объект с `run(system, messages, tools)`. Инструменты не
+    передаются: здесь модель не запрашивает данные, а излагает уже собранные.
+    """
+    if provider is None:
+        return Conclusion(error="языковая модель недоступна — заключение не составлено")
+
+    facts = collect_facts(analysis_result, anonymizer=anonymizer)
+
+    try:
+        response = provider.run(
+            system=SYSTEM_PROMPT,
+            messages=[{"role": "user", "content": build_prompt(facts)}],
+            tools=None,
+        )
+    except Exception as exc:
+        logger.warning("Заключение не составлено: %s", exc)
+        return Conclusion(error=f"модель недоступна: {exc}")
+
+    blocks = response.get("content") or []
+    text = "".join(b.get("text", "") for b in blocks if b.get("type") == "text")
+    return finalise_conclusion(
+        text,
+        facts,
+        provider_name=response.get("provider"),
+        stop_reason=response.get("stop_reason"),
+        corpus_dir=corpus_dir,
+    )

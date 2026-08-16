@@ -936,3 +936,163 @@ def get_saved_conclusion(
         "is_trustworthy": bool(meta.get("is_trustworthy")),
         "exists": bool(analysis.ai_narrative),
     }
+
+
+@router.post("/{analysis_id}/conclusion/stream")
+def stream_analysis_conclusion(
+    analysis_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """То же заключение, но текстом по мере написания.
+
+    Локальная модель пишет заключение от двадцати секунд до двух минут. Всё
+    это время экран показывал одно слово «Составляю…», и отличить работу от
+    зависания было нельзя. Поток не ускоряет генерацию — он снимает
+    единственный вопрос, который возникает при долгом ожидании.
+
+    Проверки при этом не ослаблены. Текст показывается сырым, а признак
+    достоверности приходит последним событием, когда числа сверены с
+    фактами, а ссылки — с корпусом: раньше этого момента сказать о тексте
+    нечего. Сохраняется в базу тоже проверенный результат, тот же самый, что
+    и на обычном пути, — обе дороги проходят через finalise_conclusion.
+    """
+    from fastapi.responses import StreamingResponse
+
+    analysis = db.query(Analysis).filter(Analysis.id == analysis_id).first()
+    if not analysis:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Analysis not found"
+        )
+
+    if current_user.role == "analyst" and analysis.analyst_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not authorized to view this analysis"
+        )
+
+    from app.services.agent import build_agent_provider
+    from app.services.agent.conclusion import (
+        SYSTEM_PROMPT, build_prompt, collect_facts, finalise_conclusion,
+        split_ready_text,
+    )
+    from app.services.privacy.anonymizer import Anonymizer
+
+    provider = build_agent_provider()
+    if provider is None or not hasattr(provider, "stream"):
+        # Облачный провайдер потока пока не умеет — это не ошибка, а повод
+        # воспользоваться обычным эндпоинтом.
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=(
+                "Потоковое составление доступно только на локальной модели. "
+                "Воспользуйтесь POST /conclusion."
+            )
+        )
+
+    from app.models.transaction import Transaction as DBTransaction
+
+    rows = db.query(DBTransaction).filter(
+        DBTransaction.analysis_id == analysis_id
+    ).all()
+
+    anonymizer = Anonymizer(owner_name=analysis.account_owner)
+    anonymizer.register([
+        (r.counterparty_name or r.description or "") for r in rows
+    ])
+
+    stored = analysis.analytics_result or {}
+    facts = collect_facts(
+        {
+            "summary": stored.get("summary") or {
+                "total_transactions": analysis.total_transactions,
+                "total_income": analysis.total_income,
+                "total_expense": analysis.total_expense,
+            },
+            "account": stored.get("account") or {},
+            "fraud_report": analysis.fraud_report or {},
+            "enrichment": stored.get("enrichment") or {},
+        },
+        anonymizer=anonymizer,
+    )
+
+    def events():
+        """Кадры SSE: куски текста, затем проверенный итог."""
+        import json as _json
+
+        collected: List[str] = []
+        pending = ""
+        stop_reason = "stop"
+
+        def frame(payload: dict) -> str:
+            return f"data: {_json.dumps(payload, ensure_ascii=False)}\n\n"
+
+        try:
+            for kind, value in provider.stream(
+                system=SYSTEM_PROMPT,
+                messages=[{"role": "user", "content": build_prompt(facts)}],
+            ):
+                if kind == "done":
+                    stop_reason = value
+                    break
+
+                collected.append(value)
+                pending += value
+
+                ready, pending = split_ready_text(pending)
+
+                if ready:
+                    yield frame({"type": "chunk", "text": anonymizer.deanonymize(ready)})
+
+            if pending:
+                yield frame({"type": "chunk", "text": anonymizer.deanonymize(pending)})
+
+            conclusion = finalise_conclusion(
+                "".join(collected),
+                facts,
+                provider_name=getattr(provider, "name", None),
+                stop_reason=stop_reason,
+                corpus_dir=getattr(settings, "LEGAL_CORPUS_DIR", None),
+            )
+            conclusion.text = anonymizer.deanonymize(conclusion.text)
+
+            # Своя сессия: та, что пришла через Depends, к этому моменту уже
+            # закрыта: ответ начал отдаваться раньше, чем генератор доработал.
+            if conclusion.text:
+                from app.core.database import SessionLocal
+
+                own = SessionLocal()
+                try:
+                    record = own.query(Analysis).filter(Analysis.id == analysis_id).first()
+                    if record:
+                        payload = conclusion.to_dict()
+                        record.ai_narrative = conclusion.text
+                        record.ai_provider = (conclusion.provider or "")[:20]
+                        record.ai_risk_assessment = {
+                            k: payload[k] for k in
+                            ("citations", "invented_numbers", "is_trustworthy",
+                             "provider", "truncated")
+                        }
+                        own.commit()
+                finally:
+                    own.close()
+
+            yield frame({"type": "done", **conclusion.to_dict()})
+
+        except Exception as exc:  # noqa: BLE001 — поток нельзя оборвать молча
+            import logging as _logging
+
+            _logging.getLogger(__name__).warning("Поток заключения прерван: %s", exc)
+            yield frame({"type": "error", "detail": f"модель недоступна: {exc}"})
+
+    return StreamingResponse(
+        events(),
+        media_type="text/event-stream",
+        headers={
+            # Без этого промежуточный буфер копит ответ и отдаёт целиком —
+            # ровно то, от чего поток и заводился.
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+        },
+    )

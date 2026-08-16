@@ -17,6 +17,8 @@ from app.services.agent.conclusion import (
     build_conclusion,
     collect_facts,
     find_invented_numbers,
+    finalise_conclusion,
+    split_ready_text,
 )
 
 
@@ -264,3 +266,44 @@ def test_truncated_conclusion_is_not_trustworthy():
     truncated = Conclusion(text="Заключение по делу: установлено, что", truncated=True)
     assert not truncated.is_trustworthy
     assert truncated.to_dict()["truncated"] is True
+
+
+# ── Потоковая выдача ─────────────────────────────────────────────────
+
+def test_incomplete_tag_is_held_back():
+    """Начало метки не показывают: имя подставляется по целой метке.
+
+    Модель присылает «[PERSON» одним куском, «_1]» следующим. Покажи мы
+    первую половину — следователь увидел бы обрывок, который через миг
+    сменился бы именем.
+    """
+    ready, pending = split_ready_text("Крупнейший получатель — [PERS")
+    assert ready == "Крупнейший получатель — "
+    assert pending == "[PERS"
+
+
+def test_complete_tag_goes_out_at_once():
+    ready, pending = split_ready_text("Получатель [PERSON_1] и далее")
+    assert ready == "Получатель [PERSON_1] и далее"
+    assert pending == ""
+
+
+def test_text_without_tags_is_never_delayed():
+    """Обычный текст не должен ждать: иначе поток теряет смысл."""
+    ready, pending = split_ready_text("За период проведено 214 операций.")
+    assert pending == ""
+    assert ready == "За период проведено 214 операций."
+
+
+def test_stream_and_plain_paths_check_the_same_way():
+    """Оба пути обязаны проверять текст одинаково.
+
+    Разойдись они, «достоверно» значило бы разное в зависимости от того,
+    как заключение было доставлено.
+    """
+    facts = {"transactions": 214, "total_income": "84 000 ₸"}
+    text = "За период 214 операций на 84 000 ₸, а также 158 переводов."
+
+    checked = finalise_conclusion(text, facts, provider_name="test")
+    assert checked.invented_numbers == ["158"]
+    assert not checked.is_trustworthy

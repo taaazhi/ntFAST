@@ -96,22 +96,7 @@ class OllamaAgentProvider:
     ) -> Dict[str, Any]:
         import httpx
 
-        payload = {
-            "model": self._model,
-            "messages": [{"role": "system", "content": system}]
-            + [self._to_ollama(m) for m in messages],
-            "stream": False,
-            "options": {
-                # Нулевая температура: следственный отчёт не то место, где
-                # нужна вариативность формулировок. Расплата за неё —
-                # склонность к повторам, отсюда два ограничителя ниже.
-                "temperature": 0,
-                "num_predict": MAX_OUTPUT_TOKENS,
-                "repeat_penalty": REPEAT_PENALTY,
-            },
-        }
-        if tools:
-            payload["tools"] = [self._tool_schema(t) for t in tools]
+        payload = self._payload(system, messages, tools, stream=False)
 
         response = httpx.post(
             f"{self._host}/api/chat", json=payload, timeout=self._timeout
@@ -144,6 +129,73 @@ class OllamaAgentProvider:
             # выглядит законченным, но им не является.
             "stop_reason": body.get("done_reason"),
         }
+
+    def _payload(
+        self,
+        system: str,
+        messages: List[Dict[str, Any]],
+        tools: Optional[List[Dict[str, Any]]] = None,
+        stream: bool = False,
+    ) -> Dict[str, Any]:
+        """Тело запроса. Одно на оба режима, чтобы настройки не разошлись:
+        заключение, составленное потоком, должно быть тем же самым текстом,
+        что и составленное разом."""
+        payload: Dict[str, Any] = {
+            "model": self._model,
+            "messages": [{"role": "system", "content": system}]
+            + [self._to_ollama(m) for m in messages],
+            "stream": stream,
+            "options": {
+                # Нулевая температура: следственный отчёт не то место, где
+                # нужна вариативность формулировок. Расплата за неё —
+                # склонность к повторам, отсюда два ограничителя ниже.
+                "temperature": 0,
+                "num_predict": MAX_OUTPUT_TOKENS,
+                "repeat_penalty": REPEAT_PENALTY,
+            },
+        }
+        if tools:
+            payload["tools"] = [self._tool_schema(t) for t in tools]
+        return payload
+
+    def stream(self, system: str, messages: List[Dict[str, Any]]):
+        """Текст по мере генерации: последовательность кусков, затем итог.
+
+        Нужен там, где ждать нечего, кроме текста, — в заключении. Локальная
+        модель пишет его от двадцати секунд до двух минут, и всё это время
+        экран показывал одно слово «Составляю…». Видимый текст не ускоряет
+        генерацию, но избавляет от главного вопроса при долгом ожидании —
+        работает система или зависла.
+
+        Инструменты здесь не поддерживаются намеренно: агенту поток не нужен,
+        его ответ складывается из нескольких обращений к модели, и куски
+        первого обращения показывать бессмысленно.
+
+        Отдаёт кортежи («chunk», текст) и в конце («done», причина остановки).
+        """
+        import httpx
+
+        payload = self._payload(system, messages, tools=None, stream=True)
+        with httpx.stream(
+            "POST", f"{self._host}/api/chat", json=payload, timeout=self._timeout
+        ) as response:
+            response.raise_for_status()
+            for line in response.iter_lines():
+                if not line:
+                    continue
+                try:
+                    frame = json.loads(line)
+                except json.JSONDecodeError:
+                    # Битый кадр не повод ронять уже написанное.
+                    logger.warning("Ollama прислала неразбираемый кадр потока")
+                    continue
+
+                piece = (frame.get("message") or {}).get("content") or ""
+                if piece:
+                    yield "chunk", piece
+                if frame.get("done"):
+                    yield "done", frame.get("done_reason") or "stop"
+                    return
 
     # ── Перевод форматов ─────────────────────────────────────────
 
