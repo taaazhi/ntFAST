@@ -130,12 +130,48 @@ def update_user_role(db: Session, user_id: int, role: str) -> Optional[User]:
     return db_user
 
 
+class UserHasAnalyses(Exception):
+    """У аналитика есть проведённые анализы, и удалять его нельзя.
+
+    Не техническое ограничение, а решение по существу: анализ выписки —
+    материал по делу, а не собственность сотрудника. Уволенный аналитик
+    уходит, его заключения остаются. Учётную запись в таком случае
+    отключают (`is_active = false`), а не стирают.
+    """
+
+    def __init__(self, count: int) -> None:
+        self.count = count
+        super().__init__(f"у пользователя {count} анализов")
+
+
 def delete_user(db: Session, user_id: int) -> bool:
-    """Delete user by ID (admin only)"""
+    """Удалить пользователя. Служебные записи чистятся, анализы — нет.
+
+    Уведомления и история входов принадлежат самой учётной записи и уходят
+    вместе с ней. Чистятся явно, а не каскадом: у `login_history` внешний
+    ключ создан без `ON DELETE CASCADE`, и `db.delete()` падал нарушением
+    ограничения, которое наверх приходило как 500 без объяснения.
+
+    Поднимает `UserHasAnalyses`, если у пользователя есть анализы.
+    """
+    from app.models.analysis import Analysis
+    from app.models.login_history import LoginHistory
+    from app.models.notification import Notification
+
     db_user = get_user_by_id(db, user_id)
     if not db_user:
         return False
 
+    analyses = db.query(Analysis).filter(Analysis.analyst_id == user_id).count()
+    if analyses:
+        raise UserHasAnalyses(analyses)
+
+    db.query(Notification).filter(Notification.user_id == user_id).delete(
+        synchronize_session=False
+    )
+    db.query(LoginHistory).filter(LoginHistory.user_id == user_id).delete(
+        synchronize_session=False
+    )
     db.delete(db_user)
     db.commit()
     return True

@@ -163,7 +163,23 @@ async def delete_user_by_id(
             detail="Cannot delete your own account"
         )
 
-    success = delete_user(db, user_id)
+    from app.services.user_service import UserHasAnalyses
+
+    try:
+        success = delete_user(db, user_id)
+    except UserHasAnalyses as exc:
+        # Анализ — материал по делу, а не собственность сотрудника: он
+        # остаётся, даже когда аналитик уходит. Учётную запись в этом
+        # случае отключают, а не стирают.
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=(
+                f"У пользователя {exc.count} анализов — они являются "
+                f"материалами по делам и не удаляются вместе с учётной "
+                f"записью. Отключите её вместо удаления (is_active=false)."
+            )
+        )
+
     if not success:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
