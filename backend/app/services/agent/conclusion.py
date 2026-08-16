@@ -216,6 +216,14 @@ _NUMBER = re.compile(
     r"|\d+(?:[.,]\d+)?"
 )
 
+#: Нумерация разделов и пунктов: «3.», «4)», «### 5.», «- 2.».
+#:
+#: Вырезается до поиска чисел. Заключение состоит из пяти разделов, модель
+#: их нумерует, и «4» с «5» попадали в список выдуманных чисел. Порог «до
+#: трёх» это не спасал — он и задумывался против нумерации, но пунктов
+#: оказалось больше, чем предполагал порог.
+_LIST_MARKER = re.compile(r"^[\s>*#-]*\d{1,2}[.)]\s", re.MULTILINE)
+
 #: Даты в любом принятом написании. Вырезаются до поиска чисел: период
 #: «2025-08-14» модель законно перепишет как «14.08.2025», и без этого
 #: «14.08» выглядело бы выдуманным числом, хотя это та же дата.
@@ -281,7 +289,8 @@ def find_invented_numbers(text: str, facts: Dict[str, Any]) -> List[str]:
     invented = []
     # Даты убираем до разбора: их модель законно переписывает в другом
     # формате, и это не выдумка, а то же самое значение.
-    without_dates = _DATE.sub(" ", text or "")
+    without_lists = _LIST_MARKER.sub(" ", text or "")
+    without_dates = _DATE.sub(" ", without_lists)
     for match in _NUMBER.findall(without_dates):
         number = _normalise_number(match)
         if not number or number in known:
@@ -293,6 +302,43 @@ def find_invented_numbers(text: str, facts: Dict[str, Any]) -> List[str]:
             continue
         invented.append(match.strip())
     return invented
+
+
+def allowed_numbers(facts: Dict[str, Any]) -> List[str]:
+    """Числовые значения фактов в том виде, в каком их можно писать.
+
+    Запрет «не пересчитывай» в системном промпте модель на 3B не удерживает:
+    она всё равно переводила 63 820 000 в «63,820 млн». Общее правило слабая
+    модель теряет, конкретный список — держит, поэтому перечень допустимых
+    чисел прикладывается прямо к заданию.
+
+    Порядок сохраняется: так перечень читается как выжимка фактов, а не как
+    случайный набор.
+    """
+    seen: List[str] = []
+
+    def walk(node: Any) -> None:
+        if isinstance(node, dict):
+            for item in node.values():
+                walk(item)
+        elif isinstance(node, (list, tuple)):
+            for item in node:
+                walk(item)
+        elif isinstance(node, bool):
+            return
+        elif isinstance(node, (int, float)):
+            if str(node) not in seen:
+                seen.append(str(node))
+        elif isinstance(node, str) and any(ch.isdigit() for ch in node):
+            # Строка-факт вроде «63 снятия наличных на 24 180 000 ₸» целиком
+            # не годится: нужно само число, а не предложение.
+            for match in _NUMBER.findall(node):
+                cleaned = match.strip()
+                if cleaned and cleaned not in seen:
+                    seen.append(cleaned)
+
+    walk(facts)
+    return seen
 
 
 def build_conclusion(
@@ -312,9 +358,17 @@ def build_conclusion(
     facts = collect_facts(analysis_result, anonymizer=anonymizer)
     import json
 
+    numbers = allowed_numbers(facts)
     message = (
         "Составь заключение по этим фактам.\n\n"
         + json.dumps(facts, ensure_ascii=False, indent=2)
+        # Напоминание идёт после фактов, а не до: последняя инструкция
+        # удерживается моделью лучше всего, а здесь она важнее прочих.
+        + "\n\nВ тексте разрешено употреблять только эти числа, дословно:\n"
+        + "; ".join(numbers)
+        + "\n\nЛюбое другое число делает заключение непригодным. Не переводи "
+          "суммы в миллионы, не округляй, не считай проценты и разности. "
+          "Пиши только кириллицей."
     )
 
     try:
