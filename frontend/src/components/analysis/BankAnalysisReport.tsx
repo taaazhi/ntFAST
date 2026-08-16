@@ -239,6 +239,9 @@ export function BankAnalysisReport({ result, onClose }: BankAnalysisReportProps)
                 </button>
                 <button
                   onClick={onClose}
+                  // Кнопка состоит из одной иконки: без метки её не
+                  // прочитает ни программа чтения с экрана, ни автотест.
+                  aria-label={t('common.close')}
                   className="p-2 hover:bg-white/10 rounded-xl transition-colors"
                 >
                   <X className="w-6 h-6 text-white/70 hover:text-white" />

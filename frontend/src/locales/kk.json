@@ -723,7 +723,8 @@
     "confirmDelete": "Жою",
     "yes": "Иә",
     "no": "Жоқ",
-    "minutes": "минут"
+    "minutes": "минут",
+    "close": "Жабу"
   },
   "notifications": {
     "title": "Хабарламалар",

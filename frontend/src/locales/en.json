@@ -723,7 +723,8 @@
     "confirmDelete": "Delete",
     "yes": "Yes",
     "no": "No",
-    "minutes": "minutes"
+    "minutes": "minutes",
+    "close": "Close"
   },
   "notifications": {
     "title": "Notifications",

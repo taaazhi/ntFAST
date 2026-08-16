@@ -723,7 +723,8 @@
     "confirm": "Подтвердить",
     "confirmDelete": "Удалить",
     "yes": "Да",
-    "no": "Нет"
+    "no": "Нет",
+    "close": "Закрыть"
   },
   "notifications": {
     "title": "Уведомления",
