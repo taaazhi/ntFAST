@@ -255,6 +255,8 @@ export interface AnalysisConclusion {
   provider?: string | null;
   citations: LegalArticle[];
   invented_numbers: string[];
+  /** Текст упёрся в потолок длины и оборван на полуслове. */
+  truncated?: boolean;
   is_trustworthy: boolean;
   exists?: boolean;
   error?: string | null;

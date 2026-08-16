@@ -30,6 +30,23 @@ DEFAULT_HOST = "http://localhost:11434"
 #: рассуждения бессмысленно, поэтому таймаут щедрый.
 REQUEST_TIMEOUT = 300.0
 
+#: Потолок длины ответа в токенах.
+#:
+#: Без него модель на 3B зацикливается: на деле, где фактов почти нет
+#: (семь операций, ни одного признака), она уходила в бесконечный повтор
+#: «электронных денег, электронных кошельков, электронных денег…» и не
+#: останавливалась до таймаута. Следователь при этом видел «Составляю…»
+#: пять минут и не получал ничего.
+#:
+#: 1400 токенов — примерно полторы страницы; заключение по делу в такой
+#: объём укладывается с запасом.
+MAX_OUTPUT_TOKENS = 1400
+
+#: Штраф за повтор. Жадное декодирование при нулевой температуре особенно
+#: склонно к зацикливанию: у модели нет случайности, чтобы выйти из петли,
+#: и единственный выход — удорожать уже сказанное.
+REPEAT_PENALTY = 1.15
+
 
 class OllamaAgentProvider:
     """Провайдер поверх `/api/chat` Ollama с поддержкой tool calling."""
@@ -84,9 +101,14 @@ class OllamaAgentProvider:
             "messages": [{"role": "system", "content": system}]
             + [self._to_ollama(m) for m in messages],
             "stream": False,
-            # Нулевая температура: следственный отчёт не то место, где нужна
-            # вариативность формулировок.
-            "options": {"temperature": 0},
+            "options": {
+                # Нулевая температура: следственный отчёт не то место, где
+                # нужна вариативность формулировок. Расплата за неё —
+                # склонность к повторам, отсюда два ограничителя ниже.
+                "temperature": 0,
+                "num_predict": MAX_OUTPUT_TOKENS,
+                "repeat_penalty": REPEAT_PENALTY,
+            },
         }
         if tools:
             payload["tools"] = [self._tool_schema(t) for t in tools]
@@ -95,7 +117,8 @@ class OllamaAgentProvider:
             f"{self._host}/api/chat", json=payload, timeout=self._timeout
         )
         response.raise_for_status()
-        message = response.json().get("message", {}) or {}
+        body = response.json()
+        message = body.get("message", {}) or {}
 
         blocks: List[Dict[str, Any]] = []
         text = (message.get("content") or "").strip()
@@ -113,7 +136,14 @@ class OllamaAgentProvider:
                 "input": self._arguments(function.get("arguments")),
             })
 
-        return {"content": blocks, "provider": self.name}
+        return {
+            "content": blocks,
+            "provider": self.name,
+            # «length» означает, что ответ упёрся в потолок и оборван на
+            # полуслове. Вызывающий обязан это знать: оборванное заключение
+            # выглядит законченным, но им не является.
+            "stop_reason": body.get("done_reason"),
+        }
 
     # ── Перевод форматов ─────────────────────────────────────────
 

@@ -510,7 +510,8 @@
         "verified": "figures checked against the facts, citations against the statute",
         "unverified": "This conclusion failed verification — read with care",
         "unknownNumbers": "figures absent from the facts",
-        "failed": "Could not write the conclusion"
+        "failed": "Could not write the conclusion",
+        "truncated": "the text is cut off: the model hit its length limit"
       },
       "agent": {
         "title": "Ask about this statement",

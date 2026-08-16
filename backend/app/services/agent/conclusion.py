@@ -85,6 +85,10 @@ class Conclusion:
     invented_numbers: List[str] = field(default_factory=list)
     provider: Optional[str] = None
     error: Optional[str] = None
+    #: Текст упёрся в потолок длины и оборван на полуслове. Отдельный признак,
+    #: а не ошибка: написанное до обрыва может быть полезно, но выдавать его
+    #: за готовое заключение нельзя.
+    truncated: bool = False
 
     @property
     def foreign_script(self) -> List[str]:
@@ -97,6 +101,7 @@ class Conclusion:
         return (
             bool(self.text)
             and not self.error
+            and not self.truncated
             and not self.invented_numbers
             and not self.foreign_script
             and all(c.get("verified") for c in self.citations)
@@ -109,6 +114,7 @@ class Conclusion:
             "invented_numbers": self.invented_numbers,
             "provider": self.provider,
             "error": self.error,
+            "truncated": self.truncated,
             "is_trustworthy": self.is_trustworthy,
         }
 
@@ -200,8 +206,15 @@ def collect_facts(
     }
 
 
-#: Числа в тексте: «4 500 000», «12», «63.0», «1 320».
-_NUMBER = re.compile(r"\d[\d\s  ]*(?:[.,]\d+)?")
+#: Числа в тексте: «4 500 000», «84,000», «12», «63.0», «1 320».
+#:
+#: Две ветви. Первая — число с разделителями разрядов: группы ровно по три
+#: цифры через пробел или запятую. Вторая — обычное число. Разделение нужно,
+#: чтобы «12, 15» осталось двумя числами, а «1,440,000» стало одним.
+_NUMBER = re.compile(
+    r"\d{1,3}(?:[\s  ,]\d{3})+(?:[.,]\d+)?"
+    r"|\d+(?:[.,]\d+)?"
+)
 
 #: Даты в любом принятом написании. Вырезаются до поиска чисел: период
 #: «2025-08-14» модель законно перепишет как «14.08.2025», и без этого
@@ -234,8 +247,18 @@ def _numbers_in(value: Any) -> set:
 
 
 def _normalise_number(raw: str) -> str:
-    """«4 500 000,00» и «4500000.0» — одно и то же число."""
-    cleaned = re.sub(r"[\s  ]", "", raw).replace(",", ".")
+    """«4 500 000,00», «4,500,000» и «4500000.0» — одно и то же число.
+
+    Запятая двусмысленна: в русском тексте это десятичный разделитель, а
+    модель, обученная в основном на английском, ставит её между разрядами.
+    Различаем по длине хвоста — ровно три цифры после запятой означают
+    разряды. Без этого «84,000 ₸» превращалось в 84 и объявлялось выдумкой,
+    хотя в фактах стояло ровно 84 000: проверка обвиняла верное заключение,
+    а это хуже, чем не проверять вовсе.
+    """
+    cleaned = re.sub(r"[\s  ]", "", raw)
+    cleaned = re.sub(r",(?=\d{3}(?:\D|$))", "", cleaned)
+    cleaned = cleaned.replace(",", ".")
     try:
         value = float(cleaned)
     except ValueError:
@@ -312,8 +335,15 @@ def build_conclusion(
             error="модель вернула пустой ответ",
         )
 
-    conclusion = Conclusion(text=text, provider=response.get("provider"))
+    conclusion = Conclusion(
+        text=text,
+        provider=response.get("provider"),
+        truncated=response.get("stop_reason") == "length",
+    )
     conclusion.invented_numbers = find_invented_numbers(text, facts)
+
+    if conclusion.truncated:
+        logger.warning("Заключение оборвано на потолке длины: %s символов", len(text))
 
     try:
         from app.services.legal import parse_reference

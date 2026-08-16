@@ -128,6 +128,11 @@ export function CaseConclusion({ analysisId }: Props) {
                     {conclusion.invented_numbers.slice(0, 5).join(', ')}
                   </p>
                 )}
+                {/* Оборванный текст выглядит законченным — об этом надо
+                    сказать прямо, иначе следователь примет его за полный. */}
+                {conclusion.truncated && (
+                  <p className="mt-1">{t('analyses.report.conclusion.truncated')}</p>
+                )}
               </div>
             </div>
           )}

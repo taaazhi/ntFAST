@@ -218,3 +218,49 @@ def test_conclusion_serialises_for_the_report():
     payload = build_conclusion(ANALYSIS, FakeProvider("Текст.")).to_dict()
 
     assert set(payload) >= {"text", "citations", "invented_numbers", "is_trustworthy"}
+
+
+# ── Разбор чисел: запятая как разделитель разрядов ───────────────────
+
+def test_thousands_separator_is_not_a_decimal_point():
+    """«84,000» — это 84 000, а не 84.
+
+    Модель обучена в основном на английском и ставит запятую между
+    разрядами. Пока проверка считала её десятичной, верные суммы попадали
+    в список выдуманных: заключение объявлялось недостоверным за то, что
+    в нём всё правильно.
+    """
+    facts = {"total_income": "84 000 ₸", "net_flow": "4 500 ₸"}
+    text = "Поступления составили 84,000 ₸, итог — 4,500 ₸."
+    assert find_invented_numbers(text, facts) == []
+
+
+def test_decimal_comma_still_works():
+    """Запятая с коротким хвостом остаётся десятичной: «63,5» — это 63.5."""
+    facts = {"risk_score": 63.5}
+    assert find_invented_numbers("Балл риска 63,5.", facts) == []
+
+
+def test_number_lists_do_not_merge():
+    """«12, 15» — два числа, а не одно."""
+    facts = {"a": 12, "b": 15}
+    assert find_invented_numbers("Признаки 12, 15 сработали.", facts) == []
+
+
+def test_invented_number_is_still_caught():
+    """Починка разбора не должна ослабить саму проверку."""
+    facts = {"total_income": "84 000 ₸"}
+    assert "158" in find_invented_numbers("Доход 84,000 ₸, а также 158 переводов.", facts)
+
+
+# ── Оборванный текст ─────────────────────────────────────────────────
+
+def test_truncated_conclusion_is_not_trustworthy():
+    """Заключение, упёршееся в потолок длины, оборвано на полуслове.
+
+    Выглядит оно законченным, поэтому признак обязателен: следователь
+    должен видеть, что текст неполон, а не догадываться об этом.
+    """
+    truncated = Conclusion(text="Заключение по делу: установлено, что", truncated=True)
+    assert not truncated.is_trustworthy
+    assert truncated.to_dict()["truncated"] is True

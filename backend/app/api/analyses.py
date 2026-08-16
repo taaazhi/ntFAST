@@ -894,7 +894,7 @@ def build_analysis_conclusion(
         analysis.ai_provider = (conclusion.provider or "")[:20]
         analysis.ai_risk_assessment = {
             k: payload[k] for k in
-            ("citations", "invented_numbers", "is_trustworthy", "provider")
+            ("citations", "invented_numbers", "is_trustworthy", "provider", "truncated")
         }
         db.commit()
 
@@ -932,6 +932,7 @@ def get_saved_conclusion(
         "provider": analysis.ai_provider or meta.get("provider"),
         "citations": meta.get("citations") or [],
         "invented_numbers": meta.get("invented_numbers") or [],
+        "truncated": bool(meta.get("truncated")),
         "is_trustworthy": bool(meta.get("is_trustworthy")),
         "exists": bool(analysis.ai_narrative),
     }

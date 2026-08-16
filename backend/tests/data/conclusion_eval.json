@@ -1,0 +1,493 @@
+{
+  "_readme": [
+    "Размеченный набор для оценки заключений по делу.",
+    "",
+    "Каждый кейс — готовый analysis_result (то, что видит build_conclusion) и",
+    "разметка того, что обязано и чего не должно быть в тексте заключения.",
+    "",
+    "Персональных данных здесь нет: контрагенты записаны метками, как их",
+    "видит модель после анонимизации. Числа подобраны так, чтобы проверка",
+    "выдуманных чисел имела смысл — суммы разные и не круглые.",
+    "",
+    "expect.must_include — списки синонимов. Элемент засчитан, если в тексте",
+    "нашлась любая форма из списка. Так проверяется полнота: заключение,",
+    "умолчавшее о сработавшем модуле, для следователя бесполезно.",
+    "",
+    "expect.forbidden — то, чего в фактах нет. Появление такой строки значит,",
+    "что модель добавила от себя: чужую статью, несуществующую схему, вывод",
+    "о вине.",
+    "",
+    "expect.needs_counter_evidence — в фактах есть контраргументы, и вывод",
+    "обязан их привести. Заключение без «что говорит против» — обвинительный",
+    "уклон, а не документ."
+  ],
+  "cases": [
+    {
+      "id": "clean_salary",
+      "description": "Зарплатный счёт без признаков. Проверяем, что модель не выдумывает риск.",
+      "analysis": {
+        "summary": {"total_transactions": 214, "total_income": 4327500, "total_expense": 4189300, "net_flow": 138200},
+        "account": {"period": {"from": "2025-01-05", "to": "2025-12-28"}},
+        "fraud_report": {
+          "composite_score": 8.3,
+          "risk_level": "LOW",
+          "explained_flags": [],
+          "flagged_patterns": [],
+          "graph": {"node_count": 47, "edge_count": 46},
+          "account_profile": {"account_type": "salary"}
+        },
+        "enrichment": {"salary_sources": [{"counterparty": "ТОО АЛТЫН СТРОЙ", "reason": "12 поступлений, одно и то же число месяца"}]}
+      },
+      "expect": {
+        "must_include": [
+          ["оснований не выявлено", "не выявлено", "признаков не", "отсутствуют признаки", "не обнаружено"],
+          ["214"],
+          ["зарплат", "заработн", "salary"]
+        ],
+        "forbidden": ["ст. 190", "ст. 218", "отмывани", "мошенничеств", "пирамид"],
+        "needs_counter_evidence": false
+      }
+    },
+    {
+      "id": "cash_withdrawal",
+      "description": "Систематическое обналичивание сразу после поступлений.",
+      "analysis": {
+        "summary": {"total_transactions": 386, "total_income": 28450000, "total_expense": 28310000, "net_flow": 140000},
+        "account": {"period": {"from": "2025-03-01", "to": "2025-11-30"}},
+        "fraud_report": {
+          "composite_score": 71.4,
+          "risk_level": "HIGH",
+          "explained_flags": [
+            {"module": "cash_operations", "reason": "63 снятия наличных на 24 180 000 ₸, 85% поступлений обналичено", "counter_evidence": "розничная торговля работает с наличностью", "score_contribution": 28.0},
+            {"module": "velocity", "reason": "снятие в течение 2 часов после поступления, 41 случай", "counter_evidence": null, "score_contribution": 19.5}
+          ],
+          "flagged_patterns": [
+            {"display_name": "Обналичивание входящих переводов", "reason": "поступление и снятие в один день, 41 раз", "counter_evidence": "выручка торговой точки инкассируется ежедневно", "confidence": 0.82,
+             "legal_articles": [{"citation": "УК РК ст. 218", "title": "Легализация (отмывание) денег и (или) иного имущества, полученных преступным путем", "verified": true}]}
+          ],
+          "graph": {"node_count": 112, "edge_count": 138},
+          "account_profile": {"account_type": "business"}
+        },
+        "enrichment": {"salary_sources": []}
+      },
+      "expect": {
+        "must_include": [
+          ["обналич", "снятие наличн", "наличн"],
+          ["218"],
+          ["63", "41"],
+          ["высок", "HIGH", "71"]
+        ],
+        "forbidden": ["ст. 128", "ст. 217", "торговля людьми"],
+        "needs_counter_evidence": true
+      }
+    },
+    {
+      "id": "transit_account",
+      "description": "Транзитный счёт: деньги входят и выходят в тот же день, остаток около нуля.",
+      "analysis": {
+        "summary": {"total_transactions": 549, "total_income": 91230000, "total_expense": 91195000, "net_flow": 35000},
+        "account": {"period": {"from": "2025-06-01", "to": "2025-10-15"}},
+        "fraud_report": {
+          "composite_score": 78.9,
+          "risk_level": "HIGH",
+          "explained_flags": [
+            {"module": "transit", "reason": "97% поступлений выведено в течение суток, остаток не накапливается", "counter_evidence": "агентская схема расчётов даёт похожую картину", "score_contribution": 33.0},
+            {"module": "network", "reason": "184 контрагента при 549 операциях", "counter_evidence": null, "score_contribution": 17.2}
+          ],
+          "flagged_patterns": [
+            {"display_name": "Транзит денежных средств", "reason": "средний срок нахождения средств на счёте — 6 часов", "counter_evidence": "платёжный агент обязан перечислять собранное в тот же день", "confidence": 0.88,
+             "legal_articles": [{"citation": "УК РК ст. 218", "title": "Легализация (отмывание) денег и (или) иного имущества, полученных преступным путем", "verified": true}]}
+          ],
+          "graph": {"node_count": 184, "edge_count": 291},
+          "account_profile": {"account_type": "transit"}
+        },
+        "enrichment": {"salary_sources": []}
+      },
+      "expect": {
+        "must_include": [
+          ["транзит", "вывод", "в тот же день", "не задерж"],
+          ["218"],
+          ["184", "549"]
+        ],
+        "forbidden": ["ст. 190", "пирамид", "торговля людьми"],
+        "needs_counter_evidence": true
+      }
+    },
+    {
+      "id": "structuring",
+      "description": "Дробление сумм под порог обязательного контроля.",
+      "analysis": {
+        "summary": {"total_transactions": 268, "total_income": 19740000, "total_expense": 19210000, "net_flow": 530000},
+        "account": {"period": {"from": "2025-02-10", "to": "2025-09-20"}},
+        "fraud_report": {
+          "composite_score": 66.2,
+          "risk_level": "HIGH",
+          "explained_flags": [
+            {"module": "structuring", "reason": "38 переводов в диапазоне 1 900 000–1 990 000 ₸ при пороге 2 000 000 ₸", "counter_evidence": "лимит на перевод в приложении банка тоже даёт суммы под порогом", "score_contribution": 31.0}
+          ],
+          "flagged_patterns": [
+            {"display_name": "Структурирование операций", "reason": "суммы систематически ниже порога обязательного контроля", "counter_evidence": "суточный лимит банка — 2 000 000 ₸", "confidence": 0.74,
+             "legal_articles": [{"citation": "УК РК ст. 218", "title": "Легализация (отмывание) денег и (или) иного имущества, полученных преступным путем", "verified": true}]}
+          ],
+          "graph": {"node_count": 63, "edge_count": 71},
+          "account_profile": {"account_type": "personal"}
+        },
+        "enrichment": {"salary_sources": []}
+      },
+      "expect": {
+        "must_include": [
+          ["дробл", "структурир", "ниже порог", "под порог"],
+          ["38"],
+          ["218"]
+        ],
+        "forbidden": ["ст. 232", "поддельн"],
+        "needs_counter_evidence": true
+      }
+    },
+    {
+      "id": "pyramid",
+      "description": "Признаки пирамиды: масса мелких входящих от физлиц, выплаты части из них.",
+      "analysis": {
+        "summary": {"total_transactions": 1412, "total_income": 63820000, "total_expense": 41560000, "net_flow": 22260000},
+        "account": {"period": {"from": "2025-04-01", "to": "2025-12-01"}},
+        "fraud_report": {
+          "composite_score": 84.1,
+          "risk_level": "CRITICAL",
+          "explained_flags": [
+            {"module": "network", "reason": "907 плательщиков-физлиц, выплаты получили 214 из них", "counter_evidence": "краудфандинг и складчины дают похожую сеть", "score_contribution": 34.0},
+            {"module": "round_amounts", "reason": "612 поступлений ровно по 50 000 ₸ и 100 000 ₸", "counter_evidence": "фиксированный тариф услуги", "score_contribution": 21.0}
+          ],
+          "flagged_patterns": [
+            {"display_name": "Признаки финансовой пирамиды", "reason": "выплаты производятся из поступлений новых плательщиков", "counter_evidence": "инвестиционный клуб с реальной доходностью выглядел бы так же на коротком отрезке", "confidence": 0.79,
+             "legal_articles": [{"citation": "УК РК ст. 217", "title": "Создание и руководство финансовой (инвестиционной) пирамидой", "verified": true}]}
+          ],
+          "graph": {"node_count": 907, "edge_count": 1121},
+          "account_profile": {"account_type": "collector"}
+        },
+        "enrichment": {"salary_sources": []}
+      },
+      "expect": {
+        "must_include": [
+          ["пирамид"],
+          ["217"],
+          ["907", "214", "612"],
+          ["критич", "CRITICAL", "84"]
+        ],
+        "forbidden": ["ст. 128", "ст. 232"],
+        "needs_counter_evidence": true
+      }
+    },
+    {
+      "id": "fan_out_drops",
+      "description": "Веерная рассылка на счета физлиц — типовая схема дропов.",
+      "analysis": {
+        "summary": {"total_transactions": 731, "total_income": 47100000, "total_expense": 46830000, "net_flow": 270000},
+        "account": {"period": {"from": "2025-05-01", "to": "2025-08-31"}},
+        "fraud_report": {
+          "composite_score": 73.6,
+          "risk_level": "HIGH",
+          "explained_flags": [
+            {"module": "network", "reason": "исходящие на 342 карты физлиц, повторных получателей — 11%", "counter_evidence": "выплаты подрядчикам-самозанятым выглядят похоже", "score_contribution": 30.0}
+          ],
+          "flagged_patterns": [
+            {"display_name": "Веерное распределение средств", "reason": "один вход, множество однотипных выходов на карты физлиц", "counter_evidence": "маркетплейс рассчитывается с исполнителями так же", "confidence": 0.71,
+             "legal_articles": [{"citation": "УК РК ст. 218", "title": "Легализация (отмывание) денег и (или) иного имущества, полученных преступным путем", "verified": true}]}
+          ],
+          "graph": {"node_count": 342, "edge_count": 388},
+          "account_profile": {"account_type": "distributor"}
+        },
+        "enrichment": {"salary_sources": []}
+      },
+      "expect": {
+        "must_include": [
+          ["веер", "распредел", "множеств", "342"],
+          ["218"]
+        ],
+        "forbidden": ["пирамид", "ст. 217"],
+        "needs_counter_evidence": true
+      }
+    },
+    {
+      "id": "night_activity",
+      "description": "Ночная активность и всплеск оборотов без иных признаков.",
+      "analysis": {
+        "summary": {"total_transactions": 197, "total_income": 8340000, "total_expense": 8127000, "net_flow": 213000},
+        "account": {"period": {"from": "2025-07-01", "to": "2025-11-01"}},
+        "fraud_report": {
+          "composite_score": 41.7,
+          "risk_level": "MEDIUM",
+          "explained_flags": [
+            {"module": "time_patterns", "reason": "64% операций между 01:00 и 05:00", "counter_evidence": "работа с другим часовым поясом", "score_contribution": 18.0},
+            {"module": "velocity", "reason": "3 дня с оборотом выше обычного в 7 раз", "counter_evidence": "сезонная распродажа", "score_contribution": 14.5}
+          ],
+          "flagged_patterns": [],
+          "graph": {"node_count": 58, "edge_count": 63},
+          "account_profile": {"account_type": "personal"}
+        },
+        "enrichment": {"salary_sources": []}
+      },
+      "expect": {
+        "must_include": [
+          ["ноч", "01:00", "врем"],
+          ["средн", "MEDIUM", "41"]
+        ],
+        "forbidden": ["ст. 218", "ст. 217", "отмывани", "пирамид"],
+        "needs_counter_evidence": true
+      }
+    },
+    {
+      "id": "crypto_exchange",
+      "description": "Обороты с криптобиржей — законно, но требует внимания.",
+      "analysis": {
+        "summary": {"total_transactions": 423, "total_income": 15680000, "total_expense": 16240000, "net_flow": -560000},
+        "account": {"period": {"from": "2025-01-15", "to": "2025-12-15"}},
+        "fraud_report": {
+          "composite_score": 38.4,
+          "risk_level": "MEDIUM",
+          "explained_flags": [
+            {"module": "merchant_risk", "reason": "71% оборота приходится на криптобиржу", "counter_evidence": "операции с цифровыми активами законны, биржа лицензирована в МФЦА", "score_contribution": 16.0}
+          ],
+          "flagged_patterns": [],
+          "graph": {"node_count": 34, "edge_count": 37},
+          "account_profile": {"account_type": "personal"}
+        },
+        "enrichment": {"salary_sources": []}
+      },
+      "expect": {
+        "must_include": [
+          ["крипт", "цифров", "бирж"],
+          ["71"]
+        ],
+        "forbidden": ["ст. 218", "отмывани", "преступн"],
+        "needs_counter_evidence": true
+      }
+    },
+    {
+      "id": "circular_transfers",
+      "description": "Круговые переводы между связанными счетами.",
+      "analysis": {
+        "summary": {"total_transactions": 312, "total_income": 33900000, "total_expense": 33840000, "net_flow": 60000},
+        "account": {"period": {"from": "2025-03-15", "to": "2025-10-10"}},
+        "fraud_report": {
+          "composite_score": 69.8,
+          "risk_level": "HIGH",
+          "explained_flags": [
+            {"module": "network", "reason": "обнаружено 17 замкнутых цепочек переводов длиной 3–4 счёта", "counter_evidence": "расчёты внутри группы компаний образуют такие же циклы", "score_contribution": 29.0}
+          ],
+          "flagged_patterns": [
+            {"display_name": "Круговое движение средств", "reason": "деньги возвращаются на исходный счёт через 3–4 звена", "counter_evidence": "внутригрупповые займы возвращаются похожим маршрутом", "confidence": 0.76,
+             "legal_articles": [{"citation": "УК РК ст. 218", "title": "Легализация (отмывание) денег и (или) иного имущества, полученных преступным путем", "verified": true}]}
+          ],
+          "graph": {"node_count": 41, "edge_count": 96},
+          "account_profile": {"account_type": "business"}
+        },
+        "enrichment": {"salary_sources": []}
+      },
+      "expect": {
+        "must_include": [
+          ["кругов", "замкнут", "цепоч", "цикл"],
+          ["17"],
+          ["218"]
+        ],
+        "forbidden": ["ст. 190", "пирамид"],
+        "needs_counter_evidence": true
+      }
+    },
+    {
+      "id": "salary_plus_suspicious",
+      "description": "Смешанный: зарплата законная, но исходящие подозрительны. Проверяем, что вывод не сваливает всё в кучу.",
+      "analysis": {
+        "summary": {"total_transactions": 344, "total_income": 6120000, "total_expense": 5980000, "net_flow": 140000},
+        "account": {"period": {"from": "2025-01-01", "to": "2025-12-31"}},
+        "fraud_report": {
+          "composite_score": 52.3,
+          "risk_level": "MEDIUM",
+          "explained_flags": [
+            {"module": "cash_operations", "reason": "19 снятий наличных сразу после поступления зарплаты", "counter_evidence": "человек может просто снимать зарплату наличными", "score_contribution": 22.0}
+          ],
+          "flagged_patterns": [],
+          "graph": {"node_count": 71, "edge_count": 78},
+          "account_profile": {"account_type": "salary"}
+        },
+        "enrichment": {"salary_sources": [{"counterparty": "ТОО КАЗ ЛОГИСТИК", "reason": "11 поступлений, сопоставимые суммы, одно число месяца"}]}
+      },
+      "expect": {
+        "must_include": [
+          ["зарплат", "заработн"],
+          ["19"],
+          ["наличн", "снят"]
+        ],
+        "forbidden": ["ст. 217", "пирамид", "ст. 128"],
+        "needs_counter_evidence": true
+      }
+    },
+    {
+      "id": "sole_trader_high_turnover",
+      "description": "ИП с высоким оборотом и признаками занижения выручки.",
+      "analysis": {
+        "summary": {"total_transactions": 892, "total_income": 54300000, "total_expense": 51900000, "net_flow": 2400000},
+        "account": {"period": {"from": "2025-01-01", "to": "2025-12-01"}},
+        "fraud_report": {
+          "composite_score": 47.9,
+          "risk_level": "MEDIUM",
+          "explained_flags": [
+            {"module": "merchant_risk", "reason": "оборот 54 300 000 ₸ при заявленном режиме, рассчитанном на меньший", "counter_evidence": "порог мог быть превышен в конце периода законно", "score_contribution": 20.0}
+          ],
+          "flagged_patterns": [
+            {"display_name": "Возможное занижение налоговой базы", "reason": "оборот превышает предел выбранного режима налогообложения", "counter_evidence": "переход на общий режим со следующего периода допустим", "confidence": 0.62,
+             "legal_articles": [{"citation": "НК РК ст. 321", "title": "Годовой доход", "verified": true}]}
+          ],
+          "graph": {"node_count": 268, "edge_count": 301},
+          "account_profile": {"account_type": "business"}
+        },
+        "enrichment": {"salary_sources": []}
+      },
+      "expect": {
+        "must_include": [
+          ["налог", "режим", "оборот"],
+          ["321"]
+        ],
+        "forbidden": ["ст. 218", "ст. 217", "отмывани"],
+        "needs_counter_evidence": true
+      }
+    },
+    {
+      "id": "dormant_account",
+      "description": "Почти пустой счёт. Проверяем, что вывод — «данных мало», а не выдуманная схема.",
+      "analysis": {
+        "summary": {"total_transactions": 7, "total_income": 84000, "total_expense": 79500, "net_flow": 4500},
+        "account": {"period": {"from": "2025-09-01", "to": "2025-09-30"}},
+        "fraud_report": {
+          "composite_score": 4.1,
+          "risk_level": "LOW",
+          "explained_flags": [],
+          "flagged_patterns": [],
+          "graph": {"node_count": 5, "edge_count": 4},
+          "account_profile": {"account_type": "personal"}
+        },
+        "enrichment": {"salary_sources": []}
+      },
+      "expect": {
+        "must_include": [
+          ["7"],
+          ["мало", "недостаточно", "не выявлено", "ограничен", "небольш", "низк"]
+        ],
+        "forbidden": ["ст. 218", "ст. 217", "ст. 190", "пирамид", "отмывани", "транзит"],
+        "needs_counter_evidence": false
+      }
+    },
+    {
+      "id": "large_single_transfers",
+      "description": "Несколько крупных переводов одному лицу без объяснения.",
+      "analysis": {
+        "summary": {"total_transactions": 46, "total_income": 38700000, "total_expense": 38400000, "net_flow": 300000},
+        "account": {"period": {"from": "2025-04-01", "to": "2025-07-31"}},
+        "fraud_report": {
+          "composite_score": 58.6,
+          "risk_level": "MEDIUM",
+          "explained_flags": [
+            {"module": "large_transfers", "reason": "5 переводов по 7 500 000 ₸ одному получателю", "counter_evidence": "оплата по договору купли-продажи частями выглядит так же", "score_contribution": 26.0}
+          ],
+          "flagged_patterns": [],
+          "graph": {"node_count": 12, "edge_count": 14},
+          "account_profile": {"account_type": "personal"}
+        },
+        "enrichment": {"salary_sources": []}
+      },
+      "expect": {
+        "must_include": [
+          ["5", "крупн"],
+          ["один получател", "одному", "одному получателю", "одно лицо"]
+        ],
+        "forbidden": ["пирамид", "ст. 217", "ст. 128"],
+        "needs_counter_evidence": true
+      }
+    },
+    {
+      "id": "gambling_payments",
+      "description": "Регулярные платежи букмекерам — признак, но не преступление.",
+      "analysis": {
+        "summary": {"total_transactions": 638, "total_income": 4870000, "total_expense": 6310000, "net_flow": -1440000},
+        "account": {"period": {"from": "2025-02-01", "to": "2025-12-01"}},
+        "fraud_report": {
+          "composite_score": 34.2,
+          "risk_level": "MEDIUM",
+          "explained_flags": [
+            {"module": "merchant_risk", "reason": "287 платежей букмекерским компаниям на 3 940 000 ₸", "counter_evidence": "букмекерская деятельность в РК лицензируется", "score_contribution": 15.0}
+          ],
+          "flagged_patterns": [],
+          "graph": {"node_count": 29, "edge_count": 34},
+          "account_profile": {"account_type": "personal"}
+        },
+        "enrichment": {"salary_sources": []}
+      },
+      "expect": {
+        "must_include": [
+          ["букмекер", "ставк", "игорн"],
+          ["287"],
+          ["расход", "превыш", "-1 440 000", "1 440 000"]
+        ],
+        "forbidden": ["ст. 218", "ст. 217", "преступн"],
+        "needs_counter_evidence": true
+      }
+    },
+    {
+      "id": "foreign_inflows",
+      "description": "Поступления из-за рубежа от нескольких плательщиков.",
+      "analysis": {
+        "summary": {"total_transactions": 154, "total_income": 22480000, "total_expense": 21930000, "net_flow": 550000},
+        "account": {"period": {"from": "2025-03-01", "to": "2025-11-15"}},
+        "fraud_report": {
+          "composite_score": 44.8,
+          "risk_level": "MEDIUM",
+          "explained_flags": [
+            {"module": "foreign_currency", "reason": "39 поступлений из-за рубежа от 12 плательщиков на 18 200 000 ₸", "counter_evidence": "экспорт услуг и удалённая работа дают такую же картину", "score_contribution": 19.0}
+          ],
+          "flagged_patterns": [],
+          "graph": {"node_count": 44, "edge_count": 51},
+          "account_profile": {"account_type": "personal"}
+        },
+        "enrichment": {"salary_sources": []}
+      },
+      "expect": {
+        "must_include": [
+          ["зарубеж", "из-за рубежа", "иностран", "внешн"],
+          ["39", "12"]
+        ],
+        "forbidden": ["ст. 218", "ст. 128", "отмывани"],
+        "needs_counter_evidence": true
+      }
+    },
+    {
+      "id": "card_fraud_signs",
+      "description": "Признаки операций с поддельными платёжными картами.",
+      "analysis": {
+        "summary": {"total_transactions": 203, "total_income": 9740000, "total_expense": 9680000, "net_flow": 60000},
+        "account": {"period": {"from": "2025-08-01", "to": "2025-10-31"}},
+        "fraud_report": {
+          "composite_score": 76.3,
+          "risk_level": "HIGH",
+          "explained_flags": [
+            {"module": "card_operations", "reason": "поступления с 78 разных карт, 61 из них — однократно", "counter_evidence": "сбор платежей за услугу через карту тоже даёт много разных карт", "score_contribution": 32.0}
+          ],
+          "flagged_patterns": [
+            {"display_name": "Операции с большим числом чужих карт", "reason": "78 карт-источников при 203 операциях", "counter_evidence": "приём оплаты в торговой точке выглядит похоже", "confidence": 0.68,
+             "legal_articles": [{"citation": "УК РК ст. 232", "title": "Изготовление или сбыт поддельных платежных карточек и иных платежных и расчетных документов", "verified": true}]}
+          ],
+          "graph": {"node_count": 78, "edge_count": 89},
+          "account_profile": {"account_type": "personal"}
+        },
+        "enrichment": {"salary_sources": []}
+      },
+      "expect": {
+        "must_include": [
+          ["карт"],
+          ["78", "61"],
+          ["232"]
+        ],
+        "forbidden": ["ст. 217", "пирамид", "ст. 128"],
+        "needs_counter_evidence": true
+      }
+    }
+  ]
+}
