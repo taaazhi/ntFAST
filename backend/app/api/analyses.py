@@ -870,4 +870,56 @@ def build_analysis_conclusion(
     }
 
     conclusion = build_conclusion(result, provider, anonymizer=anonymizer)
+
+    # Сохраняем: составление занимает около полуминуты на локальной модели,
+    # и повторять его при каждом открытии отчёта незачем. Недостоверное
+    # заключение тоже сохраняется — вместе с признаком недостоверности,
+    # чтобы следователь видел ровно то, что было составлено, а не гадал,
+    # почему при следующем открытии текст изменился.
+    if conclusion.text:
+        payload = conclusion.to_dict()
+        analysis.ai_narrative = conclusion.text
+        analysis.ai_provider = (conclusion.provider or "")[:20]
+        analysis.ai_risk_assessment = {
+            k: payload[k] for k in
+            ("citations", "invented_numbers", "is_trustworthy", "provider")
+        }
+        db.commit()
+
     return conclusion.to_dict()
+
+
+@router.get("/{analysis_id}/conclusion")
+def get_saved_conclusion(
+    analysis_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Ранее составленное заключение, без обращения к модели.
+
+    Отдельный метод, а не побочный эффект POST: открытие отчёта не должно
+    запускать генерацию. Пустой ответ означает «ещё не составлено», а не
+    ошибку — заключение появляется по решению следователя.
+    """
+    analysis = db.query(Analysis).filter(Analysis.id == analysis_id).first()
+    if not analysis:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Analysis not found"
+        )
+
+    if current_user.role == "analyst" and analysis.analyst_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not authorized to view this analysis"
+        )
+
+    meta = analysis.ai_risk_assessment or {}
+    return {
+        "text": analysis.ai_narrative or "",
+        "provider": analysis.ai_provider or meta.get("provider"),
+        "citations": meta.get("citations") or [],
+        "invented_numbers": meta.get("invented_numbers") or [],
+        "is_trustworthy": bool(meta.get("is_trustworthy")),
+        "exists": bool(analysis.ai_narrative),
+    }

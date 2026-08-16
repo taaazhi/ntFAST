@@ -20,6 +20,8 @@ import { RiskScoreGauge } from './RiskScoreGauge';
 import { ModuleScoreCard } from './ModuleScoreCard';
 import { ExplainedFlags } from './ExplainedFlags';
 import { IncomeSources } from './IncomeSources';
+import { CaseConclusion } from './CaseConclusion';
+import { InvestigatorChat } from './InvestigatorChat';
 
 interface BankAnalysisReportProps {
   result: KaspiAnalysisResult;
@@ -444,7 +446,7 @@ export function BankAnalysisReport({ result, onClose }: BankAnalysisReportProps)
                       {[
                         { label: t('analyses.report.health.savingsRate'), value: `${(result.analytics.financial_health.savings_rate * 100).toFixed(1)}%`, color: result.analytics.financial_health.savings_rate > 0.1 ? 'text-green-600' : 'text-red-600' },
                         { label: t('analyses.report.health.balanceTrend'), value: result.analytics.financial_health.balance_trend === 'growing' ? t('analyses.report.health.growing') : result.analytics.financial_health.balance_trend === 'declining' ? t('analyses.report.health.declining') : t('analyses.report.health.stable'), color: result.analytics.financial_health.balance_trend === 'growing' ? 'text-green-600' : result.analytics.financial_health.balance_trend === 'declining' ? 'text-red-600' : 'text-blue-600' },
-                        { label: t('analyses.report.health.financialBuffer'), value: `${result.analytics.financial_health.financial_buffer_days} ${t('analyses.report.health.days')}`, color: result.analytics.financial_health.financial_buffer_days > 30 ? 'text-green-600' : 'text-yellow-600' },
+                        { label: t('analyses.report.health.financialBuffer'), value: `${result.analytics.financial_health.financial_buffer_days.toFixed(1)} ${t('analyses.report.health.days')}`, color: result.analytics.financial_health.financial_buffer_days > 30 ? 'text-green-600' : 'text-yellow-600' },
                         { label: t('analyses.report.health.essentialRatio'), value: `${(result.analytics.financial_health.essential_ratio * 100).toFixed(0)}%`, color: 'text-gray-700 dark:text-gray-300' },
                       ].map((item) => (
                         <div key={item.label} className="text-center p-3 bg-gray-50 dark:bg-gray-700/30 rounded-xl">
@@ -1570,6 +1572,12 @@ export function BankAnalysisReport({ result, onClose }: BankAnalysisReportProps)
                 initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }}
                 className="space-y-8"
               >
+                {/* Заключение и диалог со следователем — то, ради чего в
+                    проекте есть языковая модель. Стоят первыми в разделе
+                    выводов: остальное здесь — числа, а вывод делается тут. */}
+                <CaseConclusion analysisId={result.meta?.analysis_id} />
+                <InvestigatorChat analysisId={result.meta?.analysis_id} />
+
                 {fraud ? (
                   <>
                     {/* Final verdict */}

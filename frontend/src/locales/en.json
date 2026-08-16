@@ -500,6 +500,29 @@
           "reason": "Cash inflows of {{cash}} ₸ amount to {{pct}}% of the traceable electronic income of {{electronic}} ₸.",
           "counterEvidence": "sale of personal property (a car, real estate), a loan from relatives, previously accumulated cash savings."
         }
+      },
+      "conclusion": {
+        "title": "Case conclusion",
+        "desc": "A connected reading of everything computed: what happened on the account, which signs fired, what argues against them, and the applicable norms. Written by the language model on request — takes about half a minute.",
+        "build": "Write conclusion",
+        "rebuild": "Write again",
+        "building": "Writing…",
+        "verified": "figures checked against the facts, citations against the statute",
+        "unverified": "This conclusion failed verification — read with care",
+        "unknownNumbers": "figures absent from the facts",
+        "failed": "Could not write the conclusion"
+      },
+      "agent": {
+        "title": "Ask about this statement",
+        "desc": "Ask in your own words. The model does not read the statement — it queries data through tools while the system does the counting. Personal names are masked.",
+        "placeholder": "For example: who received the largest amounts?",
+        "send": "Ask",
+        "thinking": "Working…",
+        "incomplete": "Answer is incomplete: the agent ran out of steps",
+        "failed": "Could not get an answer",
+        "suggest1": "Who received the largest amounts?",
+        "suggest2": "Show turnover by month",
+        "suggest3": "Which article covers money laundering?"
       }
     }
   },

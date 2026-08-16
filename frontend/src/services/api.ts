@@ -242,7 +242,62 @@ export interface AnalysisUploadResponse {
 }
 
 // Analyses API
+/**
+ * Заключение по делу, составленное языковой моделью.
+ *
+ * `is_trustworthy` — не украшение: заключение с числом, которого нет в
+ * фактах, или с неподтверждённой нормой показывается с оговоркой, а не
+ * выдаётся за проверенное. Скрывать его нельзя — следователь должен видеть,
+ * что именно было составлено.
+ */
+export interface AnalysisConclusion {
+  text: string;
+  provider?: string | null;
+  citations: LegalArticle[];
+  invented_numbers: string[];
+  is_trustworthy: boolean;
+  exists?: boolean;
+  error?: string | null;
+}
+
+/** Ответ следственного агента на вопрос по конкретному анализу. */
+export interface AgentAnswer {
+  text: string;
+  tool_calls: { tool: string; params: Record<string, unknown>; ok: boolean }[];
+  citations: LegalArticle[];
+  steps: number;
+  stopped_early: boolean;
+  provider?: string | null;
+  error?: string | null;
+  has_unverified_citations: boolean;
+}
+
 export const analysesAPI = {
+  /** Ранее составленное заключение. Модель не вызывается. */
+  getConclusion: async (analysisId: number): Promise<AnalysisConclusion> => {
+    const response = await api.get<AnalysisConclusion>(`/analyses/${analysisId}/conclusion`);
+    return response.data;
+  },
+
+  /**
+   * Составить заключение. Занимает около полуминуты на локальной модели,
+   * поэтому запускается по решению следователя, а не при открытии отчёта.
+   */
+  buildConclusion: async (analysisId: number): Promise<AnalysisConclusion> => {
+    const response = await api.post<AnalysisConclusion>(
+      `/analyses/${analysisId}/conclusion`, {}, { timeout: 300000 },
+    );
+    return response.data;
+  },
+
+  /** Вопрос следственного агента по конкретному анализу. */
+  ask: async (analysisId: number, question: string): Promise<AgentAnswer> => {
+    const response = await api.post<AgentAnswer>(
+      `/analyses/${analysisId}/ask`, { question }, { timeout: 300000 },
+    );
+    return response.data;
+  },
+
   getAll: async (params?: {
     skip?: number;
     limit?: number;
@@ -648,6 +703,8 @@ export interface KaspiAnalysisResult {
     pdf_file: string;
     parser_version: string;
     original_filename?: string;
+    /** Нужен для вызовов заключения и агента по этому анализу. */
+    analysis_id?: number;
   };
   account: {
     owner: string;
