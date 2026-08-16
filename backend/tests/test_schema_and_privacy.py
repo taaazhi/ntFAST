@@ -177,3 +177,64 @@ class TestAnonymizerBlocksPII:
         safe, _ = anonymize_transactions(txs, self.OWNER)
         assert safe[0]["amount"] == -1300
         assert safe[0]["date"].startswith("2026-03-14")
+
+
+# ── Обратная подстановка имён ────────────────────────────────────────
+
+def test_deanonymize_returns_original_spelling():
+    """Метка превращается обратно в имя ровно так, как оно было записано.
+
+    Ключи внутренних словарей приведены к верхнему регистру ради устойчивого
+    сопоставления. Восстановление по ним дало бы «ЕРЖАН О.» — формально
+    правильно, читается как ошибка.
+    """
+    anon = Anonymizer(owner_name="Тәжі Нұрдәулет Шарапатұлы")
+    anon.register(["Ержан О.", "Мүслім М."])
+
+    masked = anon.counterparty("Ержан О.")
+    assert masked != "Ержан О."
+    assert anon.deanonymize(f"{masked} получил 431 742 ₸") == "Ержан О. получил 431 742 ₸"
+
+
+def test_deanonymize_restores_owner_and_leaves_organisations():
+    anon = Anonymizer(owner_name="Тәжі Нұрдәулет Шарапатұлы")
+    owner_tag = anon.counterparty("Тәжі Нұрдәулет Шарапатұлы")
+    org = anon.counterparty("YANDEX.GO")
+
+    assert org == "YANDEX.GO", "организация не маскируется и подстановки не требует"
+    assert anon.deanonymize(f"{owner_tag} платил {org}") == (
+        "Тәжі Нұрдәулет Шарапатұлы платил YANDEX.GO"
+    )
+
+
+def test_deanonymize_ignores_foreign_tags():
+    """Метка, выданная не этим экземпляром, остаётся как есть.
+
+    Анонимизатор живёт столько же, сколько контекст одного анализа. Если
+    модель выдумает «[PERSON_99]», подставить нечего — и подставлять нельзя:
+    иначе номер из чужого дела получил бы имя из этого.
+    """
+    anon = Anonymizer(owner_name="Тәжі Нұрдәулет Шарапатұлы")
+    anon.counterparty("Ержан О.")
+    assert anon.deanonymize("[PERSON_99] неизвестен") == "[PERSON_99] неизвестен"
+
+
+def test_masking_still_hides_names_on_the_way_to_model():
+    """Главная гарантия не должна пострадать от обратной подстановки.
+
+    Возврат имён происходит на выходе к следователю. Всё, что уходит в
+    модель, обязано остаться обезличенным — иначе новая возможность
+    отменила бы смысл старой.
+    """
+    anon = Anonymizer(owner_name="Тәжі Нұрдәулет Шарапатұлы")
+    anon.register(["Ержан О.", "Мүслім М."])
+
+    prompt = " ".join([
+        anon.counterparty("Ержан О."),
+        anon.counterparty("Мүслім М."),
+        anon.text("Перевод Ержан О. по номеру +7 701 234 56 78"),
+    ])
+
+    assert anon.leaks(prompt) == []
+    assert "Ержан О." not in prompt
+    assert "Мүслім" not in prompt

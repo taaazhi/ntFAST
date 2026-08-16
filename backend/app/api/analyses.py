@@ -799,6 +799,12 @@ def ask_investigator_agent(
 
     context = from_analysis(analysis, rows)
     answer = InvestigatorAgent(provider).ask(question, context)
+
+    # Обратная подстановка имён. Модель получила «[PERSON_1]» и «[PERSON_1]»
+    # же вернула — маскирование сработало там, где оно нужно, на пути наружу.
+    # Следователь, ведущий это дело, видит те же имена в таблице транзакций;
+    # показывать ему метки значило бы прятать от него его же материалы.
+    answer.text = context.reveal(answer.text)
     return answer.to_dict()
 
 
@@ -870,6 +876,12 @@ def build_analysis_conclusion(
     }
 
     conclusion = build_conclusion(result, provider, anonymizer=anonymizer)
+
+    # Имена возвращаются после проверки, а не до неё: сверка чисел и цитат
+    # внутри build_conclusion идёт по тому тексту, который видела модель.
+    # В базе лежит уже читаемый текст — там же, в таблице транзакций, эти
+    # имена и так хранятся открыто, и GET не нуждается в анонимайзере.
+    conclusion.text = anonymizer.deanonymize(conclusion.text)
 
     # Сохраняем: составление занимает около полуминуты на локальной модели,
     # и повторять его при каждом открытии отчёта незачем. Недостоверное

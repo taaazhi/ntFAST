@@ -147,6 +147,13 @@ class Anonymizer:
         self._phones: Dict[str, str] = {}
         self._customer_hit = False
 
+        # Метка → как это было написано в выписке. Нужно, чтобы вернуть имена
+        # следователю: маскирование защищает путь К модели, а не обратно.
+        # Ключи словарей выше приведены к верхнему регистру ради устойчивого
+        # сопоставления, и восстанавливать по ним нельзя — получится «ЕРЖАН О.».
+        self._display: Dict[str, str] = {}
+        self._owner_name = (owner_name or "").strip()
+
         if owner_name:
             self._owner_variants = self._name_variants(owner_name)
 
@@ -221,9 +228,12 @@ class Anonymizer:
 
     def _mask_person_names(self, text: str) -> str:
         def _sub(match: re.Match) -> str:
-            key = re.sub(r'\s+', ' ', match.group(0)).strip().upper()
+            found = re.sub(r'\s+', ' ', match.group(0)).strip()
+            key = found.upper()
             if key not in self._counterparties:
-                self._counterparties[key] = f"[PERSON_{len(self._counterparties) + 1}]"
+                tag = f"[PERSON_{len(self._counterparties) + 1}]"
+                self._counterparties[key] = tag
+                self._display.setdefault(tag, found)
             return self._counterparties[key]
 
         return PERSON_IN_TEXT_PATTERN.sub(_sub, text)
@@ -257,9 +267,14 @@ class Anonymizer:
 
     def _tag_for(self, name: str) -> str:
         """Стабильная метка для одного человека: одно имя — один номер."""
-        key = name.strip().upper()
+        cleaned = name.strip()
+        key = cleaned.upper()
         if key not in self._counterparties:
-            self._counterparties[key] = f"[PERSON_{len(self._counterparties) + 1}]"
+            tag = f"[PERSON_{len(self._counterparties) + 1}]"
+            self._counterparties[key] = tag
+            # Первое написание, а не последнее: в шапке выписки имя обычно
+            # полнее, чем в строке перевода.
+            self._display.setdefault(tag, cleaned)
         return self._counterparties[key]
 
     def _mask_sole_trader(self, name: str) -> Optional[str]:
@@ -309,6 +324,34 @@ class Anonymizer:
             phones=len(self._phones),
         )
 
+    def deanonymize(self, text: Optional[str]) -> str:
+        """Вернуть настоящие имена в текст, пришедший от модели.
+
+        Обратная сторона всей этой машинерии. Маскирование защищает путь
+        **к** модели: имя не должно уходить туда, где его сохранят в логе
+        чужого сервиса. Путь обратно — к следователю, который держит эту
+        выписку в производстве и видит те же имена в таблице транзакций и в
+        графе связей. Оставлять ему «[PERSON_1] получил 431 742 ₸» значило бы
+        прятать от него его же материалы.
+
+        Работает только с метками, выданными этим экземпляром. Анонимайзер
+        живёт столько же, сколько контекст одного анализа, поэтому чужую
+        метку подставить нечем — незнакомая останется как есть.
+
+        Метка целиком включает закрывающую скобку, поэтому «[PERSON_1]» не
+        задевает «[PERSON_11]» и порядок замен на результат не влияет.
+        """
+        if not text:
+            return ""
+        result = str(text)
+
+        for tag, original in self._display.items():
+            result = result.replace(tag, original)
+
+        if self._owner_name:
+            result = result.replace(self.CUSTOMER_TAG, self._owner_name)
+        return result
+
     def leaks(self, payload: str) -> List[str]:
         """Проверить, что в готовом тексте не осталось прямых идентификаторов.
 
@@ -337,15 +380,16 @@ class Anonymizer:
 
     # ── Внутреннее ───────────────────────────────────────────────
 
-    @staticmethod
-    def _replace(text: str, pattern: re.Pattern, store: Dict[str, str], tag: str) -> str:
+    def _replace(self, text: str, pattern: re.Pattern, store: Dict[str, str], tag: str) -> str:
         """Заменить все вхождения паттерна стабильными тегами."""
 
         def _sub(match: re.Match) -> str:
             original = match.group(0)
             key = re.sub(r'[\s*-]', '', original).upper()
             if key not in store:
-                store[key] = f"[{tag}_{len(store) + 1}]"
+                label = f"[{tag}_{len(store) + 1}]"
+                store[key] = label
+                self._display.setdefault(label, original)
             return store[key]
 
         return pattern.sub(_sub, text)

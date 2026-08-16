@@ -161,6 +161,18 @@ class ToolContext:
             return str(name)
         return self.anonymizer.counterparty(str(name))
 
+    def reveal(self, text: Optional[str]) -> str:
+        """Вернуть настоящие имена в готовый ответ — обратная сторона mask().
+
+        Вызывается один раз, на выходе к следователю. Без анонимизатора текст
+        и так не маскировался, поэтому возвращается как есть.
+        """
+        if not text:
+            return ""
+        if self.anonymizer is None:
+            return str(text)
+        return self.anonymizer.deanonymize(str(text))
+
 
 def _parse_date(value: Optional[str]) -> Optional[datetime]:
     if not value:

@@ -514,7 +514,7 @@
       },
       "agent": {
         "title": "Ask about this statement",
-        "desc": "Ask in your own words. The model does not read the statement — it queries data through tools while the system does the counting. Personal names are masked.",
+        "desc": "Ask in your own words. The model does not read the statement — it queries data through tools while the system does the counting. Personal names are hidden from the model and restored in the answer.",
         "placeholder": "For example: who received the largest amounts?",
         "send": "Ask",
         "thinking": "Working…",
