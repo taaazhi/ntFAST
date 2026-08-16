@@ -320,6 +320,39 @@ the facts rather than before — the last instruction is the one that sticks.
 | Citations all verified | 100% | 100% |
 | Median time per case | 22 s | 18 s |
 
+### 3B against 7B — the bigger model is not simply better
+
+Same 16 cases, same prompt, temperature 0. `qwen2.5:7b-instruct` does not fit
+the 4 GB card whole, so part of it runs on the CPU.
+
+| | qwen2.5:3b | qwen2.5:7b-instruct |
+|---|---|---|
+| Conclusion usable as a whole | 31.2% | **43.8%** |
+| No invented numbers | **62.5%** | 43.8% |
+| Coverage of required facts | 90.1% | **91.7%** |
+| Nothing beyond the facts | 93.8% | **100%** |
+| Median time per case | **18 s** | 101 s |
+
+The interesting row is the second one, where the larger model loses. It is not
+noise — the numbers show what happened. Given *"5 transfers of 7 500 000 ₸
+each"*, 7B wrote **37 500 000 ₸**: it multiplied. Elsewhere it produced 45.6%
+and 65.1% — percentages it computed itself from the counts. 3B, less sure of
+its arithmetic, copies more and calculates less.
+
+So the stronger model breaks the one rule that matters most here, and breaks it
+*because* it is stronger. It composes a better document — fuller, never
+reaching beyond the facts — and puts numbers in it that nobody verified. For a
+file that goes into a case, that trade is bad at any speed, and 101 s against
+18 s makes it worse.
+
+**3B stays the default.** Not because it writes better, but because what it
+writes can be checked. The number that decides this is not "quality" but
+`no invented numbers` — and it is the one the bigger model lost.
+
+Neither model produces a conclusion good enough to sign unread: 31% and 44% are
+both low. That is precisely why `is_trustworthy` exists, why invented figures
+are listed under the text, and why the investigator signs — not the model.
+
 What the scale does not do: it matches substrings, not meaning. It catches an
 omitted fact; it cannot tell a correct account from a plausible retelling. For
 "model A beats model B" that is enough. For "ready to sign" it is not — and it
