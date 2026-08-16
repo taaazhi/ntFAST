@@ -12,7 +12,7 @@
 [![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-4169E1?logo=postgresql&logoColor=white)](https://www.postgresql.org/)
 [![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?logo=docker&logoColor=white)](https://www.docker.com/)
-[![LLM](https://img.shields.io/badge/LLM-Llama%203.1%20(local)-000000?logo=ollama&logoColor=white)](https://ollama.com/)
+[![LLM](https://img.shields.io/badge/LLM-Qwen2.5%20(local)%20%C2%B7%20Claude-000000?logo=ollama&logoColor=white)](https://ollama.com/)
 
 </div>
 
@@ -22,7 +22,7 @@
 
 **ntFAST** ingests bank statements (Kaspi, Halyk and generic Excel / PDF / CSV), normalizes the transactions, and runs them through a **11-module fraud-detection engine** that combines rule-based, statistical and graph analysis into a single explainable **risk score (0–100)**.
 
-The whole stack runs **on-premise**: parsing, scoring and the language model (Llama 3.1 via Ollama) all execute locally. No transaction ever leaves the machine — a hard requirement for handling financial data under Kazakhstan's Personal Data Protection Law (№94-V).
+The whole stack runs **on-premise**: parsing, scoring and the language model (Qwen2.5 via Ollama) all execute locally, and that is the default rather than a fallback. No transaction leaves the machine — a hard requirement for financial data under Kazakhstan's Personal Data Protection Law (№94-V). A cloud provider (Claude) can be enabled explicitly; everything sent to it passes through the anonymiser first.
 
 > Built as a graduation project (Software Engineering) — awarded a copyright certificate, a 1st-degree diploma at an international student competition, and a conference publication.
 
@@ -63,7 +63,9 @@ The whole stack runs **on-premise**: parsing, scoring and the language model (Ll
 
 - 📄 **Smart statement parsing** — Kaspi Bank & Halyk Bank layouts plus generic Excel / PDF / CSV, with automatic transaction normalization and de-duplication.
 - 🛡️ **11-module fraud engine** — rules + statistics (Z-score, IQR, Benford's Law) + graph analysis, aggregated into a weighted **composite risk score** with `LOW / MEDIUM / HIGH / CRITICAL` bands. Ten modules carry weight; see the [module table](#fraud-detection-engine) for exactly which.
-- 🧠 **Local LLM (Llama 3.1 via Ollama)** — contextual analysis of statement text without sending data to any cloud. Used by the PDF-analysis service; it is **not** part of the composite risk score.
+- 🧠 **Local LLM (Qwen2.5 3B via Ollama)** — classifies counterparties and answers an investigator's questions about a statement, without sending anything to a cloud. Measured: it lifts counterparty classification from 58.5% to **89.0%** on a labelled set. It is **not** part of the composite risk score.
+- 🔎 **Investigative agent** — asks the system rather than reasoning over the raw statement: six tools for transactions, counterparties, periods, risk breakdown and legislation. Tool results are masked, so names never reach the model.
+- ⚖️ **Statute corpus with citation checking** — 1319 articles of the Criminal, Tax and AML codes pulled from adilet.zan.kz. Every reference printed in a report is verified against the official text; an invented article number is caught rather than displayed.
 - ⚡ **Async processing** — heavy parsing & scoring run in Celery workers; the UI streams live progress over WebSocket.
 - 🔐 **Auth & security** — JWT authentication, bcrypt password hashing, role-based access (admin / analyst), email verification, login history and active-session management.
 - 🔔 **Real-time notifications** — persistent bell-icon notifications + WebSocket events (new login, parallel session, analysis finished).
@@ -82,7 +84,8 @@ flowchart LR
     Q --> W["Celery worker"]
     W --> P["Statement parsers<br/>Kaspi · Halyk · PDF · Excel"]
     P --> ENG["FraudEngine<br/>11 detection modules"]
-    P -.->|statement text| LLM["Ollama<br/>Llama 3.1 (local)"]
+    P --> ENR["Enrichment<br/>counterparty type · salary"]
+    ENR -.->|masked names| LLM["Ollama<br/>Qwen2.5 (local)"]
     ENG -->|risk score 0–100| DB[("PostgreSQL")]
     LLM -.-> DB
     API --> DB
@@ -101,7 +104,7 @@ flowchart LR
 | **Backend** | Python 3.11 · FastAPI · SQLAlchemy 2 · Pydantic 2 · Alembic |
 | **Async / Queue** | Celery · Redis 7 |
 | **Database** | PostgreSQL 16 (SQLite fallback) |
-| **AI / ML** | Ollama (Llama 3.1) · pandas · NLP · statistical models (Z-score, IQR, Benford) |
+| **AI / ML** | Ollama (Qwen2.5 3B, local) · Anthropic Claude (optional) · pandas · statistical models (Z-score, IQR, Benford) |
 | **Parsing** | pdfplumber · openpyxl · xlrd · python-dateutil |
 | **Auth** | python-jose (JWT) · passlib + bcrypt |
 | **Frontend** | React 18 · TypeScript 5 · Vite 5 · Tailwind CSS 3 |
@@ -139,6 +142,69 @@ Weights come from `BASE_WEIGHTS` in `engine.py` and are then scaled per account 
 contextual analysis, and `FraudEngine.full_analysis()` never calls it — the composite score
 today is rules and statistics only. It is named here rather than quietly counted among the
 modules above.
+
+---
+
+## Legal Grounding
+
+A risk score without a legal basis is an opinion. Every scheme the detector reports carries the
+norm it is qualified under, and that reference is checked against the official text rather than
+trusted.
+
+```bash
+python scripts/fetch_legal_corpus.py    # 1319 articles from adilet.zan.kz
+```
+
+The corpus covers the Criminal Code, the Tax Code and the AML law №191-IV. It is **not** committed:
+statute texts run to megabytes and are amended several times a year, and a stale copy of a law
+inside an investigative tool is worse than none, because it still looks authoritative. What is
+committed is the verifier.
+
+| Verdict | Meaning |
+|---|---|
+| `VERIFIED` | article exists and the title matches |
+| `ARTICLE_NOT_FOUND` | no such number — the typical model invention |
+| `TITLE_MISMATCH` | real number, different norm |
+| `QUOTE_NOT_FOUND` | a paraphrase presented as a quotation |
+| `CORPUS_UNAVAILABLE` | nothing to check against |
+
+That last verdict is deliberately distinct from "wrong": *unable to verify* must not read as
+*refuted*, and statement analysis has to keep working without the corpus.
+
+Checking the existing references found that **five of six were wrong**: fraud was cited as
+ст. 205 (actually "unlawful access to information"), human trafficking as ст. 135 ("trafficking
+in minors"), the financial pyramid as ст. 216 ("fictitious invoices"), and the single most
+relevant article to this project — ст. 218, laundering — was not cited anywhere. They had been
+written from memory. The report now links each article straight to its anchor on adilet.zan.kz,
+so an investigator reads the norm rather than taking the system's word for it.
+
+---
+
+## Investigative Agent
+
+`POST /api/analyses/{id}/ask` answers questions about a specific analysis. The design point is
+that the model does **not** receive the statement and reason over it: a thousand transactions do
+not fit a sane context, and any figure the model computes would have to be re-checked anyway. It
+asks, and the system counts.
+
+| Tool | Answers |
+|---|---|
+| `query_transactions` | filtered rows, with the true match count |
+| `summarise_counterparties` | who received how much |
+| `get_period_totals` | month-by-month turnover |
+| `get_risk_breakdown` | which modules fired and why |
+| `search_legislation` | the applicable article |
+| `verify_citation` | whether that article says what is claimed |
+
+Three constraints are built in. **Tool results are masked** — the model sees `[PERSON_1]`, never
+a name, so anonymising the prompt is not undone by the answer. **Replies are capped and say so**,
+with totals computed over all matches rather than the returned slice. **Every statute in the final
+text is re-verified** regardless of whether the agent bothered to check it; unverified references
+are listed, not deleted.
+
+Running locally on Qwen2.5 3B: 3–7 s per warm call, and on a real 1320-transaction statement the
+agent answered "who received the largest amounts" correctly, with counterparty names masked and
+nothing leaving the machine.
 
 ---
 
@@ -387,9 +453,10 @@ by the backend at startup, so no migration step is needed for this path.
 | Published ports | `80`, `8000`, `5432`, `6379` — stop any local Postgres, Redis or web server first, or change the mappings |
 
 > **Ollama is not part of compose.** The five services run without a language model. To use
-> the LLM features, run Ollama on the host (`ollama pull llama3.1`) — the containers reach it
-> through `host.docker.internal`, already configured in `.env.docker.example`. Llama 3.1 8B
-> needs about 5 GB of disk and 8 GB of free RAM **on top of** the figures above. None of this
+> the LLM features, run Ollama on the host (`ollama pull qwen2.5:3b`) — the containers reach
+> it through `host.docker.internal`, already configured in `.env.docker.example`. Qwen2.5 3B
+> needs about 2 GB of disk and fits entirely in 4 GB of VRAM; it was chosen over larger models
+> because it supports tool calling, which the investigative agent requires. None of this
 > affects the risk score, which is computed without the LLM.
 
 ### Option B — Manual (local dev)
@@ -428,6 +495,10 @@ ntfast/
 │       ├── services/
 │       │   ├── fraud/         # the 11-module detection engine
 │       │   ├── bank_analyzer/ # statement parsers (Kaspi, Halyk, …)
+│       │   ├── enrichment/    # counterparty type, salary inference, operation words
+│       │   ├── legal/         # statute corpus, search, citation verifier
+│       │   ├── agent/         # investigative agent: tools, loop, providers
+│       │   ├── privacy/       # anonymiser — the gate before any cloud call
 │       │   └── …
 │       ├── tasks/        # Celery tasks
 │       └── middleware/   # security headers, etc.
@@ -443,20 +514,39 @@ ntfast/
 ## Testing
 
 ```bash
-cd backend
-pytest
+cd backend && pytest          # 220 tests
 ```
 
-The fraud engine and parsers are covered by an automated test suite (`backend/tests/`).
+```bash
+python scripts/benchmark.py            # parsing accuracy and latency
+```
+
+```bash
+python scripts/eval_counterparty.py    # counterparty classification, rules only
+```
+
+Tests run without a database, an API key or a language model. That is a requirement rather
+than a convenience: the interesting cases are a *broken* model — looping, calling a tool that
+does not exist, citing an article without checking it — and a real provider will not produce
+those on demand. Providers are doubles, and the statute corpus is a three-article fixture,
+since the real one is never present in CI.
+
+Real statements are not used anywhere in the suite. They contain personal data and stay out of
+the repository; parser fidelity against them is reported in [Real statements](#real-statements)
+and reproduced locally.
 
 ---
 
 ## Roadmap
 
-- [ ] Public REST API for third-party integrations
+- [x] Single parsing pipeline; silent failures made loud
+- [x] Enrichment layer — counterparty type and salary inferred from behaviour
+- [x] Statute corpus with citation verification against adilet.zan.kz
+- [x] Investigative agent over a local model, with masked tool results
+- [x] Labelled eval set — counterparty classification measured, not asserted
+- [ ] Kazakh-language statute texts (article titles are currently Russian only)
+- [ ] Public demo stand with a read-only account and preloaded synthetic analyses
 - [ ] Graph database (Neo4j) for deeper network analysis
-- [ ] React Native mobile client
-- [ ] Federated learning across institutions
 
 ---
 
