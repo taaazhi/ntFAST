@@ -722,7 +722,8 @@
     "confirm": "Confirm",
     "confirmDelete": "Delete",
     "yes": "Yes",
-    "no": "No"
+    "no": "No",
+    "minutes": "minutes"
   },
   "notifications": {
     "title": "Notifications",
@@ -778,8 +779,7 @@
     "confirmCloseAllSessions": "Close all sessions?",
     "closeAllSessionsWarning": "This will close all active sessions on all devices. You will need to log in again.",
     "confirmClose": "Close All",
-    "localDev": "local dev",
-    "unknown": "Unknown"
+    "localDev": "local dev"
   },
   "landing": {
     "badge": "AI-Powered Financial Analysis",

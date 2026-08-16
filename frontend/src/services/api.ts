@@ -274,6 +274,35 @@ export interface AgentAnswer {
   has_unverified_citations: boolean;
 }
 
+/**
+ * Разобрать накопленный буфер SSE на готовые события и остаток.
+ *
+ * Кадр заканчивается пустой строкой, а сеть режет поток где придётся: у
+ * последнего куска буфера может не хватать хвоста, и разобрать его сейчас
+ * значит потерять начало следующего события. Поэтому неполный остаток
+ * возвращается обратно и ждёт следующего чтения.
+ *
+ * Вынесено из streamConclusion, чтобы это можно было проверить без сети.
+ */
+export function parseStreamFrames(buffer: string): { events: any[]; rest: string } {
+  const frames = buffer.split('\n\n');
+  // Последний элемент — либо неполный кадр, либо пустая строка после
+  // завершённого. И то и другое возвращается как остаток.
+  const rest = frames.pop() || '';
+
+  const events: any[] = [];
+  for (const frame of frames) {
+    const line = frame.split('\n').find((l) => l.startsWith('data: '));
+    if (!line) continue;
+    try {
+      events.push(JSON.parse(line.slice(6)));
+    } catch {
+      // Битый кадр — не повод потерять уже полученный текст.
+    }
+  }
+  return { events, rest };
+}
+
 export const analysesAPI = {
   /** Ранее составленное заключение. Модель не вызывается. */
   getConclusion: async (analysisId: number): Promise<AnalysisConclusion> => {
@@ -327,16 +356,10 @@ export const analysesAPI = {
       if (done) break;
 
       buffer += decoder.decode(value, { stream: true });
-      // Кадр SSE заканчивается пустой строкой; последний кусок буфера может
-      // быть неполным, поэтому он остаётся ждать следующего чтения.
-      const frames = buffer.split('\n\n');
-      buffer = frames.pop() || '';
+      const { events, rest } = parseStreamFrames(buffer);
+      buffer = rest;
 
-      for (const frame of frames) {
-        const line = frame.split('\n').find((l) => l.startsWith('data: '));
-        if (!line) continue;
-
-        const event = JSON.parse(line.slice(6));
+      for (const event of events) {
         if (event.type === 'chunk') onChunk(event.text);
         else if (event.type === 'done') final = event as AnalysisConclusion;
         else if (event.type === 'error') throw new Error(event.detail);
