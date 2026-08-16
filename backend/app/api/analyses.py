@@ -800,3 +800,74 @@ def ask_investigator_agent(
     context = from_analysis(analysis, rows)
     answer = InvestigatorAgent(provider).ask(question, context)
     return answer.to_dict()
+
+
+@router.post("/{analysis_id}/conclusion")
+def build_analysis_conclusion(
+    analysis_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Заключение по анализу — связный вывод вместо набора чисел.
+
+    Единственное место, где языковая модель делает работу, которую нечем
+    заменить: собирает факты одиннадцати модулей, обогащения, графа связей и
+    корпуса норм в текст, который читает следователь.
+
+    Ответ всегда несёт признак достоверности: заключение с выдуманным числом
+    или неподтверждённой нормой помечается, а не выдаётся за проверенное.
+    """
+    analysis = db.query(Analysis).filter(Analysis.id == analysis_id).first()
+    if not analysis:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Analysis not found"
+        )
+
+    if current_user.role == "analyst" and analysis.analyst_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not authorized to view this analysis"
+        )
+
+    from app.services.agent import build_agent_provider, build_conclusion
+    from app.services.privacy.anonymizer import Anonymizer
+
+    provider = build_agent_provider()
+    if provider is None:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=(
+                "Заключение не составлено: нет языковой модели. Включите "
+                "AI_ENRICHMENT_ENABLED=true и запустите локальную модель "
+                "(ollama pull qwen2.5:3b) либо задайте CLAUDE_API_KEY."
+            )
+        )
+
+    from app.models.transaction import Transaction as DBTransaction
+
+    rows = db.query(DBTransaction).filter(
+        DBTransaction.analysis_id == analysis_id
+    ).all()
+
+    # Анонимизатор строится на тех же именах, что видит отчёт: метка одного
+    # человека должна совпадать в заключении и в остальном отчёте.
+    anonymizer = Anonymizer(owner_name=analysis.account_owner)
+    anonymizer.register([
+        (r.counterparty_name or r.description or "") for r in rows
+    ])
+
+    stored = analysis.analytics_result or {}
+    result = {
+        "summary": stored.get("summary") or {
+            "total_transactions": analysis.total_transactions,
+            "total_income": analysis.total_income,
+            "total_expense": analysis.total_expense,
+        },
+        "account": stored.get("account") or {},
+        "fraud_report": analysis.fraud_report or {},
+        "enrichment": stored.get("enrichment") or {},
+    }
+
+    conclusion = build_conclusion(result, provider, anonymizer=anonymizer)
+    return conclusion.to_dict()

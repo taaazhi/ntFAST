@@ -63,7 +63,8 @@ The whole stack runs **on-premise**: parsing, scoring and the language model (Qw
 
 - 📄 **Smart statement parsing** — Kaspi Bank & Halyk Bank layouts plus generic Excel / PDF / CSV, with automatic transaction normalization and de-duplication.
 - 🛡️ **11-module fraud engine** — rules + statistics (Z-score, IQR, Benford's Law) + graph analysis, aggregated into a weighted **composite risk score** with `LOW / MEDIUM / HIGH / CRITICAL` bands. Ten modules carry weight; see the [module table](#fraud-detection-engine) for exactly which.
-- 🧠 **Local LLM (Qwen2.5 3B via Ollama)** — classifies counterparties and answers an investigator's questions about a statement, without sending anything to a cloud. Measured: it lifts counterparty classification from 58.5% to **89.0%** on a labelled set. It is **not** part of the composite risk score.
+- 🧠 **Local LLM (Qwen2.5 3B via Ollama)** — writes the case conclusion, classifies counterparties and answers an investigator's questions, without sending anything to a cloud. Measured: counterparty classification goes from 58.5% to **89.0%** on a labelled set. The model does **not** compute the risk score — that stays rules and statistics.
+- 📝 **Case conclusion** — the one job rules cannot do: turning eleven module scores, a counterparty graph and the applicable statutes into a text an investigator reads. Every number in it is checked against the facts, every statute against the official corpus.
 - 🔎 **Investigative agent** — asks the system rather than reasoning over the raw statement: six tools for transactions, counterparties, periods, risk breakdown and legislation. Tool results are masked, so names never reach the model.
 - ⚖️ **Statute corpus with citation checking** — 1319 articles of the Criminal, Tax and AML codes pulled from adilet.zan.kz. Every reference printed in a report is verified against the official text; an invented article number is caught rather than displayed.
 - ⚡ **Async processing** — heavy parsing & scoring run in Celery workers; the UI streams live progress over WebSocket.
@@ -177,6 +178,51 @@ in minors"), the financial pyramid as ст. 216 ("fictitious invoices"), and the
 relevant article to this project — ст. 218, laundering — was not cited anywhere. They had been
 written from memory. The report now links each article straight to its anchor on adilet.zan.kz,
 so an investigator reads the norm rather than taking the system's word for it.
+
+---
+
+## The Conclusion
+
+This is where the language model does work nothing else can do, and it sits on
+the main path rather than beside it.
+
+The engine produces eleven module scores, a counterparty graph, detected schemes
+and the statutes they fall under. Turning that into a **conclusion** — what
+happened on the account, which signs combine into a picture, what argues against
+that reading, which norms apply and what is still missing — was left to the
+investigator's head, case after case. Rules cannot write that text.
+
+```
+POST /api/analyses/{id}/conclusion
+```
+
+Three conditions make it usable rather than dangerous, because this text goes
+into a case file:
+
+**The model does not calculate.** It receives figures already computed and
+pre-formatted as strings, and every number in the finished text is checked back
+against those facts. This is not theoretical — on the first real run the model
+wrote *"12 transfers totalling 4 500 000 ₸"*, a figure it had taken from an
+example in the system prompt and presented as fact about the account. It also
+recomputed sums into millions and got them wrong. Nine invented numbers, caught,
+conclusion marked untrustworthy. After the prompt was fixed and amounts were
+passed as formatted strings: zero.
+
+**The model does not invent norms.** Only verified articles reach it, and any
+citation in the output is re-checked against the corpus afterwards.
+
+**Refusal is loud.** No model means no conclusion — faking an absent finding in
+an investigative document is worse than not producing one.
+
+Two further defects surfaced on live runs and are now pinned by tests: the model
+attributed the account holder's actions to a masked counterparty (`[PERSON_1]
+made 5 purchases` — the purchases were the holder's), and Qwen2.5, trained partly
+on Chinese, occasionally leaked characters into the Russian text. Both are
+detected; the second is why `is_trustworthy` also checks for foreign script.
+
+Measured on a real 1320-transaction statement through the API: 24–28 s on the
+local model, zero invented numbers, both statute citations verified,
+`is_trustworthy: true`.
 
 ---
 
