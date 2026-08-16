@@ -282,6 +282,49 @@ Measured on a real 1320-transaction statement through the API: 24–28 s on the
 local model, zero invented numbers, both statute citations verified,
 `is_trustworthy: true`.
 
+### Measured on a labelled set
+
+One good conclusion proves nothing. `backend/tests/data/conclusion_eval.json`
+holds **16 labelled cases** — from a clean salary account to a pyramid, from a
+transit account to a nearly empty one — and `scripts/eval_conclusion.py` scores
+four properties that can be checked without a human:
+
+| Property | What it catches |
+|---|---|
+| No invented numbers | A figure that reads as established but came from nowhere |
+| Coverage | A module that scored points but went unmentioned |
+| Restraint | A statute, scheme or verdict that was not in the facts |
+| Counter-argument | A document that states only the case for the prosecution |
+
+Two defects surfaced on the very first run. On the case with almost no facts —
+seven transactions, no flags — the model looped forever (*"electronic money,
+electronic wallets, electronic money…"*) because there was no output limit and
+temperature 0 leaves no randomness to escape a loop; 300 s became 20 s once
+`num_predict` and `repeat_penalty` were set. Worse, the invented-number check
+treated a comma as a decimal point, so `84,000 ₸` became 84 and a **correct**
+conclusion was declared untrustworthy — a false accusation is worse than no
+check at all.
+
+Then the prompt was changed. The system prompt had forbidden recalculation from
+the start; a 3B model does not hold a general rule. It holds a concrete list, so
+the numbers that appear in the facts are now attached to the task itself, after
+the facts rather than before — the last instruction is the one that sticks.
+
+| Metric — qwen2.5:3b, temperature 0 | General ban | Explicit list |
+|---|---|---|
+| Conclusion usable as a whole | 18.8% | **31.2%** |
+| No invented numbers | 43.8% | **62.5%** |
+| Coverage of required facts | 89.6% | **90.1%** |
+| Nothing beyond the facts | 87.5% | **93.8%** |
+| Counter-arguments present | 100% | 100% |
+| Citations all verified | 100% | 100% |
+| Median time per case | 22 s | 18 s |
+
+What the scale does not do: it matches substrings, not meaning. It catches an
+omitted fact; it cannot tell a correct account from a plausible retelling. For
+"model A beats model B" that is enough. For "ready to sign" it is not — and it
+should not be, because the investigator signs.
+
 ---
 
 ## Investigative Agent
