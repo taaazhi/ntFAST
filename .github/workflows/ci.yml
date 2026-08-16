@@ -1,0 +1,101 @@
+# Проверки, которые обязаны пройти до слияния.
+#
+# Ничего из этого не требует ни базы, ни Redis, ни языковой модели: тесты
+# бэкенда работают на подставных данных, а провайдер Ollama проверяется
+# подменой запроса. Так и задумано — проверка, которую нельзя запустить на
+# чистой машине, перестаёт запускаться вовсе.
+#
+# Замеры моделей (scripts/eval_*.py) сюда не входят намеренно. Им нужна
+# работающая Ollama, они идут минутами и меряют качество модели, а не
+# правильность кода. Их место — локальный прогон перед тем, как менять
+# промпт, и числа в README.
+name: CI
+
+on:
+  push:
+    branches: [main, 'phase-*']
+  pull_request:
+    branches: [main]
+
+jobs:
+  backend:
+    name: Бэкенд — тесты
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
+
+      - name: Установить зависимости
+        working-directory: backend
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Прогнать тесты
+        working-directory: backend
+        # .env в репозитории нет и быть не должно; настройки берут значения
+        # по умолчанию, а SECRET_KEY генерируется на запуск.
+        run: python -m pytest -q
+
+  frontend:
+    name: Фронтенд — типы и сборка
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Установить зависимости
+        working-directory: frontend
+        run: npm ci
+
+      - name: Проверить типы
+        working-directory: frontend
+        run: npx tsc --noEmit
+
+      - name: Собрать
+        working-directory: frontend
+        run: npm run build
+
+  privacy:
+    name: Приватность — ничего лишнего в репозитории
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Настоящие выписки не должны попадать в git
+        # Каталог «Выписки/» лежит в .gitignore, но забыть можно и правило:
+        # достаточно одного `git add -f`. Здесь это заметят раньше, чем
+        # персональные данные граждан уедут в публичный репозиторий.
+        run: |
+          tracked=$(git ls-files 'Выписки/' 'Выписки/**' | head -20)
+          if [ -n "$tracked" ]; then
+            echo "В репозиторий попали настоящие выписки:"
+            echo "$tracked"
+            exit 1
+          fi
+          echo "Каталог с выписками чист."
+
+      - name: Файлы окружения и ключи не должны быть в индексе
+        run: |
+          # Образцы настроек (.env.example) в репозитории нужны — по ним
+          # разворачивают проект. Отсеиваем их, а не сам шаблон поиска:
+          # правило должно ловить «.env.local» и «.env.production».
+          leaked=$(git ls-files \
+            | grep -E '(^|/)\.env($|\.)|\.pem$|\.key$|_rsa$' \
+            | grep -vE '\.(example|sample|template)$' || true)
+          if [ -n "$leaked" ]; then
+            echo "В репозитории есть файлы с секретами:"
+            echo "$leaked"
+            exit 1
+          fi
+          echo "Секретов в индексе нет."
