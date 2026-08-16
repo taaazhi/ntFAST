@@ -295,7 +295,27 @@ def get_period_totals(ctx: ToolContext, **_: Any) -> Dict[str, Any]:
         entry["income"] = round(entry["income"], 2)
         entry["expense"] = round(entry["expense"], 2)
 
-    return {"months": [months[k] for k in sorted(months)]}
+    ordered = [months[k] for k in sorted(months)]
+
+    # Итог по всему периоду, а не только по месяцам.
+    #
+    # «Сколько всего операций» и «какой общий доход» — самые частые вопросы
+    # следователя, и без этой строки ответить на них можно было только
+    # сложив помесячные числа. Складывать модели запрещено, поэтому она либо
+    # нарушала правило, либо ошибалась. Инструмент обязан отдавать то, что
+    # у него спрашивают.
+    total_income = round(sum(m["income"] for m in ordered), 2)
+    total_expense = round(sum(m["expense"] for m in ordered), 2)
+
+    return {
+        "months": ordered,
+        "total": {
+            "count": sum(m["count"] for m in ordered),
+            "income": total_income,
+            "expense": total_expense,
+            "net_flow": round(total_income - total_expense, 2),
+        },
+    }
 
 
 def get_risk_breakdown(ctx: ToolContext, **_: Any) -> Dict[str, Any]:

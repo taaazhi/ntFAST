@@ -386,6 +386,44 @@ Running locally on Qwen2.5 3B: 3–7 s per warm call, and on a real 1320-transac
 agent answered "who received the largest amounts" correctly, with counterparty names masked and
 nothing leaving the machine.
 
+### Measured on a labelled set
+
+`backend/tests/data/agent_eval.json` holds one account — 25 operations chosen
+so every answer follows from arithmetic — and twelve questions about it. That
+mirrors how an investigator works: one case, many questions.
+
+Three things are scored, none of them requiring a human:
+
+| Metric | qwen2.5:3b |
+|---|---|
+| Answer fully correct | 91.7% |
+| Right tool chosen | 91.7% |
+| Correct figure in the answer | 100% |
+| Admitted missing data | 100% |
+| Median time per question | 8 s |
+
+The one failure is instructive. Asked *"how many operations above 500 000 ₸"*,
+the agent reached for the counterparty summary instead of filtering
+transactions. It answered **3** — correct, but by coincidence: all three large
+transfers happened to go to the same counterparty, and a summary aggregated by
+counterparty cannot answer a question about operations. Right number, wrong
+method; next dataset it would be wrong.
+
+**Two of these numbers were earned by fixing the measurement, not the model.**
+The first run scored 50%, and every one of the extra failures was mine. Asked
+*"were there operations in 2019?"*, the agent said *"there were no operations
+in 2019, the data covers 2025"* — a correct refusal my marker list did not
+recognise. Three more questions were marked wrong for using a legitimate second
+route to the answer. The model never changed between those two runs. A scale
+that flatters is useless; one that accuses wrongly is worse, because it sends
+you fixing what already works.
+
+The eval did find a real defect, on its very first question. `get_period_totals`
+returned a month-by-month breakdown and no overall figures, so *"how many
+operations in total"* could only be answered by adding six numbers — which the
+agent is forbidden to do. It had to either break the rule or be wrong. A tool
+must answer the question it is asked.
+
 ---
 
 ## Performance & Accuracy

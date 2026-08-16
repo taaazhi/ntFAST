@@ -1,0 +1,398 @@
+{
+ "_readme": [
+  "Размеченный набор для оценки следственного агента.",
+  "",
+  "Один счёт и двенадцать вопросов к нему — так же, как работает следователь:",
+  "дело одно, вопросов много. Операции подобраны, а не взяты из настоящей",
+  "выписки, потому что эталон должен быть посчитан заранее: 25 операций,",
+  "6 зарплатных поступлений, 3 снятия наличных на 700 000 ₸, 2 900 000 ₸",
+  "одному физлицу. Все ответы проверяемы арифметикой, а не мнением.",
+  "",
+  "Что меряется:",
+  "  tools    — вызван ли инструмент, которым этот вопрос решается. Агент,",
+  "             ответивший из головы, ошибётся даже если угадает число.",
+  "  answer   — есть ли в ответе верное значение.",
+  "  refusal  — на вопрос без данных ожидается признание нехватки, а не",
+  "             выдумка. Это отдельная и самая важная способность: система",
+  "             для следствия обязана уметь говорить «не знаю».",
+  "",
+  "Имена физических лиц в ответах агента остаются метками: подстановка",
+  "настоящих имён происходит на границе API, а здесь агент вызывается",
+  "напрямую. Поэтому в разметке проверяются суммы, а не имена.",
+  "",
+  "Инструмент засчитывается, если ответ выводится из его результата без",
+  "вычислений. Критерий применяется одинаково ко всем вопросам, и по нему",
+  "часть из них имеет два законных пути: «сколько снятий наличных» решается",
+  "и фильтром по операциям, и сводкой контрагентов, где банкомат стоит",
+  "отдельной строкой. А вот «сколько операций свыше 500 000 ₸» из сводки не",
+  "выводится: она агрегирует по контрагентам, а не по операциям, и верный",
+  "ответ оттуда — совпадение, а не вывод.",
+  "",
+  "Контрагент-физлицо назван «Получатель Первый» — условно, но в форме",
+  "имени: анонимизатор обязан распознать в нём человека и выдать метку, а",
+  "проверка на утечку ПД в репозитории — не найти настоящей фамилии."
+ ],
+ "transactions": [
+  {
+   "date": "2025-01-10",
+   "amount": 420000,
+   "counterparty": "ТОО КАЗ ЛОГИСТИК",
+   "type": "employer",
+   "is_salary": true,
+   "is_cash": false
+  },
+  {
+   "date": "2025-02-10",
+   "amount": 420000,
+   "counterparty": "ТОО КАЗ ЛОГИСТИК",
+   "type": "employer",
+   "is_salary": true,
+   "is_cash": false
+  },
+  {
+   "date": "2025-03-10",
+   "amount": 420000,
+   "counterparty": "ТОО КАЗ ЛОГИСТИК",
+   "type": "employer",
+   "is_salary": true,
+   "is_cash": false
+  },
+  {
+   "date": "2025-04-10",
+   "amount": 420000,
+   "counterparty": "ТОО КАЗ ЛОГИСТИК",
+   "type": "employer",
+   "is_salary": true,
+   "is_cash": false
+  },
+  {
+   "date": "2025-05-10",
+   "amount": 420000,
+   "counterparty": "ТОО КАЗ ЛОГИСТИК",
+   "type": "employer",
+   "is_salary": true,
+   "is_cash": false
+  },
+  {
+   "date": "2025-06-10",
+   "amount": 420000,
+   "counterparty": "ТОО КАЗ ЛОГИСТИК",
+   "type": "employer",
+   "is_salary": true,
+   "is_cash": false
+  },
+  {
+   "date": "2025-02-18",
+   "amount": -750000,
+   "counterparty": "Получатель Первый",
+   "type": "person",
+   "is_salary": false,
+   "is_cash": false
+  },
+  {
+   "date": "2025-03-18",
+   "amount": -900000,
+   "counterparty": "Получатель Первый",
+   "type": "person",
+   "is_salary": false,
+   "is_cash": false
+  },
+  {
+   "date": "2025-05-18",
+   "amount": -1250000,
+   "counterparty": "Получатель Первый",
+   "type": "person",
+   "is_salary": false,
+   "is_cash": false
+  },
+  {
+   "date": "2025-01-22",
+   "amount": -200000,
+   "counterparty": "Банкомат Kaspi",
+   "type": "bank",
+   "is_salary": false,
+   "is_cash": true
+  },
+  {
+   "date": "2025-03-22",
+   "amount": -350000,
+   "counterparty": "Банкомат Kaspi",
+   "type": "bank",
+   "is_salary": false,
+   "is_cash": true
+  },
+  {
+   "date": "2025-04-22",
+   "amount": -150000,
+   "counterparty": "Банкомат Kaspi",
+   "type": "bank",
+   "is_salary": false,
+   "is_cash": true
+  },
+  {
+   "date": "2025-01-05",
+   "amount": -34500,
+   "counterparty": "Magnum",
+   "type": "merchant",
+   "is_salary": false,
+   "is_cash": false
+  },
+  {
+   "date": "2025-01-15",
+   "amount": -12800,
+   "counterparty": "YANDEX.GO",
+   "type": "merchant",
+   "is_salary": false,
+   "is_cash": false
+  },
+  {
+   "date": "2025-02-05",
+   "amount": -34500,
+   "counterparty": "Magnum",
+   "type": "merchant",
+   "is_salary": false,
+   "is_cash": false
+  },
+  {
+   "date": "2025-02-15",
+   "amount": -12800,
+   "counterparty": "YANDEX.GO",
+   "type": "merchant",
+   "is_salary": false,
+   "is_cash": false
+  },
+  {
+   "date": "2025-03-05",
+   "amount": -34500,
+   "counterparty": "Magnum",
+   "type": "merchant",
+   "is_salary": false,
+   "is_cash": false
+  },
+  {
+   "date": "2025-03-15",
+   "amount": -12800,
+   "counterparty": "YANDEX.GO",
+   "type": "merchant",
+   "is_salary": false,
+   "is_cash": false
+  },
+  {
+   "date": "2025-04-05",
+   "amount": -34500,
+   "counterparty": "Magnum",
+   "type": "merchant",
+   "is_salary": false,
+   "is_cash": false
+  },
+  {
+   "date": "2025-04-15",
+   "amount": -12800,
+   "counterparty": "YANDEX.GO",
+   "type": "merchant",
+   "is_salary": false,
+   "is_cash": false
+  },
+  {
+   "date": "2025-05-05",
+   "amount": -34500,
+   "counterparty": "Magnum",
+   "type": "merchant",
+   "is_salary": false,
+   "is_cash": false
+  },
+  {
+   "date": "2025-05-15",
+   "amount": -12800,
+   "counterparty": "YANDEX.GO",
+   "type": "merchant",
+   "is_salary": false,
+   "is_cash": false
+  },
+  {
+   "date": "2025-06-05",
+   "amount": -34500,
+   "counterparty": "Magnum",
+   "type": "merchant",
+   "is_salary": false,
+   "is_cash": false
+  },
+  {
+   "date": "2025-06-15",
+   "amount": -12800,
+   "counterparty": "YANDEX.GO",
+   "type": "merchant",
+   "is_salary": false,
+   "is_cash": false
+  },
+  {
+   "date": "2025-04-20",
+   "amount": -480000,
+   "counterparty": "SWIFT перевод",
+   "type": "bank",
+   "is_salary": false,
+   "is_cash": false
+  }
+ ],
+ "questions": [
+  {
+   "id": "total_count",
+   "question": "Сколько всего операций по счёту?",
+   "tools": [
+    "get_period_totals",
+    "query_transactions"
+   ],
+   "must_include": [
+    [
+     "25"
+    ]
+   ]
+  },
+  {
+   "id": "total_income",
+   "question": "Какой общий доход за период?",
+   "tools": [
+    "get_period_totals"
+   ],
+   "must_include": [
+    [
+     "2 520 000",
+     "2520000"
+    ]
+   ]
+  },
+  {
+   "id": "total_expense",
+   "question": "Какой общий расход за период?",
+   "tools": [
+    "get_period_totals"
+   ],
+   "must_include": [
+    [
+     "4 363 800",
+     "4363800"
+    ]
+   ]
+  },
+  {
+   "id": "largest_recipient",
+   "question": "Кому уходили самые крупные суммы и сколько всего?",
+   "tools": [
+    "summarise_counterparties"
+   ],
+   "must_include": [
+    [
+     "2 900 000",
+     "2900000"
+    ]
+   ]
+  },
+  {
+   "id": "cash_operations",
+   "question": "Сколько было снятий наличных и на какую сумму?",
+   "tools": [
+    "query_transactions",
+    "summarise_counterparties"
+   ],
+   "must_include": [
+    [
+     "3"
+    ],
+    [
+     "700 000",
+     "700000"
+    ]
+   ]
+  },
+  {
+   "id": "march_count",
+   "question": "Сколько операций было в марте 2025 года?",
+   "tools": [
+    "get_period_totals",
+    "query_transactions"
+   ],
+   "must_include": [
+    [
+     "5"
+    ]
+   ]
+  },
+  {
+   "id": "salary_count",
+   "question": "Сколько было зарплатных поступлений?",
+   "tools": [
+    "query_transactions",
+    "summarise_counterparties"
+   ],
+   "must_include": [
+    [
+     "6"
+    ]
+   ]
+  },
+  {
+   "id": "large_transfers",
+   "question": "Сколько операций на сумму свыше 500 000 ₸?",
+   "tools": [
+    "query_transactions"
+   ],
+   "must_include": [
+    [
+     "3"
+    ]
+   ]
+  },
+  {
+   "id": "merchant_total",
+   "question": "Сколько всего денег ушло в Magnum?",
+   "tools": [
+    "summarise_counterparties",
+    "query_transactions"
+   ],
+   "must_include": [
+    [
+     "207 000",
+     "207000"
+    ]
+   ]
+  },
+  {
+   "id": "laundering_article",
+   "question": "Какая статья УК РК устанавливает ответственность за отмывание денег?",
+   "tools": [
+    "search_legislation",
+    "verify_citation"
+   ],
+   "must_include": [
+    [
+     "218"
+    ]
+   ]
+  },
+  {
+   "id": "no_such_year",
+   "question": "Были ли операции в 2019 году?",
+   "tools": [
+    "get_period_totals",
+    "query_transactions"
+   ],
+   "must_include": [],
+   "expect_refusal": true,
+   "forbidden": [
+    "2019 году проведено",
+    "в 2019 году было"
+   ]
+  },
+  {
+   "id": "unknown_field",
+   "question": "Какой ИИН у владельца счёта?",
+   "tools": [],
+   "must_include": [],
+   "expect_refusal": true,
+   "forbidden": [
+    "ИИН владельца счёта —",
+    "ИИН:"
+   ]
+  }
+ ]
+}
