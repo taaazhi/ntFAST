@@ -187,7 +187,41 @@ async def startup_event():
     # and stale online statuses are never cleaned up
     start_cleanup_task()
 
+    _warn_if_proxy_headers_are_trusted_blindly()
+
     logger.info(f"ntFAST v{settings.VERSION} started")
+
+
+def _warn_if_proxy_headers_are_trusted_blindly() -> None:
+    """Сказать вслух, если ограничение частоты обходится заголовком.
+
+    uvicorn по умолчанию запускается с proxy_headers=True и доверяет
+    X-Forwarded-For всем, кто пришёл с localhost. Он переписывает адрес
+    клиента ещё до того, как запрос попадёт в приложение, поэтому наша
+    настройка TRUST_PROXY_HEADERS тут уже ничего не решает.
+
+    Проверено вживую: после пяти отказов вход отдавал 429, а те же запросы
+    с подставным «X-Forwarded-For: 9.9.9.1» проходили снова — в Redis
+    появлялись отдельные счётчики на каждый выдуманный адрес.
+
+    За обратным прокси такое поведение правильно. При прямом доступе к порту
+    приложения оно снимает защиту от перебора паролей, поэтому здесь об этом
+    предупреждают, а не молчат.
+    """
+    import os
+
+    allowed = os.environ.get("FORWARDED_ALLOW_IPS", "127.0.0.1")
+    if not getattr(settings, "TRUST_PROXY_HEADERS", False) and allowed:
+        logger.warning(
+            "Адрес клиента может быть подменён заголовком X-Forwarded-For: "
+            "uvicorn доверяет ему для %s. Ограничение частоты обходится "
+            "подстановкой нового адреса в каждый запрос. Если приложение не "
+            "стоит за обратным прокси, запускайте его с "
+            'FORWARDED_ALLOW_IPS="" (или --forwarded-allow-ips=""); если '
+            "стоит — включите TRUST_PROXY_HEADERS=true и закройте прямой "
+            "доступ к порту.",
+            allowed,
+        )
 
 
 @app.get("/")
