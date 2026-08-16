@@ -216,12 +216,26 @@ page — four times for the same table — and on one of those pages it answered
 differently, which cost 52 rows and four times the latency. One file, one
 question.
 
-Cost control is the same principle applied to enrichment: a 1320-transaction
-statement has 329 unique counterparties, which would be 28 model calls and about
-twelve minutes. Only the 60 largest by turnover go to the model; the tail is
-handled by rules. That is not merely cheaper — an investigator cares who
-received the large sums, not how three hundred small shop purchases are
-labelled. Enrichment now takes ~66 s.
+Enrichment through the model is a different story, and the measurement settled
+it. Classifying counterparties during an analysis was timed across all eight
+real statements:
+
+| | model in the analysis | rules only |
+|---|---|---|
+| Binance (252 counterparties) | 538 s | 9 s |
+| Kaspi × 3 | 122–132 s each | ~20 s each |
+| Halyk × 4 | 10–37 s each | 1–4 s each |
+| **All eight** | **1006 s** | **83 s** |
+
+Every file still produced the correct transaction count — the model was not
+wrong, it was slow. Twelvefold slower for a lift from 58.5% to 89.0% is not a
+trade worth making while an investigator waits, so classification during
+analysis is off by default (`AI_ENRICHMENT_IN_ANALYSIS`). Rules answer
+instantly and already cover brands, legal entities, sole traders and channels.
+
+When it is switched on, only the 60 largest counterparties by turnover reach
+the model. That is not merely cheaper: an investigator cares who received the
+large sums, not how three hundred small shop purchases are labelled.
 
 ---
 
