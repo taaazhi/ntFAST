@@ -62,7 +62,18 @@ def classify_all(cases: Sequence[Dict[str, str]], use_llm: bool) -> List[str]:
             "и задайте CLAUDE_API_KEY в backend/.env, либо запустите без --llm."
         )
 
-    classifier = CounterpartyClassifier(ai_manager=ai_manager)
+    # Размер батча под провайдера. Модель на 3B, получив 40 имён разом,
+    # теряет часть записей или сбивается с нумерации — на первом прогоне так
+    # пропал целый батч, треть покрытия. Облачной модели дробить незачем:
+    # там каждый вызов стоит денег, а длинный список её не смущает.
+    is_local = "ollama" in getattr(ai_manager, "__class__", type(ai_manager)).__module__.lower() or any(
+        "ollama" in getattr(p, "provider_name", "").lower()
+        for p in getattr(ai_manager, "providers", [])
+    )
+    batch_size = 12 if is_local else 40
+
+    classifier = CounterpartyClassifier(ai_manager=ai_manager, batch_size=batch_size)
+    print(f"  размер батча: {batch_size}")
     mapping = asyncio.run(classifier.classify(names))
     print(f"  источники: {json.dumps(classifier.stats.as_dict(), ensure_ascii=False)}\n")
     return [

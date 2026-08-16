@@ -1,5 +1,7 @@
 import logging
 import secrets
+from pathlib import Path
+
 from pydantic_settings import BaseSettings
 from typing import Optional
 
@@ -124,7 +126,11 @@ class Settings(BaseSettings):
     CELERY_TASK_TIME_LIMIT: int = 30 * 60
 
     class Config:
-        env_file = ".env"
+        # Абсолютный путь, а не «.env»: относительный ищется от рабочего
+        # каталога процесса, поэтому uvicorn из backend/ настройки видел, а
+        # скрипты из scripts/ — нет, и молча работали на значениях по
+        # умолчанию. Отладка такого расхождения стоит дороже трёх строк.
+        env_file = str(Path(__file__).resolve().parents[2] / ".env")
         case_sensitive = True
 
     def validate_startup(self) -> None:

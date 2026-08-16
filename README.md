@@ -241,13 +241,37 @@ same operation in three languages, and top-up channels sitting in the counterpar
 No personal data: names inside sole-trader titles are replaced with invented ones, keeping the
 written form, which is where the difficulty lies.
 
-| Rules only (no network) | Result |
-|---|---|
-| Overall accuracy | **58.5%** (48/82) |
-| Macro-F1 | **0.34** |
+```bash
+python scripts/eval_counterparty.py --llm    # same set, through the model
+```
 
-Broken down, the result is unusually clean — the rules are perfect at one thing and useless at
-another:
+| | Rules only | + local model |
+|---|---|---|
+| Overall accuracy | 58.5% (48/82) | **76.8%** (63/82) |
+| Macro-F1 | 0.34 | **0.61** |
+| Government bodies | 0/8 | **7/8** |
+| Glued-together PDF text | 0/2 | **2/2** |
+| Channels mistaken for counterparties | 0/16 | 5/16 |
+
+The local model is `qwen2.5:3b` through Ollama on a GTX 1050 Ti — free, and
+nothing leaves the machine, which for statements belonging to real people is the
+point rather than a compromise. Cloud numbers are not filled in yet: no API key
+has been used in this repository, and a column of guesses would be worse than an
+empty one.
+
+Two findings from running it, both of which changed the code:
+
+- **Sole traders are decided by rule, and the model is not asked.** The rule
+  tells `ИП КАРИМБЕКОВ` from `ИП BEREKET` by alphabet and scores 5/5 and 6/6.
+  The 3B model, given the same names, called every ИП a private person — 1 of 6.
+  Asking a model where the answer is already known exactly trades a correct
+  answer for a plausible one, so that path now short-circuits before any call.
+- **Batch size is per provider.** At 40 names the local model dropped whole
+  batches; at 12 it holds. Ollama's native JSON mode was also needed — without
+  it a 3B model adds prose around the object and the parse fails silently.
+
+Broken down, the rules-only run is unusually clean — perfect at one thing and useless at
+another, which is exactly where the model earns its place:
 
 | Group | Correct |
 |---|---|
@@ -267,9 +291,11 @@ one of the 33 failures asks a different question: *what kind* of organisation. A
 fall the same way, into `merchant`, so a tax payment, a bank transfer and a shop purchase are
 indistinguishable to the detectors that weigh them differently.
 
-That is the number the LLM step has to beat, and it is deliberately the honest one: **58.5%
-against rules**, not the 0% it would have been flattering to quote before the rules were
-wired in at all.
+The bar for the model was deliberately set at the honest number — **58.5% against rules**, not
+the 0% it would have been flattering to quote before the rules were wired in at all. Measured
+against that bar, the local model closes most of the gap it was supposed to: government bodies
+and glued-together text go from nothing to almost everything, and the errors that remain are
+concentrated in channel descriptions, where `С карты другого банка` still reads as a merchant.
 
 ### Method and limits
 

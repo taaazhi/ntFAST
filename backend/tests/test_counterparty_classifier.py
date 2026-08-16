@@ -299,3 +299,38 @@ def test_rule_keeps_technical_noise_in_the_merchant_name():
     есть, поэтому «Yandex Go poezdka 12.05» и «Yandex Go poezdka» станут
     двумя разными узлами в графе контрагентов."""
     assert classify_by_rule("Yandex Go poezdka").merchant_name == "Yandex Go poezdka"
+
+
+# ── Где правило надёжнее модели ──────────────────────────────────
+
+@pytest.mark.anyio
+async def test_sole_traders_are_decided_by_rule_not_by_model():
+    """ИП решается правилом, и модель об этом не спрашивают.
+
+    Вывод из замера, а не осторожность. Правило различает «ИП КАРИМБЕКОВ»
+    и «ИП BEREKET» по алфавиту и не ошибается — 5/5 и 6/6 на эталонном
+    наборе. Локальная модель на 3B, получив те же имена, объявила физлицами
+    все ИП подряд: 1 из 6. Спрашивать модель там, где ответ уже известен
+    точно, значит менять верный ответ на правдоподобный.
+    """
+    ai = FakeAI([])  # любой вызов провайдера — падение теста
+    classifier = CounterpartyClassifier(ai_manager=ai)
+
+    result = await classifier.classify(["ИП BEREKET", "ИП КАРИМБЕКОВ"])
+
+    assert ai.prompts == []
+    assert result["ИП BEREKET"].counterparty_type is CounterpartyType.MERCHANT
+    assert result["ИП КАРИМБЕКОВ"].counterparty_type is CounterpartyType.PERSON
+
+
+@pytest.mark.anyio
+async def test_unknown_names_still_reach_the_model():
+    """Ярлык на ИП не должен перекрыть модели дорогу к остальным именам:
+    банки и госорганы правило как раз не различает."""
+    ai = FakeAI([wrap(entry(0, "government"))])
+    classifier = CounterpartyClassifier(ai_manager=ai)
+
+    result = await classifier.classify(["ГЦВП"])
+
+    assert len(ai.prompts) == 1
+    assert result["ГЦВП"].counterparty_type is CounterpartyType.GOVERNMENT
