@@ -31,6 +31,7 @@ from dataclasses import dataclass, field
 from typing import Dict, Iterable, List, Optional
 
 from app.utils.helpers import is_organization
+from .untrusted import strip_control_markup
 
 # ── Паттерны прямых идентификаторов ───────────────────────────────
 # ИИН (физлицо) и БИН (юрлицо) в РК — оба 12 цифр. Маскируем оба:
@@ -195,10 +196,14 @@ class Anonymizer:
                 self.counterparty(name)
 
     def text(self, value: Optional[str]) -> str:
-        """Замаскировать произвольный текст (описание операции, назначение)."""
+        """Замаскировать произвольный текст (описание операции, назначение).
+
+        Здесь же снимается разметка шаблона диалога: этот текст пишет
+        посторонний человек, а уходит он в промпт.
+        """
         if not value:
             return ""
-        result = str(value)
+        result = strip_control_markup(value)
 
         for variant in self._owner_variants:
             result, n = _boundary(variant).subn(self.CUSTOMER_TAG, result)
@@ -246,7 +251,9 @@ class Anonymizer:
         """
         if not name or not name.strip():
             return ""
-        raw = name.strip()
+        raw = strip_control_markup(name)
+        if not raw:
+            return ""
 
         if self._is_owner(raw):
             self._customer_hit = True
