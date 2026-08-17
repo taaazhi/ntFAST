@@ -165,11 +165,11 @@ def build_provider(model: Optional[str]) -> Any:
     return provider
 
 
-def report(rows: List[Dict[str, Any]], model_label: str) -> None:
+def report(rows: List[Dict[str, Any]], model_label: str) -> Dict[str, float]:
     total = len(rows)
     if not total:
         print("Набор пуст.")
-        return
+        return {}
 
     def share(key: str) -> float:
         return sum(1 for r in rows if r.get(key)) / total
@@ -207,6 +207,40 @@ def report(rows: List[Dict[str, Any]], model_label: str) -> None:
     print(f"    время на дело              медиана {sorted(seconds)[len(seconds) // 2]:.0f} с, "
           f"всего {sum(seconds) / 60:.1f} мин")
 
+    return {
+        "passed": share("passed"),
+        "no_invented": share("no_invented"),
+        "no_forbidden": share("no_forbidden"),
+        "counter_evidence": share("counter_evidence"),
+        "citations_ok": share("citations_ok"),
+        "coverage": sum(r["coverage"] for r in rows) / total,
+    }
+
+
+# Пороги проверяют регресс, а не абсолютное качество: числа заведомо ниже
+# последних замеров, чтобы шум прогона не ронял гейт, но реальная просадка
+# (например, модель начала выдумывать статьи закона) — ловилась.
+def _gate(metrics: Dict[str, float], checks: List[tuple]) -> None:
+    """checks: список (значение_порога, ключ_метрики, человекочитаемое имя).
+
+    Порог None означает «не проверять». При непройденном пороге печатает
+    причину и выходит с кодом 1 — так gated-прогон отличает регресс от нормы.
+    """
+    failures = []
+    for threshold, key, human in checks:
+        if threshold is None:
+            continue
+        value = metrics.get(key, 0.0)
+        if value < threshold:
+            failures.append(f"{human}: {value:.1%} < порога {threshold:.0%}")
+    if failures:
+        print("\n  ПОРОГ НЕ ПРОЙДЕН:")
+        for line in failures:
+            print(f"    - {line}")
+        raise SystemExit(1)
+    if any(t is not None for t, _, _ in checks):
+        print("\n  Пороги пройдены.")
+
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
@@ -214,6 +248,10 @@ def main() -> None:
     parser.add_argument("--case", help="прогнать одно дело по его id")
     parser.add_argument("--limit", type=int, help="ограничить число дел")
     parser.add_argument("--json", type=Path, help="куда сохранить подробный результат")
+    parser.add_argument("--min-pass", type=float, metavar="ДОЛЯ",
+                        help="0..1: гейт по «заключение годно целиком»; ниже — exit 1")
+    parser.add_argument("--min-citations", type=float, metavar="ДОЛЯ",
+                        help="0..1: гейт по «все ссылки проверены» — защита от выдуманных статей")
     args = parser.parse_args()
 
     cases = load_cases()
@@ -232,7 +270,7 @@ def main() -> None:
         print(f"[{index}/{len(cases)}] {case['id']} …", flush=True)
         rows.append(evaluate_one(case, provider))
 
-    report(rows, label)
+    metrics = report(rows, label)
 
     if args.json:
         args.json.write_text(
@@ -240,6 +278,13 @@ def main() -> None:
             encoding="utf-8",
         )
         print(f"\n  Подробности: {args.json}")
+
+    # Гейт последним: JSON уже сохранён, поэтому даже при провале порога
+    # подробности прогона остаются для разбора.
+    _gate(metrics, [
+        (args.min_pass, "passed", "заключение годно целиком"),
+        (args.min_citations, "citations_ok", "все ссылки проверены"),
+    ])
 
 
 if __name__ == "__main__":

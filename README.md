@@ -740,7 +740,7 @@ ntfast/
 ## Testing
 
 ```bash
-cd backend && pytest          # 220 tests
+cd backend && pytest          # 335 tests
 ```
 
 ```bash
@@ -749,6 +749,15 @@ python scripts/benchmark.py            # parsing accuracy and latency
 
 ```bash
 python scripts/eval_counterparty.py    # counterparty classification, rules only
+```
+
+Model-quality evals need a live model (Ollama or `CLAUDE_API_KEY`) and are kept out of CI.
+They print shares by default; pass `--min-*` to turn a run into a gate that exits non-zero on
+regression — a fabricated statute or a wrong figure fails the run rather than scrolling past:
+
+```bash
+python scripts/eval_conclusion.py --min-pass 0.25 --min-citations 0.9
+python scripts/eval_agent.py --min-pass 0.75 --min-answer 0.95
 ```
 
 Tests run without a database, an API key or a language model. That is a requirement rather

@@ -152,11 +152,11 @@ def build_provider(model: Optional[str]) -> Any:
     return provider
 
 
-def report(rows: List[Dict[str, Any]], label: str) -> None:
+def report(rows: List[Dict[str, Any]], label: str) -> Dict[str, float]:
     total = len(rows)
     if not total:
         print("Набор пуст.")
-        return
+        return {}
 
     def share(key: str) -> float:
         return sum(1 for r in rows if r.get(key)) / total
@@ -192,12 +192,43 @@ def report(rows: List[Dict[str, Any]], label: str) -> None:
     print(f"    время на вопрос            медиана {seconds[len(seconds) // 2]:.0f} с, "
           f"всего {sum(seconds) / 60:.1f} мин")
 
+    return {
+        "passed": share("passed"),
+        "tool_ok": share("tool_ok"),
+        "answer_ok": share("answer_ok"),
+        "refusal_ok": share("refusal_ok"),
+    }
+
+
+# Пороги ловят регресс, а не абсолют: значения ниже последних замеров, чтобы
+# шум прогона не ронял гейт, но реальная просадка (модель стала врать в числах
+# или брать не тот инструмент) — падала с ненулевым кодом.
+def _gate(metrics: Dict[str, float], checks: List[tuple]) -> None:
+    failures = []
+    for threshold, key, human in checks:
+        if threshold is None:
+            continue
+        value = metrics.get(key, 0.0)
+        if value < threshold:
+            failures.append(f"{human}: {value:.1%} < порога {threshold:.0%}")
+    if failures:
+        print("\n  ПОРОГ НЕ ПРОЙДЕН:")
+        for line in failures:
+            print(f"    - {line}")
+        raise SystemExit(1)
+    if any(t is not None for t, _, _ in checks):
+        print("\n  Пороги пройдены.")
+
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--model", help="модель Ollama (по умолчанию — из настроек)")
     parser.add_argument("--case", help="один вопрос по его id")
     parser.add_argument("--json", type=Path, help="куда сохранить подробности")
+    parser.add_argument("--min-pass", type=float, metavar="ДОЛЯ",
+                        help="0..1: гейт по «ответ верен целиком»; ниже — exit 1")
+    parser.add_argument("--min-answer", type=float, metavar="ДОЛЯ",
+                        help="0..1: гейт по «верное значение в ответе» — защита от вранья в числах")
     args = parser.parse_args()
 
     data = load_set()
@@ -216,7 +247,7 @@ def main() -> None:
         print(f"[{index}/{len(questions)}] {case['id']} …", flush=True)
         results.append(evaluate_one(case, rows, provider))
 
-    report(results, label)
+    metrics = report(results, label)
 
     if args.json:
         args.json.write_text(
@@ -224,6 +255,12 @@ def main() -> None:
             encoding="utf-8",
         )
         print(f"\n  Подробности: {args.json}")
+
+    # Гейт последним, чтобы JSON сохранился даже при провале порога.
+    _gate(metrics, [
+        (args.min_pass, "passed", "ответ верен целиком"),
+        (args.min_answer, "answer_ok", "верное значение в ответе"),
+    ])
 
 
 if __name__ == "__main__":

@@ -373,37 +373,42 @@ class TestRegressionScoring:
             f"Expected high/critical, got {report.risk_level} (score={report.composite_score})"
 
     def test_real_excel_fraudster(self, engine):
-        """Regression: docs/subject_fraudster.xlsx should score high"""
+        """Regression: docs/subject_fraudster.xlsx should score high.
+
+        Файл закоммичен, поэтому парсинг обязан пройти. Раньше тело стояло в
+        try/except → pytest.skip, и он глушил не только сбой парсинга, но и
+        AssertionError самой проверки скора: регресс молча зеленел через skip.
+        Теперь единственный легитимный skip — если файла нет вовсе; провал
+        парсинга или скоринга падает красным.
+        """
         import os
         path = os.path.join(os.path.dirname(__file__), "..", "..", "docs", "subject_fraudster.xlsx")
         if not os.path.exists(path):
-            pytest.skip("docs/ not found")
+            pytest.skip("docs/subject_fraudster.xlsx не найден")
         from app.services.bank_analyzer.analyzer import BankAnalyzer
-        try:
-            analyzer = BankAnalyzer(path)
-            result = analyzer.analyze()
-            txs = analyzer.parser.get_transactions()
-            account = analyzer.parser.get_account_info()
-            report = engine.full_analysis(txs, account)
-            assert report.composite_score >= 55, f"Fraudster scored {report.composite_score}, expected >= 55"
-            assert report.risk_level in ("high", "critical")
-        except Exception as e:
-            pytest.skip(f"Cannot parse fraudster file: {e}")
+        analyzer = BankAnalyzer(path)
+        analyzer.analyze()
+        txs = analyzer.parser.get_transactions()
+        account = analyzer.parser.get_account_info()
+        report = engine.full_analysis(txs, account)
+        assert report.composite_score >= 55, f"Fraudster scored {report.composite_score}, expected >= 55"
+        assert report.risk_level in ("high", "critical")
 
     def test_real_excel_clean(self, engine):
-        """Regression: docs/subject_clean.xlsx should score low"""
+        """Regression: docs/subject_clean.xlsx should score low.
+
+        Как и fraudster-тест: try/except → skip убран, чтобы регресс скоринга
+        падал красным, а не прятался в пропуск.
+        """
         import os
         path = os.path.join(os.path.dirname(__file__), "..", "..", "docs", "subject_clean.xlsx")
         if not os.path.exists(path):
-            pytest.skip("docs/ not found")
+            pytest.skip("docs/subject_clean.xlsx не найден")
         from app.services.bank_analyzer.analyzer import BankAnalyzer
-        try:
-            analyzer = BankAnalyzer(path)
-            result = analyzer.analyze()
-            txs = analyzer.parser.get_transactions()
-            account = analyzer.parser.get_account_info()
-            report = engine.full_analysis(txs, account)
-            assert report.composite_score < 30, f"Clean scored {report.composite_score}, expected < 30"
-            assert report.risk_level == "low"
-        except Exception as e:
-            pytest.skip(f"Cannot parse clean file: {e}")
+        analyzer = BankAnalyzer(path)
+        analyzer.analyze()
+        txs = analyzer.parser.get_transactions()
+        account = analyzer.parser.get_account_info()
+        report = engine.full_analysis(txs, account)
+        assert report.composite_score < 30, f"Clean scored {report.composite_score}, expected < 30"
+        assert report.risk_level == "low"
