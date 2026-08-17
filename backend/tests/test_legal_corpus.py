@@ -205,6 +205,22 @@ class _Pattern:
         self.legal_articles = []
 
 
+def test_verified_article_carries_its_text_for_grounding(fake_corpus):
+    """Заземление заключения: у подтверждённой ссылки прикладывается текст
+    статьи из корпуса (модель квалифицирует по нему, не по памяти); у
+    непроверённой текста нет — иначе он читался бы как установленная норма."""
+    from app.services.legal import annotate
+
+    articles = annotate.parse_reference(
+        "УК РК ст. 218; УК РК ст. 9999", corpus_dir=fake_corpus
+    )
+    by_citation = {a["citation"]: a for a in articles}
+
+    assert by_citation["УК РК ст. 218"]["verified"]
+    assert "Вовлечение" in by_citation["УК РК ст. 218"]["text"]
+    assert by_citation["УК РК ст. 9999"]["text"] == ""
+
+
 def test_annotate_fills_articles_with_links(fake_corpus):
     from app.services.legal import annotate_patterns
 

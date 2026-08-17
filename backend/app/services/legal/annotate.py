@@ -19,6 +19,12 @@ from .verifier import Verdict, verify_reference_line
 
 logger = logging.getLogger(__name__)
 
+#: Сколько символов текста статьи прикладывать к ссылке. Нужно для заземления
+#: заключения: модель должна квалифицировать по тексту нормы, а не по памяти.
+#: Диспозиция статьи (то, что описывает состав) обычно стоит в начале, поэтому
+#: первых ~500 символов хватает, а весь текст раздул бы контекст и стоимость.
+ARTICLE_EXCERPT_CHARS = 500
+
 
 def parse_reference(reference: str, corpus_dir: Optional[str] = None) -> List[Dict[str, Any]]:
     """Строка `regulatory_reference` → список статей с проверкой.
@@ -37,12 +43,22 @@ def parse_reference(reference: str, corpus_dir: Optional[str] = None) -> List[Di
         # не переводится на ходу: название нормы — часть официального
         # текста, и сочинять его в документе для следствия нельзя.
         article = corpus_module.get_article(check.code, check.number, corpus_dir)
+        # Текст нормы — для заземления заключения: модель квалифицирует по нему,
+        # а не по памяти. Кладём только у подтверждённой ссылки: показывать
+        # текст рядом с непроверенным номером — приглашение процитировать его
+        # как установленный. Excerpt, не весь текст — экономия контекста.
+        excerpt = ""
+        if article and check.is_trustworthy and article.text:
+            excerpt = article.text[:ARTICLE_EXCERPT_CHARS].strip()
+            if len(article.text) > ARTICLE_EXCERPT_CHARS:
+                excerpt += "…"
         articles.append({
             "citation": check.citation,
             "title": check.title or "",
             "title_kk": getattr(article, "title_kk", "") if article else "",
             "url": check.url or "",
             "url_kk": getattr(article, "url_kk", "") if article else "",
+            "text": excerpt,
             "verified": check.is_trustworthy,
             "verdict": check.verdict.value,
             # Пояснение нужно только когда что-то не так: у подтверждённой

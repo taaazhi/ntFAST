@@ -151,6 +151,33 @@ def test_list_numbering_is_ignored():
     assert find_invented_numbers("1. Первое. 2. Второе. 3. Третье.", facts) == []
 
 
+def test_verified_article_text_reaches_the_model():
+    """Заземление: текст подтверждённой нормы попадает в факты, чтобы модель
+    квалифицировала по нему, а не по памяти. Непроверенную норму не показываем
+    вовсе — вместе с её текстом."""
+    analysis = {
+        "summary": {}, "account": {}, "enrichment": {},
+        "fraud_report": {
+            "flagged_patterns": [{
+                "display_name": "Схема",
+                "legal_articles": [
+                    {"citation": "УК РК ст. 218", "title": "Легализация",
+                     "text": "1. Вовлечение в законный оборот денег, полученных "
+                             "преступным путём, посредством совершения сделок.",
+                     "verified": True},
+                    {"citation": "УК РК ст. 9999", "title": "", "text": "",
+                     "verified": False},
+                ],
+            }],
+        },
+    }
+    articles = collect_facts(analysis)["patterns"][0]["articles"]
+
+    assert len(articles) == 1, "непроверенная норма не должна попадать в факты"
+    assert articles[0]["citation"] == "УК РК ст. 218"
+    assert "Вовлечение" in articles[0]["text"], "текст нормы должен дойти до модели"
+
+
 # ── Достоверность заключения ─────────────────────────────────────
 
 def test_clean_conclusion_is_trustworthy():
