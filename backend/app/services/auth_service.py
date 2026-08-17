@@ -77,3 +77,22 @@ async def get_current_active_admin(
             detail="Not enough permissions"
         )
     return current_user
+
+
+async def ensure_writable(
+    current_user: User = Depends(get_current_user)
+) -> User:
+    """Запретить запись учёткам read-only demo.
+
+    Стенд показывает предзагруженные анализы всем, но менять их гость не должен:
+    иначе один посетитель испортит витрину для остальных или сожжёт триал
+    загрузками. Список демо-почт задаётся `DEMO_READONLY_EMAILS`; пусто —
+    проверка ничего не блокирует, и обычные учётки работают как прежде.
+    """
+    from app.core.config import settings
+    if current_user.email.lower() in settings.demo_readonly_email_set:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Демо-режим: только просмотр. Загрузка и изменения отключены.",
+        )
+    return current_user

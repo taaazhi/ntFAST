@@ -11,7 +11,7 @@ from app.core.config import settings
 from app.models.analysis import Analysis
 from app.models.user import User
 from app.schemas.analysis import AnalysisCreate, AnalysisUpdate, AnalysisResponse, AnalysisListItem, AnalysisFileUploadResponse
-from app.services.auth_service import get_current_user
+from app.services.auth_service import get_current_user, ensure_writable
 
 router = APIRouter()
 
@@ -31,7 +31,7 @@ def _sanitize_filename(name: str) -> str:
 
 # IMPORTANT: Specific routes MUST come BEFORE parametrized routes like /{analysis_id}
 # Otherwise FastAPI treats "upload" as an analysis_id
-@router.post("/upload", response_model=AnalysisFileUploadResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/upload", response_model=AnalysisFileUploadResponse, status_code=status.HTTP_201_CREATED, dependencies=[Depends(ensure_writable)])
 async def upload_file_for_analysis(
     file: UploadFile = File(...),
     session_id: Optional[str] = Query(None, description="WebSocket session ID для прогресса"),
@@ -260,7 +260,7 @@ async def get_analyses(
     ]
 
 
-@router.post("/", response_model=AnalysisResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/", response_model=AnalysisResponse, status_code=status.HTTP_201_CREATED, dependencies=[Depends(ensure_writable)])
 async def create_analysis(
     analysis: AnalysisCreate,
     db: Session = Depends(get_db),
@@ -389,7 +389,7 @@ async def get_overall_stats(
     }
 
 
-@router.post("/batch-delete", status_code=status.HTTP_200_OK)
+@router.post("/batch-delete", status_code=status.HTTP_200_OK, dependencies=[Depends(ensure_writable)])
 async def batch_delete_analyses(
     payload: dict,
     db: Session = Depends(get_db),
@@ -457,7 +457,7 @@ async def get_analysis(
     return analysis
 
 
-@router.put("/{analysis_id}", response_model=AnalysisResponse)
+@router.put("/{analysis_id}", response_model=AnalysisResponse, dependencies=[Depends(ensure_writable)])
 async def update_analysis(
     analysis_id: int,
     analysis_update: AnalysisUpdate,
@@ -488,7 +488,7 @@ async def update_analysis(
     return db_analysis
 
 
-@router.delete("/{analysis_id}", status_code=status.HTTP_200_OK)
+@router.delete("/{analysis_id}", status_code=status.HTTP_200_OK, dependencies=[Depends(ensure_writable)])
 async def delete_analysis(
     analysis_id: int,
     db: Session = Depends(get_db),
@@ -631,7 +631,7 @@ async def get_task_status(
     }
 
 
-@router.post("/{analysis_id}/reanalyze", status_code=status.HTTP_202_ACCEPTED)
+@router.post("/{analysis_id}/reanalyze", status_code=status.HTTP_202_ACCEPTED, dependencies=[Depends(ensure_writable)])
 async def reanalyze(
     analysis_id: int,
     db: Session = Depends(get_db),
@@ -682,7 +682,7 @@ async def reanalyze(
     }
 
 
-@router.post("/{analysis_id}/cancel", status_code=status.HTTP_200_OK)
+@router.post("/{analysis_id}/cancel", status_code=status.HTTP_200_OK, dependencies=[Depends(ensure_writable)])
 async def cancel_analysis(
     analysis_id: int,
     db: Session = Depends(get_db),

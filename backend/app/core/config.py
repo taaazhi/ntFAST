@@ -129,6 +129,16 @@ class Settings(BaseSettings):
     #: 1320 транзакций, которая незаметно превратится в счёт за API.
     AI_MAX_CALLS_PER_ANALYSIS: int = 20
 
+    #: Read-only demo. Учётки из этого списка (через запятую) видят всё, но не
+    #: могут менять: загрузка, удаление, повторный анализ и правки им отдают 403.
+    #: Нужно для публичного стенда — гость смотрит предзагруженные анализы, а не
+    #: жжёт триал и не портит данные. Пусто — режим выключен, все пишут как обычно.
+    DEMO_READONLY_EMAILS: str = ""
+
+    @property
+    def demo_readonly_email_set(self) -> set:
+        return {e.strip().lower() for e in self.DEMO_READONLY_EMAILS.split(",") if e.strip()}
+
     # Celery & Redis Configuration
     REDIS_HOST: str = "localhost"
     REDIS_PORT: int = 6379

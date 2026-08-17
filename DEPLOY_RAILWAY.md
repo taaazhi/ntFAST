@@ -39,26 +39,35 @@ git push -u origin main
 
 ## Шаг 5: Backend
 
-1. Нажми **"+ New"** → **"GitHub Repo"** → выбери свой ntfast репозиторий
-2. Railway автоматически найдет `railway.json` и задеплоит backend
-3. Перейди в **Settings** сервиса:
-   - **Root Directory**: `/` (корень)
-   - **Builder**: Dockerfile
-   - **Dockerfile Path**: `backend/Dockerfile`
-4. Перейди во вкладку **Variables** и добавь:
+1. Нажми **"+ New"** → **"GitHub Repo"** → выбери свой ntFAST репозиторий
+2. Railway найдёт корневой `railway.json` и сам возьмёт `backend/Dockerfile`,
+   прогонит `alembic upgrade head` при старте и поднимет uvicorn на `$PORT`.
+   Root Directory оставь `/` — больше в Settings ничего править не нужно.
+3. Перейди во вкладку **Variables** и добавь:
 
 ```
-DATABASE_URL=<скопируй из PostgreSQL сервиса — кнопка Reference>
+DATABASE_URL=<кнопка Reference → Postgres.DATABASE_URL>
 SECRET_KEY=<сгенерируй: python -c "import secrets; print(secrets.token_hex(32))">
-REDIS_HOST=<хост Redis из Railway>
-REDIS_PORT=<порт Redis>
-CELERY_BROKER_URL=<REDIS_URL из Redis сервиса>
-CELERY_RESULT_BACKEND=<REDIS_URL из Redis сервиса>
-BACKEND_CORS_ORIGINS=["http://localhost:5173"]
+BACKEND_CORS_ORIGINS=["https://<домен-фронта>.up.railway.app"]
 DEBUG=false
+
+# За обратным прокси Railway — иначе rate-limiter обходится подменой X-Forwarded-For.
+# startCommand уже поднимает uvicorn с --proxy-headers --forwarded-allow-ips=*.
+TRUST_PROXY_HEADERS=true
+
+# Read-only demo без модели: LLM-путь выключен (на Railway нет GPU/Ollama).
+# Агент-заключение для demo предзаписывается сидером, а не считается вживую.
+AI_ENRICHMENT_ENABLED=false
+
+# Гостевой аккаунт стенда: видит всё, но загрузка/удаление/правки → 403.
+DEMO_READONLY_EMAILS=demo@ntfast.kz
 ```
 
-> Совет: используй кнопку **"Add Reference"** чтобы Railway автоматически подставил переменные из PostgreSQL и Redis сервисов.
+> Read-only demo не требует Celery и Redis — загрузки нет, всё уже посчитано
+> сидером (Шаг 8). CELERY_*/REDIS_* нужны только для полного стенда с загрузкой.
+
+> Совет: для `DATABASE_URL` жми **"Add Reference"** — Railway подставит связь
+> с Postgres-сервисом автоматически.
 
 5. Перейди в **Settings** → **Networking** → **Generate Domain**
 6. Скопируй домен бэкенда (например: `ntfast-backend-production-abc123.up.railway.app`)
@@ -97,19 +106,43 @@ BACKEND_CORS_ORIGINS=["http://localhost:5173","https://ntfast-frontend-productio
 
 ---
 
-## Шаг 8: Проверка
+## Шаг 8: Засев demo (read-only стенд)
+
+Стенд поднимается на пустой базе — нужно создать гостевой аккаунт и
+предзагрузить синтетические анализы одним прогоном. Сидер идёт по тому же
+пути, что и настоящая загрузка, поэтому отчёт выглядит как боевой.
+
+С машины, где стоят зависимости бэкенда, укажи `DATABASE_URL` от Railway
+(вкладка Postgres → Variables → `DATABASE_URL`, публичный URL) и запусти:
+
+```bash
+DATABASE_URL="postgresql://...railway..." python scripts/seed_demo.py
+```
+
+Создаст `demo@ntfast.kz` (пароль по умолчанию `ntFASTdemo!2026`,
+переопределяется через `DEMO_EMAIL`/`DEMO_PASSWORD`) и три анализа: чистый
+(риск низкий), мошеннический (высокий) и CSV. Заключение агента у каждого
+предзаписано — на демо модель не вызывается. Аккаунт уже read-only через
+`DEMO_READONLY_EMAILS` из Шага 5: гость смотрит, но не грузит и не удаляет.
+
+`--force` пересоздаёт анализы демо-юзера, если нужно обновить.
+
+---
+
+## Шаг 9: Проверка
 
 1. Открой домен фронтенда в браузере
-2. Зарегистрируйся / войди
-3. Загрузи банк выписку
-4. Проверь что анализ работает
+2. Войди как `demo@ntfast.kz`
+3. Открой любой из трёх анализов — все пять вкладок, включая заключение
+4. Убедись, что загрузка выписки отдаёт 403 (демо только для просмотра)
 
 ---
 
 ## Бесплатный лимит
 
-- Railway дает **$5 бесплатных кредитов** при привязке карты (Trial)
-- Этого хватит примерно на **2-3 недели** работы всех 4 сервисов
+- Railway даёт **$5 бесплатных кредитов** при привязке карты (Trial)
+- Read-only demo — 3 сервиса (Postgres + Backend + Frontend), без Celery/Redis:
+  триал тратится медленнее, чем на полном стенде с загрузкой
 - Без карты — **500 часов/месяц** (хватит на 1 сервис)
 
 ---
