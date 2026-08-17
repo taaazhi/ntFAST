@@ -2,7 +2,7 @@ import logging
 import secrets
 from pathlib import Path
 
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 from typing import Optional
 
 logger = logging.getLogger(__name__)
@@ -165,13 +165,14 @@ class Settings(BaseSettings):
     #: из app/middleware/rate_limit_store.py.
     RATE_LIMIT_REDIS_URL: str = "redis://localhost:6379/0"
 
-    class Config:
-        # Абсолютный путь, а не «.env»: относительный ищется от рабочего
-        # каталога процесса, поэтому uvicorn из backend/ настройки видел, а
-        # скрипты из scripts/ — нет, и молча работали на значениях по
-        # умолчанию. Отладка такого расхождения стоит дороже трёх строк.
-        env_file = str(Path(__file__).resolve().parents[2] / ".env")
-        case_sensitive = True
+    # Абсолютный путь, а не «.env»: относительный ищется от рабочего каталога
+    # процесса, поэтому uvicorn из backend/ настройки видел, а скрипты из
+    # scripts/ — нет, и молча работали на значениях по умолчанию. Отладка
+    # такого расхождения стоит дороже трёх строк.
+    model_config = SettingsConfigDict(
+        env_file=str(Path(__file__).resolve().parents[2] / ".env"),
+        case_sensitive=True,
+    )
 
     def validate_startup(self) -> None:
         """Validate critical settings on application startup.

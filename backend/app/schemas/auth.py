@@ -1,4 +1,4 @@
-from pydantic import BaseModel, EmailStr, Field, field_serializer, model_serializer
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_serializer, model_serializer
 from datetime import datetime, timezone
 from typing import Optional, Any
 
@@ -99,8 +99,7 @@ class UserResponse(UserBase):
                 data[field] = _to_utc_z_iso(data[field])
         return data
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class UserRoleUpdate(BaseModel):
@@ -153,5 +152,4 @@ class UserDetailedProfile(UserResponse):
     analysis_stats: UserAnalysisStats
 
     # Inherits field_serializer from UserResponse
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)

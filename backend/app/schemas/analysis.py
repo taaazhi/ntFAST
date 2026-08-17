@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 from datetime import datetime
 from typing import Optional, Dict, Any
 
@@ -36,8 +36,7 @@ class AnalysisFileUploadResponse(BaseModel):
     status: str
     message: str
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class AnalysisListItem(AnalysisBase):
@@ -77,8 +76,7 @@ class AnalysisListItem(AnalysisBase):
     updated_at: datetime
     completed_at: Optional[datetime] = None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class AnalysisResponse(AnalysisBase):
@@ -128,8 +126,7 @@ class AnalysisResponse(AnalysisBase):
     updated_at: datetime
     completed_at: Optional[datetime] = None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class AnalysisListResponse(BaseModel):
