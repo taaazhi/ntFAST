@@ -45,7 +45,7 @@ sys.path.insert(0, str(REPO_ROOT / "backend"))
 
 EVAL_PATH = REPO_ROOT / "backend" / "tests" / "data" / "conclusion_eval.json"
 
-from app.services.agent.conclusion import build_conclusion  # noqa: E402
+from app.services.agent.conclusion import build_conclusion, collect_facts  # noqa: E402
 
 #: Обороты, которыми вводится довод против версии. Список намеренно широкий:
 #: проверяется наличие состязательности, а не конкретная формулировка.
@@ -103,7 +103,8 @@ def evaluate_one(case: Dict[str, Any], provider: Any) -> Dict[str, Any]:
         result.update({
             "produced": False, "no_invented": False, "clean_script": False,
             "coverage": 0.0, "missing": [], "no_forbidden": False,
-            "counter_evidence": False, "citations_ok": False, "passed": False,
+            "counter_evidence": False, "citations_ok": False, "grounded": False,
+            "passed": False,
         })
         return result
 
@@ -138,6 +139,21 @@ def evaluate_one(case: Dict[str, Any], provider: Any) -> Dict[str, Any]:
     #    просили её или нет.
     result["citations_ok"] = all(c.get("verified") for c in conclusion.citations)
     result["citations"] = [c.get("citation") for c in conclusion.citations]
+
+    # 6. Заземление: процитировала ли модель только те нормы, текст которых ей
+    #    дали в фактах, — или вспомнила статью «по памяти». Это строже, чем
+    #    citations_ok: реальную статью можно назвать верно и при этом взять её
+    #    не из поданного контекста. Пустой список цитат заземлён по определению.
+    provided = {
+        a.get("citation")
+        for pattern in collect_facts(case["analysis"]).get("patterns", [])
+        for a in pattern.get("articles", [])
+        if a.get("citation")
+    }
+    cited = {c.get("citation") for c in conclusion.citations if c.get("citation")}
+    ungrounded = sorted(cited - provided)
+    result["grounded"] = not ungrounded
+    result["ungrounded_citations"] = ungrounded
 
     result["passed"] = bool(
         result["no_invented"] and result["clean_script"] and result["no_forbidden"]
@@ -204,6 +220,7 @@ def report(rows: List[Dict[str, Any]], model_label: str) -> Dict[str, float]:
     print(f"    ничего сверх фактов        {share('no_forbidden'):.1%}")
     print(f"    приведены доводы против    {share('counter_evidence'):.1%}")
     print(f"    все ссылки проверены       {share('citations_ok'):.1%}")
+    print(f"    ссылки заземлены           {share('grounded'):.1%}")
     print(f"    время на дело              медиана {sorted(seconds)[len(seconds) // 2]:.0f} с, "
           f"всего {sum(seconds) / 60:.1f} мин")
 
@@ -213,6 +230,7 @@ def report(rows: List[Dict[str, Any]], model_label: str) -> Dict[str, float]:
         "no_forbidden": share("no_forbidden"),
         "counter_evidence": share("counter_evidence"),
         "citations_ok": share("citations_ok"),
+        "grounded": share("grounded"),
         "coverage": sum(r["coverage"] for r in rows) / total,
     }
 
@@ -252,6 +270,8 @@ def main() -> None:
                         help="0..1: гейт по «заключение годно целиком»; ниже — exit 1")
     parser.add_argument("--min-citations", type=float, metavar="ДОЛЯ",
                         help="0..1: гейт по «все ссылки проверены» — защита от выдуманных статей")
+    parser.add_argument("--min-grounded", type=float, metavar="ДОЛЯ",
+                        help="0..1: гейт по «ссылки заземлены» — цитата взята из поданного текста")
     args = parser.parse_args()
 
     cases = load_cases()
@@ -284,6 +304,7 @@ def main() -> None:
     _gate(metrics, [
         (args.min_pass, "passed", "заключение годно целиком"),
         (args.min_citations, "citations_ok", "все ссылки проверены"),
+        (args.min_grounded, "grounded", "ссылки заземлены"),
     ])
 
 

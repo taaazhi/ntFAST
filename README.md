@@ -291,8 +291,12 @@ recomputed sums into millions and got them wrong. Nine invented numbers, caught,
 conclusion marked untrustworthy. After the prompt was fixed and amounts were
 passed as formatted strings: zero.
 
-**The model does not invent norms.** Only verified articles reach it, and any
-citation in the output is re-checked against the corpus afterwards.
+**The model does not invent norms.** Only verified articles reach it — now with
+the statute text attached, so the qualification is grounded in what the law
+actually says rather than what the model recalls — and any citation in the output
+is re-checked against the corpus afterwards. On the labelled set the local model's
+citations are **100% grounded**: every article it named was one it had been given
+the text of, none recalled from memory.
 
 **Refusal is loud.** No model means no conclusion — faking an absent finding in
 an investigative document is worse than not producing one.
@@ -320,6 +324,7 @@ four properties that can be checked without a human:
 | Coverage | A module that scored points but went unmentioned |
 | Restraint | A statute, scheme or verdict that was not in the facts |
 | Counter-argument | A document that states only the case for the prosecution |
+| Grounding | A statute cited from the model's memory instead of the text it was handed |
 
 Two defects surfaced on the very first run. On the case with almost no facts —
 seven transactions, no flags — the model looped forever (*"electronic money,
