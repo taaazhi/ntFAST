@@ -306,9 +306,14 @@ def test_main_article_outranks_the_derived_one(fake_corpus):
     )
     monkey = corpus.load_articles
     corpus.load_articles = lambda *a, **k: articles
+    # BM25-индекс кэширует load_articles — сбросить, чтобы он пересобрался на
+    # этих двух статьях. Чистим именно индекс: load_articles сейчас подменён
+    # лямбдой, у которой нет .cache_clear().
+    corpus._corpus_index.cache_clear()
     try:
         results = corpus.search("финансовая пирамида")
     finally:
         corpus.load_articles = monkey
+        corpus._corpus_index.cache_clear()
 
     assert results[0][0].number == "217"

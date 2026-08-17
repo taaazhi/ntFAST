@@ -180,6 +180,30 @@ relevant article to this project — ст. 218, laundering — was not cited any
 written from memory. The report now links each article straight to its anchor on adilet.zan.kz,
 so an investigator reads the norm rather than taking the system's word for it.
 
+### Retrieval — measured, then improved
+
+Verification catches a wrong citation, but there is an earlier question: does the search even
+*find* the right article when the query is phrased in an investigator's own words? If it doesn't,
+the model has no norm to cite and the whole grounding step is empty. So retrieval is measured, not
+assumed — [`scripts/eval_retrieval.py`](scripts/eval_retrieval.py) runs 15 natural-language queries
+against a committed fixture of real articles and reports hit@5 and MRR. No model is involved; the
+search is deterministic, so this runs in CI as a regression gate.
+
+The first ranking was plain stemmed word-overlap. On the full corpus it lost the right article for
+three queries in fifteen — *fraud* was outranked by *embezzlement*, *sham business* by *pyramid*.
+Replacing it with **BM25** (rare words weigh more, title counts triple, length-normalised) closed
+the gap:
+
+| Corpus | metric | word-overlap | BM25 |
+|---|---|---|---|
+| full corpus (~1300 articles) | hit@5 | 80% | **100%** |
+| full corpus | MRR | 0.767 | **0.967** |
+| committed fixture | MRR | 0.878 | **1.000** |
+
+The number is what forced the change, and the number is what guards it: a floor of hit@5 = 100% /
+MRR ≥ 0.95 on the fixture is asserted in the test suite, so a future tweak to the stemmer or the
+scoring that quietly degrades ranking fails red.
+
 ---
 
 ## Reading an Unfamiliar Bank

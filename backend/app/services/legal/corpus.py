@@ -17,7 +17,9 @@ from __future__ import annotations
 
 import json
 import logging
+import math
 import re
+from collections import Counter, defaultdict
 from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
@@ -202,40 +204,104 @@ def get_article(
     return None
 
 
+# ── Ранжирование: BM25 ────────────────────────────────────────────
+#
+# Раньше оценкой была голая доля совпавших слов с бустом заголовка ×3. Она не
+# различала редкие слова и частые: «финансовой» весила как «пирамидой», хотя
+# второе однозначно указывает на статью, а первое встречается в десятках. На
+# полном корпусе это стоило точности — правильная статья уходила вниз выдачи.
+# BM25 добавляет IDF (редкое слово важнее), насыщение частоты и нормировку на
+# длину статьи. Замер до/после — scripts/eval_retrieval.py.
+BM25_K1 = 1.5
+BM25_B = 0.75
+#: Доля, на которую понижается оценка производной статьи («217-1» против
+#: «217»). Правит перекос BM25-нормировки в пользу более коротких названий.
+DERIVED_PENALTY = 0.9
+#: Заголовок весит втрое: название статьи информативнее тела, где те же слова
+#: могут мелькнуть в перечне исключений. Реализовано утроением токенов
+#: заголовка в «документе» — так буст переносится и в IDF, и в длину.
+TITLE_WEIGHT = 3
+
+
+@lru_cache(maxsize=1)
+def _corpus_index(corpus_dir: Optional[str] = None):
+    """Предпосчёт для BM25: по каждой статье — частоты токенов (заголовок
+    утроен), плюс документная частота термина, число статей и средняя длина.
+    Кэшируется вместе с корпусом: считается один раз на процесс."""
+    articles = load_articles(corpus_dir)
+    doc_counts: List[Counter] = []
+    df: Dict[str, int] = defaultdict(int)
+    total_len = 0
+    for article in articles:
+        tokens = tokenize(article.title) * TITLE_WEIGHT + tokenize(article.text)
+        counts = Counter(tokens)
+        doc_counts.append(counts)
+        total_len += sum(counts.values())
+        for term in counts:
+            df[term] += 1
+    n = len(articles)
+    avgdl = (total_len / n) if n else 0.0
+    return articles, tuple(doc_counts), dict(df), n, avgdl
+
+
 def search(
     query: str, limit: int = 5, code: Optional[str] = None,
     corpus_dir: Optional[str] = None,
 ) -> List[Tuple[Article, float]]:
     """Статьи, наиболее подходящие запросу, с оценкой релевантности.
 
-    Оценка — доля слов запроса, найденных в статье, с надбавкой за совпадения
-    в заголовке: название статьи гораздо информативнее её тела, где те же
-    слова могут встретиться в перечислении исключений.
+    Ранжирование — BM25: слова, редкие в корпусе, весят больше; заголовок
+    втрое важнее тела. Оценка нормируется так, что у лучшего результата она
+    равна 1.0 — число для показа, а не абсолютная вероятность.
     """
     terms = set(tokenize(query))
     if not terms:
         return []
 
+    articles, doc_counts, df, n, avgdl = _corpus_index(corpus_dir)
+    if not articles or avgdl == 0:
+        return []
+
+    # +1 внутри логарифма — чтобы очень частый термин не давал отрицательный
+    # вклад и не «штрафовал» статью за общее слово.
+    idf = {t: math.log(1 + (n - df.get(t, 0) + 0.5) / (df.get(t, 0) + 0.5)) for t in terms}
+
     scored: List[Tuple[Article, float]] = []
-    for article in load_articles(corpus_dir):
+    for article, counts in zip(articles, doc_counts):
         if code and article.code != code:
             continue
-
-        title_words = set(tokenize(article.title))
-        body_words = set(tokenize(article.text))
-
-        title_hits = len(terms & title_words)
-        body_hits = len(terms & body_words)
-        if not title_hits and not body_hits:
+        dl = sum(counts.values())
+        score = 0.0
+        matched = 0
+        for t in terms:
+            freq = counts.get(t, 0)
+            if not freq:
+                continue
+            matched += 1
+            denom = freq + BM25_K1 * (1 - BM25_B + BM25_B * dl / avgdl)
+            score += idf[t] * (freq * (BM25_K1 + 1)) / denom
+        if not matched:
             continue
+        # Мягкий приоритет основной статьи над производной. BM25 нормирует на
+        # длину, поэтому у более короткого названия «217-1 Реклама пирамиды»
+        # оценка выходит чуть выше «217 Создание пирамиды» при равном
+        # совпадении — и производная всплывала первой. Небольшой штраф решает
+        # near-ties в пользу основного состава, но явно более релевантную
+        # производную (запрос прямо про «рекламу») не топит.
+        if "-" in article.number:
+            score *= DERIVED_PENALTY
+        scored.append((article, score))
 
-        score = (3.0 * title_hits + body_hits) / (3.0 * len(terms))
-        scored.append((article, min(score, 1.0)))
+    if not scored:
+        return []
+
+    top = max(score for _, score in scored)
+    scored = [(article, (score / top) if top else 0.0) for article, score in scored]
 
     # При равной оценке впереди основная статья, а не производная: «217»
     # (создание пирамиды) важнее «217-1» (реклама пирамиды), и «218» важнее
-    # «218-1». У производной название короче, поэтому доля совпавших слов у
-    # неё выше — без этой поправки она вытесняла основной состав.
+    # «218-1». У производной название короче, поэтому при прочих равных она
+    # всплывала выше — без этой поправки вытесняла основной состав.
     def rank(pair):
         article, score = pair
         derived = "-" in article.number
@@ -248,3 +314,4 @@ def search(
 def clear_cache() -> None:
     """Сбросить кэш — нужно тестам и после пересборки корпуса."""
     load_articles.cache_clear()
+    _corpus_index.cache_clear()
