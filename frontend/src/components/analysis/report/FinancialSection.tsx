@@ -1,12 +1,12 @@
 /** Вкладка «Финансы»: месячные обороты, категории, топ-мерчанты. */
 import { motion } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
-import { Calendar, TrendingUp, Store, PieChart as PieChartIcon } from 'lucide-react';
+import { Calendar, TrendingUp, Store, PieChart as PieChartIcon, Users, Repeat, Globe, Activity } from 'lucide-react';
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
   AreaChart, Area, PieChart, Pie, Cell,
 } from 'recharts';
-import { Report, FormatCurrency, CHART_COLORS } from './shared';
+import { Report, FormatCurrency, CHART_COLORS, intlLocale } from './shared';
 
 interface Props {
   result: Report;
@@ -14,7 +14,16 @@ interface Props {
 }
 
 export function FinancialSection({ result, formatCurrency }: Props) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const locale = intlLocale(i18n.language);
+  // Периодичность приходит кодом ("monthly"/"bi-weekly"/…); переводим ключом,
+  // а не литералом — иначе казахская и английская версии показали бы англ. код.
+  const freqKey = (f: string) =>
+    (({ monthly: 'freqMonthly', weekly: 'freqWeekly', 'bi-weekly': 'freqBiWeekly', frequent: 'freqFrequent' } as Record<string, string>)[f]) || 'freqUnknown';
+  const shortDate = (iso: string) => {
+    const d = new Date(iso);
+    return isNaN(d.getTime()) ? iso : d.toLocaleDateString(locale, { day: '2-digit', month: 'short' });
+  };
   return (
               <motion.div
                 key="financial"
@@ -217,6 +226,155 @@ export function FinancialSection({ result, formatCurrency }: Props) {
                         />
                         <Bar dataKey="amount" fill="#2563eb" radius={[6, 6, 0, 0]} />
                       </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                )}
+
+                {/* Top counterparties — who sent/received how much */}
+                {result.analytics?.top_contacts && result.analytics.top_contacts.length > 0 && (
+                  <div className="p-6 bg-white dark:bg-gray-800/50 rounded-2xl border border-gray-200/50 dark:border-gray-700/40">
+                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+                      <Users className="w-5 h-5 text-indigo-500" />
+                      {t('analyses.report.charts.topContacts')}
+                    </h3>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="text-left text-gray-500 dark:text-gray-400 border-b border-gray-200/50 dark:border-gray-700/40">
+                            <th className="py-2 pr-3 font-medium w-8">#</th>
+                            <th className="py-2 pr-3 font-medium"></th>
+                            <th className="py-2 px-3 font-medium text-right">{t('analyses.report.charts.contactSent')}</th>
+                            <th className="py-2 px-3 font-medium text-right">{t('analyses.report.charts.contactReceived')}</th>
+                            <th className="py-2 pl-3 font-medium text-right">{t('analyses.report.charts.contactBalance')}</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {result.analytics.top_contacts.slice(0, 10).map((c, i) => (
+                            <tr key={c.name} className="border-b border-gray-100/60 dark:border-gray-700/20 last:border-0">
+                              <td className="py-2 pr-3 text-gray-400">{i + 1}</td>
+                              <td className="py-2 pr-3">
+                                <p className="font-medium text-gray-900 dark:text-white truncate max-w-[16rem]">{c.name}</p>
+                                <p className="text-xs text-gray-500">{t('analyses.report.charts.operationsCount', { count: c.count })}</p>
+                              </td>
+                              <td className="py-2 px-3 text-right text-red-600 dark:text-red-400 whitespace-nowrap">{c.sent > 0 ? `−${formatCurrency(c.sent)}` : '—'}</td>
+                              <td className="py-2 px-3 text-right text-green-600 dark:text-green-400 whitespace-nowrap">{c.received > 0 ? `+${formatCurrency(c.received)}` : '—'}</td>
+                              <td className={`py-2 pl-3 text-right font-semibold whitespace-nowrap ${c.balance >= 0 ? 'text-green-700 dark:text-green-300' : 'text-red-700 dark:text-red-300'}`}>
+                                {c.balance >= 0 ? '+' : '−'}{formatCurrency(Math.abs(c.balance))}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+
+                {/* Recurring payments — subscriptions and regular transfers */}
+                {result.analytics?.recurring_payments && result.analytics.recurring_payments.length > 0 && (
+                  <div className="p-6 bg-white dark:bg-gray-800/50 rounded-2xl border border-gray-200/50 dark:border-gray-700/40">
+                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+                      <Repeat className="w-5 h-5 text-purple-500" />
+                      {t('analyses.report.charts.recurringPayments')}
+                    </h3>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="text-left text-gray-500 dark:text-gray-400 border-b border-gray-200/50 dark:border-gray-700/40">
+                            <th className="py-2 pr-3 font-medium"></th>
+                            <th className="py-2 px-3 font-medium">{t('analyses.report.charts.recurringEvery')}</th>
+                            <th className="py-2 px-3 font-medium text-right">{t('analyses.report.charts.recurringAvg')}</th>
+                            <th className="py-2 px-3 font-medium text-right">{t('analyses.report.charts.foreignTotal')}</th>
+                            <th className="py-2 pl-3 font-medium text-right">{t('analyses.report.charts.recurringLast')}</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {result.analytics.recurring_payments.slice(0, 12).map((p) => (
+                            <tr key={p.name} className="border-b border-gray-100/60 dark:border-gray-700/20 last:border-0">
+                              <td className="py-2 pr-3">
+                                <p className="font-medium text-gray-900 dark:text-white truncate max-w-[18rem]">{p.name}</p>
+                                <p className="text-xs text-gray-500">{t('analyses.report.charts.operationsCount', { count: p.count })}</p>
+                              </td>
+                              <td className="py-2 px-3">
+                                <span className="inline-block px-2 py-0.5 rounded-full text-xs bg-purple-50 dark:bg-purple-900/20 text-purple-700 dark:text-purple-300">
+                                  {t(`analyses.report.charts.${freqKey(p.frequency)}`)}
+                                </span>
+                              </td>
+                              <td className="py-2 px-3 text-right text-gray-900 dark:text-white whitespace-nowrap">{formatCurrency(p.avg_amount)}</td>
+                              <td className="py-2 px-3 text-right font-semibold text-gray-900 dark:text-white whitespace-nowrap">{formatCurrency(p.total_amount)}</td>
+                              <td className="py-2 pl-3 text-right text-gray-500 whitespace-nowrap">{shortDate(p.last_payment)}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+
+                {/* Foreign-currency operations */}
+                {result.analytics?.foreign_currency?.transactions && result.analytics.foreign_currency.transactions.length > 0 && (
+                  <div className="p-6 bg-white dark:bg-gray-800/50 rounded-2xl border border-gray-200/50 dark:border-gray-700/40">
+                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+                      <Globe className="w-5 h-5 text-cyan-500" />
+                      {t('analyses.report.charts.foreignCurrency')}
+                    </h3>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="text-left text-gray-500 dark:text-gray-400 border-b border-gray-200/50 dark:border-gray-700/40">
+                            <th className="py-2 pr-3 font-medium">{t('analyses.report.charts.foreignCurrencyCol')}</th>
+                            <th className="py-2 px-3 font-medium text-right">{t('analyses.report.charts.foreignInKzt')}</th>
+                            <th className="py-2 pl-3 font-medium text-right">{t('analyses.report.charts.foreignAvgRate')}</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {result.analytics.foreign_currency.transactions.map((fx) => (
+                            <tr key={fx.currency} className="border-b border-gray-100/60 dark:border-gray-700/20 last:border-0">
+                              <td className="py-2 pr-3">
+                                <span className="font-medium text-gray-900 dark:text-white">{fx.currency}</span>
+                                <span className="text-xs text-gray-500 ml-2">{fx.total_original.toLocaleString(locale, { maximumFractionDigits: 2 })} {fx.currency}</span>
+                                <p className="text-xs text-gray-500">{t('analyses.report.charts.operationsCount', { count: fx.transaction_count })}</p>
+                              </td>
+                              <td className="py-2 px-3 text-right font-semibold text-gray-900 dark:text-white whitespace-nowrap">{formatCurrency(fx.total_kzt)}</td>
+                              <td className="py-2 pl-3 text-right text-gray-500 whitespace-nowrap">{fx.avg_exchange_rate.toLocaleString(locale, { maximumFractionDigits: 2 })}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                        <tfoot>
+                          <tr className="border-t border-gray-200/60 dark:border-gray-700/40">
+                            <td className="py-2 pr-3 font-medium text-gray-700 dark:text-gray-300">{t('analyses.report.charts.foreignTotal')}</td>
+                            <td className="py-2 px-3 text-right font-bold text-gray-900 dark:text-white whitespace-nowrap">{formatCurrency(result.analytics.foreign_currency.total_foreign_kzt)}</td>
+                            <td></td>
+                          </tr>
+                        </tfoot>
+                      </table>
+                    </div>
+                  </div>
+                )}
+
+                {/* Daily balance dynamics */}
+                {result.analytics?.daily_patterns && result.analytics.daily_patterns.length > 1 && (
+                  <div className="p-6 bg-white dark:bg-gray-800/50 rounded-2xl border border-gray-200/50 dark:border-gray-700/40">
+                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+                      <Activity className="w-5 h-5 text-emerald-500" />
+                      {t('analyses.report.charts.dailyDynamics')}
+                    </h3>
+                    <ResponsiveContainer width="100%" height={260}>
+                      <AreaChart data={result.analytics.daily_patterns}>
+                        <defs>
+                          <linearGradient id="colorBalance" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stopColor="#10b981" stopOpacity={0.3}/>
+                            <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
+                          </linearGradient>
+                        </defs>
+                        <XAxis dataKey="date" tick={{ fontSize: 11 }} tickFormatter={shortDate} minTickGap={24} />
+                        <YAxis tick={{ fontSize: 12 }} tickFormatter={(v) => `${(v / 1000).toFixed(0)}K`} />
+                        <Tooltip
+                          contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.15)', background: 'rgba(255,255,255,0.95)' }}
+                          labelFormatter={(label: string) => shortDate(label)}
+                          formatter={(value: number) => [formatCurrency(value), t('analyses.report.charts.balanceLabel')]}
+                        />
+                        <Area type="monotone" dataKey="balance" stroke="#10b981" fill="url(#colorBalance)" strokeWidth={2.5} name="balance" />
+                      </AreaChart>
                     </ResponsiveContainer>
                   </div>
                 )}

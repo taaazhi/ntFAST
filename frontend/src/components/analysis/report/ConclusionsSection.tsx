@@ -15,6 +15,13 @@ interface Props {
 export function ConclusionsSection({ result, fraud }: Props) {
   const { t, i18n } = useTranslation();
   const locale = intlLocale(i18n.language);
+  // Описание этапа собирается из переведённых фрагментов: пустые отбрасываем,
+  // непустые склеиваем пробелом — как раньше делали конкатенацией строк, но
+  // теперь каждый фрагмент приходит из локали, а не зашит по-русски.
+  const j = (...parts: string[]) => parts.filter(Boolean).join(' ');
+  const sd = (key: string, vars?: Record<string, unknown>) =>
+    t(`analyses.report.conclusions.stageDesc.${key}`, vars || {});
+  const sn = (key: string) => t(`analyses.report.conclusions.stageNames.${key}`);
   return (
               <motion.div
                 key="conclusions"
@@ -58,58 +65,88 @@ export function ConclusionsSection({ result, fraud }: Props) {
                       <div className="space-y-3">
                         {[
                           {
-                            step: 1, name: 'Velocity-анализ', score: fraud.velocity.risk_score,
-                            desc: fraud.velocity.burst_alerts.length > 0 || fraud.velocity.daily_spikes.length > 0
-                              ? `Обнаружено ${fraud.velocity.burst_alerts.length} серий быстрых транзакций (burst) и ${fraud.velocity.daily_spikes.length} дней с аномальной активностью (Z-score > 2.5). ${fraud.velocity.amount_acceleration?.length > 0 ? `Крупные оттоки за 24ч: ${fraud.velocity.amount_acceleration.length} случаев.` : ''} ${fraud.velocity.counterparty_churn?.high_churn_days > 0 ? `Высокая частота новых контрагентов: ${fraud.velocity.counterparty_churn.high_churn_days} дней.` : ''}`
-                              : 'Серий быстрых транзакций и аномальных дней не обнаружено. Частота операций в пределах нормы.'
+                            step: 1, name: sn('velocity'), score: fraud.velocity.risk_score,
+                            desc: (fraud.velocity.burst_alerts.length > 0 || fraud.velocity.daily_spikes.length > 0)
+                              ? j(
+                                  sd('velocityFound', { bursts: fraud.velocity.burst_alerts.length, spikes: fraud.velocity.daily_spikes.length }),
+                                  fraud.velocity.amount_acceleration?.length > 0 ? sd('velocityAccel', { count: fraud.velocity.amount_acceleration.length }) : '',
+                                  fraud.velocity.counterparty_churn?.high_churn_days > 0 ? sd('velocityChurn', { count: fraud.velocity.counterparty_churn.high_churn_days }) : ''
+                                )
+                              : sd('velocityEmpty')
                           },
                           {
-                            step: 2, name: 'Сетевой/Графовый анализ', score: fraud.graph.risk_score,
+                            step: 2, name: sn('graph'), score: fraud.graph.risk_score,
                             desc: fraud.graph.node_count > 0
-                              ? `Построен граф: ${fraud.graph.node_count} контрагентов, ${fraud.graph.edge_count} связей. ${fraud.graph.cycles.length > 0 ? `⚠️ Обнаружено ${fraud.graph.cycles.length} круговых переводов (round-tripping).` : 'Круговых переводов не обнаружено.'} ${fraud.graph.hub_nodes?.length > 0 ? `Ключевые хабы: ${fraud.graph.hub_nodes.slice(0, 3).map((h: any) => h.name).join(', ')}.` : ''}`
-                              : 'Граф контрагентов пуст — нет данных о контрагентах для сетевого анализа.'
+                              ? j(
+                                  sd('graphBuilt', { nodes: fraud.graph.node_count, edges: fraud.graph.edge_count }),
+                                  fraud.graph.cycles.length > 0 ? sd('graphCycles', { count: fraud.graph.cycles.length }) : sd('graphNoCycles'),
+                                  fraud.graph.hub_nodes?.length > 0 ? sd('graphHubs', { hubs: fraud.graph.hub_nodes.slice(0, 3).map((h: any) => h.name).join(', ') }) : ''
+                                )
+                              : sd('graphEmpty')
                           },
                           {
-                            step: 3, name: 'Структурирование (AML)', score: fraud.structuring.risk_score,
+                            step: 3, name: sn('structuring'), score: fraud.structuring.risk_score,
                             desc: (fraud.structuring.just_under_threshold.length > 0 || fraud.structuring.split_groups.length > 0 || fraud.structuring.smurfing_patterns.length > 0)
-                              ? `${fraud.structuring.just_under_threshold.length > 0 ? `${fraud.structuring.just_under_threshold.length} сумм близких к порогу 1M KZT (90-99%).` : ''} ${fraud.structuring.split_groups.length > 0 ? `${fraud.structuring.split_groups.length} случаев дробления суммы одному получателю.` : ''} ${fraud.structuring.smurfing_patterns.length > 0 ? `${fraud.structuring.smurfing_patterns.length} паттернов smurfing (одна сумма → разные получатели).` : ''}`.trim()
-                              : 'Признаков структурирования (дробления для обхода порогов) не обнаружено.'
+                              ? j(
+                                  fraud.structuring.just_under_threshold.length > 0 ? sd('structThreshold', { count: fraud.structuring.just_under_threshold.length }) : '',
+                                  fraud.structuring.split_groups.length > 0 ? sd('structSplit', { count: fraud.structuring.split_groups.length }) : '',
+                                  fraud.structuring.smurfing_patterns.length > 0 ? sd('structSmurf', { count: fraud.structuring.smurfing_patterns.length }) : ''
+                                )
+                              : sd('structEmpty')
                           },
                           {
-                            step: 4, name: 'Транзитные переводы доходов/расходов', score: fraud.cross_reference.risk_score,
-                            desc: `Соотношение доходов к расходам: ${fraud.cross_reference.income_expense_ratio?.toFixed(2) || 'N/A'}. ${fraud.cross_reference.rapid_pass_through.length > 0 ? `⚠️ ${fraud.cross_reference.rapid_pass_through.length} транзитных операций (приход → быстрый отток похожей суммы за 48ч).` : 'Транзитных операций (pass-through) не обнаружено.'}`
+                            step: 4, name: sn('crossRef'), score: fraud.cross_reference.risk_score,
+                            desc: j(
+                                  sd('crossRatio', { ratio: fraud.cross_reference.income_expense_ratio?.toFixed(2) || 'N/A' }),
+                                  fraud.cross_reference.rapid_pass_through.length > 0 ? sd('crossPass', { count: fraud.cross_reference.rapid_pass_through.length }) : sd('crossNoPass')
+                                )
                           },
                           {
-                            step: 5, name: 'Рисковые мерчанты', score: fraud.merchant_risk.risk_score,
+                            step: 5, name: sn('merchant'), score: fraud.merchant_risk.risk_score,
                             desc: (fraud.merchant_risk.high_risk_merchants.length > 0 || fraud.merchant_risk.medium_risk_merchants?.length > 0)
-                              ? `${fraud.merchant_risk.high_risk_merchants.length > 0 ? `Высокий риск: ${fraud.merchant_risk.high_risk_merchants.map((m: any) => `${m.name} (${m.category})`).join(', ')} — ${fraud.merchant_risk.total_high_risk_pct.toFixed(1)}% расходов.` : ''} ${fraud.merchant_risk.medium_risk_merchants?.length > 0 ? `Средний риск: ${fraud.merchant_risk.medium_risk_merchants.slice(0, 3).map((m: any) => `${m.name} (${m.category})`).join(', ')}.` : ''}`.trim()
-                              : 'Операций с высокорисковыми мерчантами (гемблинг, крипто, ломбарды) не обнаружено.'
+                              ? j(
+                                  fraud.merchant_risk.high_risk_merchants.length > 0 ? sd('merchantHigh', { list: fraud.merchant_risk.high_risk_merchants.map((m: any) => `${m.name} (${m.category})`).join(', '), pct: fraud.merchant_risk.total_high_risk_pct.toFixed(1) }) : '',
+                                  fraud.merchant_risk.medium_risk_merchants?.length > 0 ? sd('merchantMedium', { list: fraud.merchant_risk.medium_risk_merchants.slice(0, 3).map((m: any) => `${m.name} (${m.category})`).join(', ') }) : ''
+                                )
+                              : sd('merchantEmpty')
                           },
                           ...(fraud.night_transactions ? [{
-                            step: 6, name: 'Ночные транзакции (23:00-06:00)', score: fraud.night_transactions.risk_score,
+                            step: 6, name: sn('night'), score: fraud.night_transactions.risk_score,
                             desc: fraud.night_transactions.no_time_data
-                              ? 'Анализ пропущен — в выписке отсутствует информация о времени транзакций (только даты).'
+                              ? sd('nightNoData')
                               : fraud.night_transactions.night_count > 0
-                                ? `${fraud.night_transactions.night_count} ночных операций (${(fraud.night_transactions.night_ratio * 100).toFixed(1)}% от всех). ${fraud.night_transactions.large_night_transfers?.length > 0 ? `Крупных ночных переводов (>50K): ${fraud.night_transactions.large_night_transfers.length}.` : ''} ${fraud.night_transactions.night_clusters?.length > 0 ? `Серий ночных транзакций: ${fraud.night_transactions.night_clusters.length}.` : ''}`
-                                : 'Подозрительных ночных операций не обнаружено.'
+                                ? j(
+                                    sd('nightFound', { count: fraud.night_transactions.night_count, ratio: (fraud.night_transactions.night_ratio * 100).toFixed(1) }),
+                                    fraud.night_transactions.large_night_transfers?.length > 0 ? sd('nightLarge', { count: fraud.night_transactions.large_night_transfers.length }) : '',
+                                    fraud.night_transactions.night_clusters?.length > 0 ? sd('nightClusters', { count: fraud.night_transactions.night_clusters.length }) : ''
+                                  )
+                                : sd('nightEmpty')
                           }] : []),
                           ...(fraud.duplicate_payments ? [{
-                            step: 7, name: 'Дублирующие платежи', score: fraud.duplicate_payments.risk_score,
+                            step: 7, name: sn('duplicate'), score: fraud.duplicate_payments.risk_score,
                             desc: fraud.duplicate_payments.total_duplicates > 0
-                              ? `${fraud.duplicate_payments.total_duplicates} дубликатов в ${safeLen(fraud.duplicate_payments.duplicate_groups)} группах. ${fraud.duplicate_payments.total_duplicate_amount > 0 ? `Общая сумма дублей: ${Math.round(fraud.duplicate_payments.total_duplicate_amount).toLocaleString('ru-RU')} KZT.` : ''} ${fraud.duplicate_payments.same_amount_diff_recipient?.length > 0 ? `⚠️ ${fraud.duplicate_payments.same_amount_diff_recipient.length} случаев веерной отправки одной суммы разным получателям.` : ''}`
-                              : 'Повторных/дублирующих платежей одному получателю не обнаружено.'
+                              ? j(
+                                  sd('dupFound', { count: fraud.duplicate_payments.total_duplicates, groups: safeLen(fraud.duplicate_payments.duplicate_groups) }),
+                                  fraud.duplicate_payments.total_duplicate_amount > 0 ? sd('dupAmount', { amount: Math.round(fraud.duplicate_payments.total_duplicate_amount).toLocaleString(locale) }) : '',
+                                  fraud.duplicate_payments.same_amount_diff_recipient?.length > 0 ? sd('dupFan', { count: fraud.duplicate_payments.same_amount_diff_recipient.length }) : ''
+                                )
+                              : sd('dupEmpty')
                           }] : []),
                           ...(fraud.round_amounts ? [{
-                            step: 8, name: 'Круглые суммы', score: fraud.round_amounts.risk_score,
+                            step: 8, name: sn('round'), score: fraud.round_amounts.risk_score,
                             desc: fraud.round_amounts.round_count > 0
-                              ? `${fraud.round_amounts.round_count} круглых исходящих переводов (${(fraud.round_amounts.round_ratio * 100).toFixed(1)}% от исходящих). ${fraud.round_amounts.consecutive_round?.length > 0 ? `Серии круглых сумм подряд: ${fraud.round_amounts.consecutive_round.length}.` : ''} ${fraud.round_amounts.round_total_amount > 0 ? `Общая сумма: ${Math.round(fraud.round_amounts.round_total_amount).toLocaleString('ru-RU')} KZT.` : ''}`
-                              : 'Подозрительных паттернов круглых сумм в исходящих переводах не обнаружено.'
+                              ? j(
+                                  sd('roundFound', { count: fraud.round_amounts.round_count, ratio: (fraud.round_amounts.round_ratio * 100).toFixed(1) }),
+                                  fraud.round_amounts.consecutive_round?.length > 0 ? sd('roundConsecutive', { count: fraud.round_amounts.consecutive_round.length }) : '',
+                                  fraud.round_amounts.round_total_amount > 0 ? sd('roundAmount', { amount: Math.round(fraud.round_amounts.round_total_amount).toLocaleString(locale) }) : ''
+                                )
+                              : sd('roundEmpty')
                           }] : []),
                           ...(fraud.profile_mismatch ? [{
-                            step: 9, name: 'Профиль клиента', score: fraud.profile_mismatch.risk_score,
+                            step: 9, name: sn('profile'), score: fraud.profile_mismatch.risk_score,
                             desc: (safeLen(fraud.profile_mismatch.mismatches) > 0)
-                              ? `${safeLen(fraud.profile_mismatch.oversized_transactions)} транзакций превышают норму для профиля. ${safeLen(fraud.profile_mismatch.unexpected_activity)} случаев нехарактерной активности. ${safeLen(fraud.profile_mismatch.income_anomalies)} аномальных поступлений.`
-                              : 'Активность соответствует определённому профилю клиента. Отклонений не обнаружено.'
+                              ? sd('profileFound', { over: safeLen(fraud.profile_mismatch.oversized_transactions), unexpected: safeLen(fraud.profile_mismatch.unexpected_activity), anomalies: safeLen(fraud.profile_mismatch.income_anomalies) })
+                              : sd('profileEmpty')
                           }] : []),
                         ].map((item, i, arr) => {
                           const scoreColor = item.score >= 50 ? 'text-red-500 bg-red-50 dark:bg-red-900/20' : item.score >= 25 ? 'text-yellow-500 bg-yellow-50 dark:bg-yellow-900/20' : 'text-green-500 bg-green-50 dark:bg-green-900/20';
