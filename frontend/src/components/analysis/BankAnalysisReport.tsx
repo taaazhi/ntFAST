@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, lazy, Suspense } from 'react';
 import { AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
 import { useTranslation } from 'react-i18next';
@@ -8,11 +8,14 @@ import {
 } from 'lucide-react';
 import { KaspiAnalysisResult, bankAnalysisAPI } from '../../services/api';
 import { SectionId, TxSortField, intlLocale } from './report/shared';
-import { OverviewSection } from './report/OverviewSection';
-import { FinancialSection } from './report/FinancialSection';
-import { AntifraudSection } from './report/AntifraudSection';
-import { DetailsSection } from './report/DetailsSection';
-import { ConclusionsSection } from './report/ConclusionsSection';
+// Секции грузятся лениво: в них recharts и графики — самый тяжёлый код отчёта.
+// Так он уходит из главного бандла в отдельные чанки и подтягивается, когда
+// следователь открывает вкладку, а не при первой загрузке всего приложения.
+const OverviewSection = lazy(() => import('./report/OverviewSection').then(m => ({ default: m.OverviewSection })));
+const FinancialSection = lazy(() => import('./report/FinancialSection').then(m => ({ default: m.FinancialSection })));
+const AntifraudSection = lazy(() => import('./report/AntifraudSection').then(m => ({ default: m.AntifraudSection })));
+const DetailsSection = lazy(() => import('./report/DetailsSection').then(m => ({ default: m.DetailsSection })));
+const ConclusionsSection = lazy(() => import('./report/ConclusionsSection').then(m => ({ default: m.ConclusionsSection })));
 
 interface BankAnalysisReportProps {
   result: KaspiAnalysisResult;
@@ -283,6 +286,7 @@ export function BankAnalysisReport({ result, onClose }: BankAnalysisReportProps)
 
         {/* ===== CONTENT SECTIONS ===== */}
         <div className="p-8">
+          <Suspense fallback={<div className="flex justify-center py-20"><Loader2 className="w-8 h-8 animate-spin text-blue-500" /></div>}>
           <AnimatePresence mode="wait">
             {/* SECTION 1: OVERVIEW */}
             {activeSection === 'overview' && (
@@ -321,6 +325,7 @@ export function BankAnalysisReport({ result, onClose }: BankAnalysisReportProps)
               <ConclusionsSection result={result} fraud={fraud} />
             )}
           </AnimatePresence>
+          </Suspense>
         </div>
       </div>
     </div>
