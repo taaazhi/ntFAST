@@ -92,6 +92,11 @@ def build_agent_provider(settings: Any = None) -> Optional[Any]:
       облачная. Так система сама предпочитает вариант, при котором данные
       остаются внутри периметра.
 
+    Согласие (`AI_ENRICHMENT_ENABLED`) требуется только облаку: оно про право
+    отправить данные третьему лицу. Локальный Ollama наружу ничего не шлёт,
+    поэтому запускается и без флага — иначе следователь видел бы 503 там, где
+    никакой передачи ПД нет.
+
     None означает «модели нет» — рабочее состояние, а не сбой: анализ
     выписки от языковой модели не зависит.
     """
@@ -100,12 +105,12 @@ def build_agent_provider(settings: Any = None) -> Optional[Any]:
 
         settings = default_settings
 
-    if not getattr(settings, "AI_ENRICHMENT_ENABLED", False):
-        logger.info("Агент выключен: AI_ENRICHMENT_ENABLED=false")
-        return None
-
     preference = str(getattr(settings, "AGENT_PROVIDER", "auto")).lower()
 
+    # Локальная модель идёт первой и без флага согласия: данные не покидают
+    # машину, поэтому разрешать «передачу наружу» нечему. `AI_ENRICHMENT_ENABLED`
+    # закрывает облако (см. ниже), а не локальный путь — иначе агент молчал бы
+    # даже там, где никакой передачи ПД нет.
     if preference in ("auto", "local"):
         from .ollama_provider import build_ollama_provider
 
@@ -116,6 +121,14 @@ def build_agent_provider(settings: Any = None) -> Optional[Any]:
         if preference == "local":
             logger.info("Локальная модель недоступна, а облако не разрешено")
             return None
+
+    # Облако: выписка уходит наружу. Нужны два условия сразу — явное согласие
+    # (`AI_ENRICHMENT_ENABLED`) и ключ. Без согласия молчим, даже если ключ есть:
+    # согласие — это про право отправить данные, ключ — только про техническую
+    # возможность.
+    if not getattr(settings, "AI_ENRICHMENT_ENABLED", False):
+        logger.info("Облачный агент выключен: AI_ENRICHMENT_ENABLED=false")
+        return None
 
     api_key = getattr(settings, "CLAUDE_API_KEY", "")
     if not api_key:

@@ -233,3 +233,39 @@ def test_local_only_never_falls_back_to_the_cloud(monkeypatch):
     )
 
     assert result is None
+
+
+def test_local_agent_runs_without_the_cloud_consent_flag(monkeypatch):
+    """Локальный агент не зависит от AI_ENRICHMENT_ENABLED. Флаг — про право
+    отправить данные третьему лицу; Ollama наружу ничего не шлёт, поэтому
+    запускается и при выключенном флаге. Иначе следователь видит 503 там, где
+    никакой передачи ПД нет."""
+    from app.services.agent import provider as provider_module
+    import app.services.agent.ollama_provider as ollama_module
+
+    class _FakeLocal:
+        name = "qwen2.5:3b (fake)"
+
+    fake = _FakeLocal()
+    monkeypatch.setattr(ollama_module, "build_ollama_provider", lambda s: fake)
+
+    result = provider_module.build_agent_provider(
+        _Settings(preference="auto", enabled=False)
+    )
+
+    assert result is fake
+
+
+def test_cloud_still_needs_consent_when_local_is_down(monkeypatch):
+    """Расцепление локального пути не должно приоткрыть облако: в auto без
+    локальной модели и без согласия агент молчит, даже когда ключ задан."""
+    from app.services.agent import provider as provider_module
+    import app.services.agent.ollama_provider as ollama_module
+
+    monkeypatch.setattr(ollama_module, "build_ollama_provider", lambda s: None)
+
+    result = provider_module.build_agent_provider(
+        _Settings(preference="auto", key="sk-test", enabled=False)
+    )
+
+    assert result is None

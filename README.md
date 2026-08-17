@@ -680,7 +680,7 @@ by the backend at startup, so no migration step is needed for this path.
 
 ### Option B — Manual (local dev)
 
-> Requires Python 3.11, Node 18+, PostgreSQL 16, Redis 7, and [Ollama](https://ollama.com/) with `ollama pull llama3.1`.
+> Requires Python 3.11, Node 18+, PostgreSQL 16, Redis 7, and [Ollama](https://ollama.com/) with `ollama pull qwen2.5:3b` — the model the agent uses (`OLLAMA_MODEL`), one of the few compact ones with tool-calling.
 
 ```bash
 # Backend
@@ -698,6 +698,13 @@ cd frontend
 npm install
 npm run dev
 ```
+
+With Ollama running, the **investigative agent and case conclusion work out of the box** —
+`POST /api/analyses/{id}/ask` and `/conclusion` answer on the local model with no API key and
+no flag to flip. The `AI_ENRICHMENT_ENABLED` switch gates only the *cloud* path (data leaving the
+machine); a local model sends nothing outside the perimeter, so it needs no consent to run. For a
+ready-made stand profile, `cp backend/.env.demo.example backend/.env`. To use Claude instead, set
+`AGENT_PROVIDER=cloud`, `AI_ENRICHMENT_ENABLED=true` and a `CLAUDE_API_KEY`.
 
 ---
 

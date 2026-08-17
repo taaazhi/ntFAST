@@ -3,6 +3,7 @@
 .env.*
 !.env.example
 !.env.docker.example
+!.env.demo.example
 
 # Python
 __pycache__/
