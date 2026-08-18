@@ -19,9 +19,28 @@
 
 ---
 
+## Results at a glance
+
+| Result | Where it's shown |
+|---|---|
+| **500-transaction statement analysed end-to-end in ~3 s (PDF) / ~0.2 s (Excel)** | [Performance & Accuracy](#performance--accuracy) |
+| **Statute retrieval — hit@5 100%, MRR 0.967**, lexical → BM25, measured before and after | [Legal Grounding](#legal-grounding) |
+| **Kazakh-language search — 0% → 75%** after indexing `title_kk` | [Legal Grounding](#legal-grounding) |
+| **Citation check found 5 of 6 existing statute references were wrong** | [Legal Grounding](#legal-grounding) |
+| **3B vs 7B — the smaller model wins on "invents no numbers", 62.5% vs 43.8%** | [The Conclusion](#the-conclusion) |
+| **Every number reproduces** — `python scripts/benchmark.py` and the `eval_*` scripts | [Performance & Accuracy](#performance--accuracy) |
+
+## Contents
+
+[Overview](#overview) · [Screenshots](#screenshots) · [Key Features](#key-features) · [Architecture](#architecture) · [Tech Stack](#tech-stack) · [Fraud Detection Engine](#fraud-detection-engine) · [Legal Grounding](#legal-grounding) · [Reading an Unfamiliar Bank](#reading-an-unfamiliar-bank) · [The Conclusion](#the-conclusion) · [Investigative Agent](#investigative-agent) · [Performance & Accuracy](#performance--accuracy) · [Quick Start](#quick-start) · [Project Structure](#project-structure) · [Testing](#testing) · [Roadmap](#roadmap)
+
+---
+
 ## Overview
 
 **ntFAST** ingests bank statements (Kaspi, Halyk and generic Excel / PDF / CSV), normalizes the transactions, and runs them through a **11-module fraud-detection engine** that combines rule-based, statistical and graph analysis into a single explainable **risk score (0–100)**.
+
+The score is not the whole product. Each finding is **grounded in law** — every scheme the engine reports carries the statute it falls under, checked against the official text on adilet.zan.kz rather than trusted — and the quality of both the legal retrieval and the model-written case conclusions is **measured by reproducible eval sets, not asserted**.
 
 The whole stack runs **on-premise**: parsing, scoring and the language model (Qwen2.5 via Ollama) all execute locally, and that is the default rather than a fallback. No transaction leaves the machine — a hard requirement for financial data under Kazakhstan's Personal Data Protection Law (№94-V). A cloud provider (Claude) can be enabled explicitly; everything sent to it passes through the anonymiser first.
 
@@ -57,6 +76,8 @@ The whole stack runs **on-premise**: parsing, scoring and the language model (Qw
 </table>
 
 </div>
+
+> **No hosted demo — by design.** The whole point of the system is that the model runs locally, so nothing leaves the machine. A public stand would need ~8 GB for the model, or would ship the product with its core switched off. So instead of a stand there are the screenshots above and reproducible measurements throughout the README. The Railway config is committed and the stack deploys — it just would not be the same product.
 
 ---
 
@@ -482,8 +503,8 @@ File → bank detection → parsing → categorisation → analytics → 11-modu
 
 | Input | Median | Min–max | Parsing | Engine |
 |---|---|---|---|---|
-| Excel (.xlsx) | **0.11 s** | 0.11–0.16 s | 0.06 s | 0.03 s |
-| PDF (ruled table) | **3.03 s** | 2.98–3.18 s | 2.98 s | 0.03 s |
+| Excel (.xlsx) | **0.20 s** | 0.19–0.23 s | 0.09 s | 0.03 s |
+| PDF (ruled table) | **3.28 s** | 3.21–3.43 s | 3.23 s | 0.03 s |
 
 Five measured runs after a discarded warm-up. Parsing dominates: PDF text extraction
 (pdfplumber) is ~50× the cost of reading the same statement from Excel, while the scoring
@@ -818,9 +839,11 @@ and reproduced locally.
 - [x] Statute corpus with citation verification against adilet.zan.kz
 - [x] Investigative agent over a local model, with masked tool results
 - [x] Labelled eval set — counterparty classification measured, not asserted
-- [ ] Kazakh-language statute texts (article titles are currently Russian only)
-- [ ] Public demo stand with a read-only account and preloaded synthetic analyses
+- [x] Kazakh-language statute **search** — titles (`title_kk`) indexed, retrieval 0% → 75%
+- [ ] Kazakh-language statute **texts** — article bodies are still Russian-only, which is the 75% ceiling
 - [ ] Graph database (Neo4j) for deeper network analysis
+
+*A public demo stand is a deliberate non-goal, not a missing feature — the model runs locally, and a hosted stand would either need ~8 GB for the model or show the product with its core switched off ([why](#screenshots)).*
 
 ---
 

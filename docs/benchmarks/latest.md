@@ -1,6 +1,6 @@
 # ntFAST benchmark — latest run
 
-Generated: 2026-08-15 03:55  ·  `python scripts/benchmark.py --runs 2 --transactions 200`
+Generated: 2026-08-18 13:38  ·  `python scripts/benchmark.py --runs 5 --transactions 500`
 
 ## Machine
 
@@ -10,25 +10,25 @@ Generated: 2026-08-15 03:55  ·  `python scripts/benchmark.py --runs 2 --transac
 | RAM | 7.9 GB |
 | Python | 3.11.9 |
 | OS | Windows 10 |
-| Ollama reachable | no |
+| Ollama reachable | yes |
 
 > The composite risk score is produced by rule-based and statistical modules only — `FraudEngine.full_analysis()` never calls the LLM. Ollama being up or down therefore does not move these timings. The LLM module (`nlp_analyzer.py`) is implemented but not wired into the scoring path.
 
-## End-to-end latency — 200 transactions
+## End-to-end latency — 500 transactions
 
 File → bank detection → parsing → categorisation → analytics → fraud engine → risk score. One warm-up run is discarded.
 
 | Input | Runs | Median | Min | Max | Std dev |
 |---|---|---|---|---|---|
-| Excel (.xlsx) | 2 | 0.18 s | 0.18 s | 0.18 s | 0.00 s |
-| PDF — ruled table | 2 | 3.68 s | 3.62 s | 3.75 s | 0.09 s |
+| Excel (.xlsx) | 5 | 0.20 s | 0.19 s | 0.23 s | 0.02 s |
+| PDF — ruled table | 5 | 3.28 s | 3.21 s | 3.43 s | 0.08 s |
 
 ### Phase breakdown (median)
 
 | Input | Parsing | Fraud engine | Composite score |
 |---|---|---|---|
-| Excel (.xlsx) | 0.10 s | 0.02 s | 52.5 (medium) |
-| PDF — ruled table | 3.68 s | 0.02 s | 52.5 (medium) |
+| Excel (.xlsx) | 0.09 s | 0.03 s | 70.0 (high) |
+| PDF — ruled table | 3.23 s | 0.03 s | 70.0 (high) |
 
 ## Fraud engine in isolation
 
@@ -36,12 +36,12 @@ File → bank detection → parsing → categorisation → analytics → fraud e
 
 | Input to the engine | Runs | Median | Composite score | Risk level | Red flags |
 |---|---|---|---|---|---|
-| parsed (generic, sparse) | 2 | 0.02 s | 0.0 | low | 0 |
-| enriched (bank-parser fields) | 2 | 0.02 s | 63.0 | high | 3 |
-| unseen layout — kk | 2 | 0.03 s | 17.4 | low | 2 |
-| unseen layout — kk + обогащение | 2 | 0.03 s | 63.0 | high | 3 |
-| unseen layout — ru | 2 | 0.02 s | 14.9 | low | 2 |
-| unseen layout — ru + обогащение | 2 | 0.02 s | 63.0 | high | 3 |
+| parsed (generic, sparse) | 5 | 0.03 s | 1.6 | low | 0 |
+| enriched (bank-parser fields) | 5 | 0.05 s | 70.0 | high | 38 |
+| unseen layout — kk | 5 | 0.05 s | 52.5 | medium | 38 |
+| unseen layout — kk + обогащение | 5 | 0.05 s | 70.0 | high | 40 |
+| unseen layout — ru | 5 | 0.06 s | 52.5 | medium | 37 |
+| unseen layout — ru + обогащение | 5 | 0.05 s | 70.0 | high | 40 |
 
 ## Extraction accuracy
 
@@ -51,12 +51,13 @@ The two *unseen* rows recover 100% of transactions but score 59% and 84% fully c
 
 | Layout | Expected | Returned | Recovered | Fully correct | Spurious |
 |---|---|---|---|---|---|
-| Excel (.xlsx) | 200 | 200 | 200 (100.0%) | 200 (100.0%) | 0 |
-| PDF — ruled table | 200 | 200 | 200 (100.0%) | 200 (100.0%) | 0 |
-| PDF — multipage + headers | 200 | 200 | 200 (100.0%) | 200 (100.0%) | 0 |
-| PDF — text, no table | 200 | 200 | 200 (100.0%) | 200 (100.0%) | 0 |
-| Unseen bank — Kazakh | 200 | 200 | 200 (100.0%) | 118 (59.0%) | 0 |
-| Unseen bank — debit/credit columns | 200 | 200 | 200 (100.0%) | 168 (84.0%) | 0 |
+| Excel (.xlsx) | 500 | 500 | 500 (100.0%) | 500 (100.0%) | 0 |
+| PDF — ruled table | 500 | 500 | 500 (100.0%) | 500 (100.0%) | 0 |
+| PDF — multipage + headers | 500 | 500 | 500 (100.0%) | 500 (100.0%) | 0 |
+| PDF — text, no table | 500 | 500 | 500 (100.0%) | 500 (100.0%) | 0 |
+| Unseen bank — Kazakh | 500 | 500 | 500 (100.0%) | 284 (56.8%) | 0 |
+| Незнакомый банк — нетиповые заголовки | 500 | 500 | 500 (100.0%) | 425 (85.0%) | 0 |
+| Unseen bank — debit/credit columns | 500 | 500 | 500 (100.0%) | 425 (85.0%) | 0 |
 
 ## Field completeness
 
@@ -66,11 +67,13 @@ The *unseen* layouts are statements from a bank no parser was written for: diffe
 
 | Input | Rows | Counterparty | Merchant | Classified | Flags |
 |---|---|---|---|---|---|
-| bank parser (Kaspi layout) | 200 | 100% | 70% | 100% | 10% |
-| Unseen bank — Kazakh | 200 | 100% | 0% | 0% | 0% |
-| Unseen bank — Kazakh + обогащение | 200 | 100% | 72% | 98% | 6% |
-| Unseen bank — debit/credit columns | 200 | 100% | 0% | 0% | 0% |
-| Unseen bank — debit/credit columns + обогащение | 200 | 100% | 72% | 98% | 6% |
+| bank parser (Kaspi layout) | 500 | 100% | 67% | 100% | 10% |
+| Unseen bank — Kazakh | 500 | 100% | 0% | 0% | 0% |
+| Unseen bank — Kazakh + обогащение | 500 | 100% | 66% | 97% | 6% |
+| Незнакомый банк — нетиповые заголовки | 500 | 100% | 0% | 0% | 0% |
+| Незнакомый банк — нетиповые заголовки + обогащение | 500 | 100% | 66% | 97% | 6% |
+| Unseen bank — debit/credit columns | 500 | 100% | 0% | 0% | 0% |
+| Unseen bank — debit/credit columns + обогащение | 500 | 100% | 66% | 97% | 6% |
 
 ### Where the deterministic parser stops
 
@@ -105,7 +108,7 @@ None of these is a layout problem, and none is solved by another regex. They are
 
 ## Method and limits
 
-- Input is generated from a seeded ground truth (200 transactions, `seed=42`) into a temporary directory; no real statement is ever read.
+- Input is generated from a seeded ground truth (500 transactions, `seed=42`) into a temporary directory; no real statement is ever read.
 - Accuracy is therefore parser fidelity on **known, self-generated layouts**, not accuracy on real bank statements. Numbers on genuine Kaspi/Halyk exports are not measured here.
 - Timings come from one machine (above) with no other load control; treat them as an order of magnitude, not a guarantee.
 - Reproduce with `python scripts/benchmark.py`.
