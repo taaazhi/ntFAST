@@ -54,28 +54,32 @@ def test_every_expected_article_is_present_in_the_fixture():
 
 def test_retrieval_quality_floor():
     """Правильная статья обязана быть в top-5 для каждого запроса, и в среднем
-    близко к первому месту. Если тронут стеммер или скоринг и качество
-    просядет — тест падает красным, а не молча зеленеет."""
-    queries = load_queries()
-    hits = 0
-    rr_sum = 0.0
-    for q in queries:
+    близко к первому месту. Порог по-язычно: русское ранжирование держим на
+    MRR 1.0 (BM25 ставит нужную статью первой), а казахский запрос обязан хотя
+    бы находить норму в top-5 — казахский текст статей в корпусе отсутствует,
+    поиск идёт по названию, поэтому ранг ниже, но находимость полная. Просадка
+    любого языка уронит тест красным, а не молча зеленеет."""
+    hits = {"ru": 0, "kk": 0}
+    rr_sum = {"ru": 0.0, "kk": 0.0}
+    totals = {"ru": 0, "kk": 0}
+    for q in load_queries():
+        lang = q.get("lang", "ru")
+        totals[lang] += 1
         ranked = [a.citation for a, _ in
                   corpus.search(q["query"], limit=5, corpus_dir=FIXTURE_DIR)]
         expected = set(q["expected"])
         if set(ranked) & expected:
-            hits += 1
+            hits[lang] += 1
         for i, citation in enumerate(ranked, 1):
             if citation in expected:
-                rr_sum += 1.0 / i
+                rr_sum[lang] += 1.0 / i
                 break
 
-    n = len(queries)
-    hit_at_5 = hits / n
-    mrr = rr_sum / n
-    assert hit_at_5 == 1.0, \
-        f"hit@5={hit_at_5:.1%}: поиск перестал находить норму для части запросов"
-    # BM25 держит фикстуру на MRR 1.0 (правильная статья всегда первая). Порог
-    # 0.95 фиксирует этот уровень: просадка ранжирования уронит тест красным.
-    assert mrr >= 0.95, \
-        f"MRR={mrr:.3f} < 0.95: ранжирование просело (нужная статья ушла вниз)"
+    ru_hit = hits["ru"] / totals["ru"]
+    ru_mrr = rr_sum["ru"] / totals["ru"]
+    kk_hit = hits["kk"] / totals["kk"] if totals["kk"] else 1.0
+
+    assert ru_hit == 1.0, f"RU hit@5={ru_hit:.1%}: русский поиск потерял норму"
+    assert ru_mrr >= 0.95, f"RU MRR={ru_mrr:.3f} < 0.95: русское ранжирование просело"
+    assert kk_hit == 1.0, \
+        f"KK hit@5={kk_hit:.1%}: казахский поиск не нашёл норму (title_kk не индексируется?)"

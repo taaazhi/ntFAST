@@ -233,7 +233,18 @@ def _corpus_index(corpus_dir: Optional[str] = None):
     df: Dict[str, int] = defaultdict(int)
     total_len = 0
     for article in articles:
-        tokens = tokenize(article.title) * TITLE_WEIGHT + tokenize(article.text)
+        # Казахское название индексируется наравне с русским: проект работает в
+        # Казахстане, и следователь вправе искать норму на государственном
+        # языке. Тело статьи только на русском (казахской редакции текста в
+        # корпусе нет), поэтому казахский запрос опирается на title_kk — этого
+        # хватает, когда в запросе есть официальный термин («заңдастыру»,
+        # «пирамида»). Пустой title_kk даёт пустой список — на русский поиск
+        # это не влияет.
+        tokens = (
+            tokenize(article.title) * TITLE_WEIGHT
+            + tokenize(article.title_kk) * TITLE_WEIGHT
+            + tokenize(article.text)
+        )
         counts = Counter(tokens)
         doc_counts.append(counts)
         total_len += sum(counts.values())

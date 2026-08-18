@@ -56,6 +56,7 @@ def evaluate_one(q: Dict, k: int, corpus_dir: str) -> Dict:
     relevant_in_topk = len(set(ranked) & expected)
     return {
         "id": q["id"],
+        "lang": q.get("lang", "ru"),
         "hit": bool(found),
         "reciprocal_rank": rr,
         "precision_at_k": relevant_in_topk / k if k else 0.0,
@@ -91,6 +92,17 @@ def report(rows: List[Dict], k: int, label: str) -> Dict[str, float]:
     print(f"    MRR (1/ранг первой)         {metrics['mrr']:.3f}")
     print(f"    precision@{k}               {metrics['precision_at_k']:.1%}")
     print(f"    recall@{k}                  {metrics['recall_at_k']:.1%}")
+
+    # Разбивка по языку запроса: проект работает в Казахстане, и важно видеть
+    # отдельно, что поиск находит норму и по русскому, и по казахскому запросу.
+    langs = sorted({r["lang"] for r in rows})
+    if len(langs) > 1:
+        print("\n  По языку запроса:")
+        for lang in langs:
+            group = [r for r in rows if r["lang"] == lang]
+            hit = sum(r["hit"] for r in group) / len(group)
+            mrr = sum(r["reciprocal_rank"] for r in group) / len(group)
+            print(f"    {lang}: hit@{k} {hit:.1%}, MRR {mrr:.3f}  ({len(group)} запр.)")
     return metrics
 
 

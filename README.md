@@ -200,9 +200,19 @@ the gap:
 | full corpus | MRR | 0.767 | **0.967** |
 | committed fixture | MRR | 0.878 | **1.000** |
 
-The number is what forced the change, and the number is what guards it: a floor of hit@5 = 100% /
-MRR ≥ 0.95 on the fixture is asserted in the test suite, so a future tweak to the stemmer or the
-scoring that quietly degrades ranking fails red.
+**The state language was searchable in Russian only.** The tool serves Kazakhstan, but the index
+held Russian titles and bodies — a Kazakh query hit nothing. The Kazakh article title (`title_kk`)
+is now indexed too, so a norm can be found in either language. Article bodies exist only in Russian,
+so a Kazakh query leans on the title; still, the gap closed from nothing to most of the way:
+
+| Query language | hit@5 (full corpus) | MRR |
+|---|---|---|
+| Russian | 100% | 0.967 |
+| Kazakh | 75% (was 0%) | 0.750 |
+
+The number is what forced the change, and the number is what guards it: the test suite asserts
+Russian MRR ≥ 0.95 and Kazakh hit@5 = 100% on the fixture separately, so a tweak that degrades
+either language — or drops the Kazakh index — fails red.
 
 ---
 
